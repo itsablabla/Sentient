@@ -227,18 +227,21 @@ async def complete_profile(
             raise HTTPException(status_code=404, detail="User profile not found.")
 
         existing_onboarding_data = user_profile.get("userData", {}).get("onboardingAnswers", {})
+        if not isinstance(existing_onboarding_data, dict):
+            existing_onboarding_data = {}
 
         # 3. Consolidate old and new data
         consolidated_data = {
             **existing_onboarding_data,
             "needs-pa": request.needs_pa,
-            "whatsapp_notifications_number": whatsapp_number
+            "whatsapp_notifications_number": whatsapp_number,
         }
 
         # 4. Update MongoDB with new answers and notification prefs
+        # We must update the entire `onboardingAnswers` object because it's encrypted as a whole.
+        # Using dot notation to update sub-fields will fail on encrypted string values.
         update_payload = {
-            "userData.onboardingAnswers.needs-pa": request.needs_pa,
-            "userData.onboardingAnswers.whatsapp_notifications_number": whatsapp_number,
+            "userData.onboardingAnswers": consolidated_data,
             "userData.notificationPreferences.whatsapp": {
                 "number": whatsapp_number,
                 "chatId": chat_id,
