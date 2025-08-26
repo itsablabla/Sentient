@@ -45,6 +45,14 @@ async def save_onboarding_data_endpoint(
     user_email = payload.get("email")
     plan = payload.get("plan", "free")
     
+    # --- IDEMPOTENCY CHECK ---
+    # First, check if onboarding is already marked as complete to prevent re-processing.
+    existing_profile = await mongo_manager.get_user_profile(user_id)
+    if existing_profile and existing_profile.get("userData", {}).get("onboardingComplete", False):
+        logger.warning(f"User {user_id} attempted to submit onboarding data again, but it's already complete. Ignoring request.")
+        return JSONResponse(content={"message": "Onboarding already completed.", "status": 200})
+    # --- END CHECK ---
+
     logger.info(f"[{datetime.datetime.now()}] [ONBOARDING] User {user_id}, Data keys: {list(request_body.data.keys())}")
     try:
         default_privacy_filters = {

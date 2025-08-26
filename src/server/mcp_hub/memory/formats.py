@@ -28,7 +28,7 @@ fact_analysis_required_format = {
 cud_decision_required_format = {
     "type": "object",
     "properties": {
-        "action": {"type": "string", "enum": ["ADD", "UPDATE", "DELETE"]},
+        "action": {"type": "string", "enum": ["ADD", "UPDATE", "DELETE", "IGNORE"]},
         "fact_id": {"type": ["integer", "null"], "description": "The ID of the fact to be updated or deleted. This should be null if the action is ADD."},
         "content": {"type": ["string", "null"], "description": "The new, full content of the fact if the action is ADD or UPDATE. Should be null for DELETE."},
         "analysis": {

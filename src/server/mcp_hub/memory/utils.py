@@ -253,6 +253,46 @@ async def _insert_fact_with_analysis(conn, user_id: str, content: str, source: O
         message += f" This is a short-term memory and will be forgotten around {expires_at.strftime('%Y-%m-%d %H:%M %Z')}."
     return message
 
+async def _update_fact_with_analysis(conn, user_id: str, fact_id: int, content: str, analysis: dict) -> str:
+    """Internal function to update a fact and its related metadata."""
+    logger.info(f"Executing _update_fact_with_analysis for fact_id {fact_id}.")
+    
+    expires_at = None
+    if analysis.get("memory_type") == "short-term":
+        expires_at = parse_duration(analysis.get("duration"))
+
+    async with conn.transaction():
+        embedding = _get_normalized_embedding(content, task_type="RETRIEVAL_DOCUMENT")
+        
+        await conn.execute(
+            """
+            UPDATE facts SET
+                content = $1,
+                embedding = $2,
+                expires_at = $3,
+                updated_at = NOW()
+            WHERE id = $4 AND user_id = $5
+            """,
+            content, embedding, expires_at, fact_id, user_id
+        )
+        logger.info(f"Updated fact record for ID: {fact_id}.")
+
+        # Update topics: delete old, insert new
+        await conn.execute("DELETE FROM fact_topics WHERE fact_id = $1", fact_id)
+        
+        topic_names = analysis.get("topics", ["Miscellaneous"])
+        for topic_name in topic_names:
+            topic_id = await conn.fetchval("SELECT id FROM topics WHERE name = $1", topic_name)
+            if topic_id:
+                await conn.execute("INSERT INTO fact_topics (fact_id, topic_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", fact_id, topic_id)
+        
+        logger.info(f"Updated topics for fact ID: {fact_id}.")
+    
+    message = f"Fact {fact_id} updated."
+    if expires_at:
+        message += f" It will now be forgotten around {expires_at.strftime('%Y-%m-%d %H:%M %Z')}."
+    return message
+
 async def _process_single_fact_cud(conn, user_id: str, fact_content: str, source: Optional[str] = None) -> str:
     """
     Processes a single atomic fact by deciding to ADD, UPDATE, or DELETE it.
@@ -291,29 +331,25 @@ async def _process_single_fact_cud(conn, user_id: str, fact_content: str, source
     logger.info(f"Step 3/3: Executing action '{decision.get('action')}'.")
     action = decision.get("action")
     
-    if action == "ADD" and decision.get("content") and decision.get("analysis"):
+    if action == "IGNORE":
+        fact_id = decision.get("fact_id")
+        logger.info(f"Action is IGNORE for fact '{fact_content[:50]}...'. It is a duplicate of fact {fact_id}. No changes made.")
+        return f"Fact already exists (ID: {fact_id}) and was ignored."
+    elif action == "ADD" and decision.get("content") and decision.get("analysis"):
         logger.info("Action is ADD. Inserting new fact with full analysis.")
         return await _insert_fact_with_analysis(conn, user_id, decision["content"], source, decision["analysis"])
 
     elif action == "UPDATE" and decision.get("fact_id") and decision.get("content") and decision.get("analysis"):
         fact_id = decision["fact_id"]
-        logger.info(f"Action is UPDATE for fact_id {fact_id}. Replacing fact.")
-        async with conn.transaction():
-            await conn.execute("DELETE FROM facts WHERE id = $1 AND user_id = $2", fact_id, user_id)
-            logger.info(f"Original fact {fact_id} deleted.")
-        return await _insert_fact_with_analysis(conn, user_id, decision["content"], source, decision["analysis"])
+        logger.info(f"Action is UPDATE for fact_id {fact_id}. Updating fact in place.")
+        return await _update_fact_with_analysis(conn, user_id, fact_id, decision["content"], decision["analysis"])
 
     elif action == "DELETE" and decision.get("fact_id"):
         fact_id = decision["fact_id"]
         logger.info(f"Action is DELETE for fact_id {fact_id}.")
         result = await conn.execute("DELETE FROM facts WHERE id = $1 AND user_id = $2", fact_id, user_id)
         
-        deleted_count = 0
-        try:
-            # Format is "DELETE 1", so we split and take the number.
-            deleted_count = int(result.split(" ")[1])
-        except (IndexError, ValueError):
-            pass # Keep deleted_count as 0
+        deleted_count = int(result.split(" ")[1]) if result and " " in result else 0
 
         if deleted_count == 1:
             logger.info(f"Successfully deleted fact {fact_id}.")
@@ -433,10 +469,7 @@ async def delete_memory_by_source(user_id: str, source_name: str) -> str:
     async with pool.acquire() as conn:
         result = await conn.execute("DELETE FROM facts WHERE user_id = $1 AND source = $2", user_id, source_name)
     
-    try:
-        deleted_count = int(result.split(" ")[1])
-    except (IndexError, ValueError):
-        deleted_count = 0
+    deleted_count = int(result.split(" ")[1]) if result and " " in result else 0
     logger.info(f"Deleted {deleted_count} facts from source: {source_name}")
     return f"Deleted {deleted_count} facts from source: {source_name}"
 
@@ -447,8 +480,5 @@ async def purge_expired_facts():
     async with pool.acquire() as conn:
         # The index on expires_at makes this query very efficient.
         result = await conn.execute("DELETE FROM facts WHERE expires_at IS NOT NULL AND expires_at < NOW()")
-        try:
-            deleted_count = int(result.split(" ")[1])
-            logger.info(f"Purge job: Purged {deleted_count} expired short-term memories.")
-        except (IndexError, ValueError):
-            logger.info("Purge job: No expired memories found to purge.")
+        deleted_count = int(result.split(" ")[1]) if result and " " in result else 0
+        logger.info(f"Purge job: Purged {deleted_count} expired short-term memories.")
