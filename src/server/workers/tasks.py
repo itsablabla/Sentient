@@ -29,12 +29,6 @@ from main.vector_db import get_conversation_summaries_collection
 from mcp_hub.tasks.prompts import ITEM_EXTRACTOR_SYSTEM_PROMPT, RESOURCE_MANAGER_SYSTEM_PROMPT
 from workers.utils.text_utils import clean_llm_output
 
-# Imports for poller logic
-from workers.poller.gmail.service import GmailPollingService
-from workers.poller.gcalendar.service import GCalendarPollingService
-from workers.poller.gmail.db import PollerMongoManager as GmailPollerDB
-from workers.poller.gcalendar.db import PollerMongoManager as GCalPollerDB
-
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -103,9 +97,50 @@ def cud_memory_task(user_id: str, information: str, source: Optional[str] = None
     This runs the core memory management logic asynchronously.
     """
     logger.info(f"Celery worker received cud_memory_task for user_id: {user_id}")
-    # This single call to run_async wraps the entire asynchronous logic,
+    # this single call to run_async wraps the entire asynchronous logic,
     # ensuring the event loop and DB connections are managed correctly for the task's lifecycle.
     run_async(async_cud_memory_task(user_id, information, source))
+
+@celery_app.task(name="start_long_form_task")
+def start_long_form_task(task_id: str, user_id: str):
+    """
+    Celery task entry point for initializing a new long-form task.
+    This will eventually become the orchestrator's first step.
+    """
+    logger.info(f"Celery worker received 'start_long_form_task' for task_id: {task_id}")
+    run_async(async_start_long_form_task(task_id, user_id))
+
+async def async_start_long_form_task(task_id: str, user_id: str):
+    """
+    The async logic for initializing a long-form task.
+    For Phase 1, it just logs and updates the state.
+    """
+    db_manager = MongoManager()
+    try:
+        logger.info(f"Starting long-form task {task_id} for user {user_id}. This is the initial step of the orchestrator.")
+
+        initial_log_entry = {
+            "timestamp": datetime.datetime.now(datetime.timezone.utc),
+            "action": "Task Initiated",
+            "details": {"message": "Orchestrator has started and is in the initial planning phase."},
+            "agent_reasoning": "The task has been created. The first step is to analyze the main goal and create an initial high-level plan."
+        }
+
+        update_payload = {
+            "long_form_details.current_state": "ACTIVE",
+            "long_form_details.execution_log": [initial_log_entry]
+        }
+        await db_manager.update_task(task_id, update_payload)
+        await push_task_list_update(user_id, task_id, "long_form_started")
+        logger.info(f"Long-form task {task_id} moved to ACTIVE state.")
+    except Exception as e:
+        logger.error(f"Error starting long-form task {task_id}: {e}", exc_info=True)
+        await db_manager.update_task(task_id, {
+            "long_form_details.current_state": "FAILED",
+            "error": f"Failed to start orchestrator: {str(e)}"
+        })
+    finally:
+        await db_manager.close()
 
 @celery_app.task(name="orchestrate_swarm_task")
 def orchestrate_swarm_task(task_id: str, user_id: str):
@@ -360,7 +395,7 @@ async def async_refine_and_plan_ai_task(task_id: str, user_id: str):
             # Ensure description is not empty, fall back to original prompt if needed
             if not parsed_data.get("name"):
                 parsed_data["name"] = task["description"] or task["name"]
-            await db_manager.update_task_field(task_id, parsed_data)
+            await db_manager.update_task_field(task_id, user_id, parsed_data)
             logger.info(f"Successfully refined and updated AI task {task_id} with new details.")
         else:
             logger.warning(f"Could not parse details for AI task {task_id}, proceeding with raw description.")
@@ -371,10 +406,10 @@ async def async_refine_and_plan_ai_task(task_id: str, user_id: str):
 
     except LLMProviderDownError as e:
         logger.error(f"LLM provider down during task refinement for {task_id}: {e}", exc_info=True)
-        await db_manager.update_task_field(task_id, {"status": "error", "error": "Sorry, our AI provider is currently down. Please try again later."})
+        await db_manager.update_task_field(task_id, user_id, {"status": "error", "error": "Sorry, our AI provider is currently down. Please try again later."})
     except Exception as e:
         logger.error(f"Error refining and planning AI task {task_id}: {e}", exc_info=True)
-        await db_manager.update_task_field(task_id, {"status": "error", "error": "Failed during initial refinement."})
+        await db_manager.update_task_field(task_id, user_id, {"status": "error", "error": "Failed during initial refinement."})
     finally:
         await db_manager.close()
 
@@ -403,7 +438,7 @@ async def async_process_change_request(task_id: str, user_id: str, user_message:
         })
 
         # 3. Update task status and chat history in DB
-        await db_manager.update_task_field(task_id, {
+        await db_manager.update_task_field(task_id, user_id, {
             "chat_history": chat_history,
             "status": "planning" # Revert to planning to re-evaluate
         })
@@ -481,7 +516,9 @@ async def async_generate_plan(task_id: str, user_id: str):
         is_change_request = bool(task.get("chat_history"))
 
         # Prevent re-planning if it's not in a plannable state
-        plannable_statuses = ["planning", "clarification_answered"]
+        plannable_statuses = ["planning"]
+        if task.get("status") in ["clarification_pending", "clarification_answered"]:
+            plannable_statuses.append(task.get("status"))
         if task.get("status") not in plannable_statuses:
              logger.warning(f"Task {task_id} is not in a plannable state (current: {task.get('status')}). Aborting plan generation.")
              return
@@ -490,7 +527,8 @@ async def async_generate_plan(task_id: str, user_id: str):
         # If the document is missing it for some reason, log a warning and proceed.
         if not task.get("user_id"):
             logger.warning(f"Task {task_id} document is missing user_id. Proceeding with passed user_id '{user_id}'.")
-            await db_manager.update_task_field(task_id, {"user_id": user_id})
+            # Attempt to heal the document
+            await db_manager.update_task_field(task_id, user_id, {"user_id": user_id})
 
         original_context = task.get("original_context", {})
 
@@ -539,20 +577,60 @@ async def async_generate_plan(task_id: str, user_id: str):
             )
             messages.append({"role": "system", "content": context_message})
 
-            for msg in task["chat_history"]:
-                # This part is tricky. The planner doesn't need the full turn_steps of previous turns.
-                # It just needs the user/assistant content.
-                role = msg.get("role")
-                if role not in ["user", "assistant"]:
-                    continue
-                messages.append({
-                    "role": role,
-                    "content": msg.get("content")
-                })
+            for msg in task.get("chat_history", []):
+                if msg.get("role") == "user":
+                    messages.append({
+                        "role": "user",
+                        "content": msg.get("content", "")
+                    })
+                elif msg.get("role") == "assistant":
+                    turn_steps = msg.get("turn_steps", [])
+                    thought_buffer = []
+
+                    for step in turn_steps:
+                        if step.get("type") == "thought":
+                            thought_buffer.append(step.get("content", "").strip())
+                        else:
+                            if thought_buffer:
+                                combined_thoughts = "<think>\n" + "\n\n".join(thought_buffer) + "\n</think>"
+                                messages.append({"role": "assistant", "content": combined_thoughts})
+                                thought_buffer = []
+
+                            if step.get("type") == "tool_call":
+                                messages.append({
+                                    "role": "assistant",
+                                    "content": None,
+                                    "function_call": {
+                                        "name": step.get("tool_name"),
+                                        "arguments": step.get("arguments")
+                                    }
+                                })
+                            elif step.get("type") == "tool_result":
+                                result_content = step.get("result", "")
+                                if not isinstance(result_content, str):
+                                    result_content = json.dumps(result_content)
+                                messages.append({
+                                    "role": "function",
+                                    "name": step.get("tool_name"),
+                                    "content": result_content
+                                })
+
+                    if msg.get("content"):
+                        final_content_with_thoughts = "\n".join([f"<think>{thought}</think>" for thought in thought_buffer]) + "\n" + msg.get("content")
+                        messages.append({
+                            "role": "assistant",
+                            "content": final_content_with_thoughts.strip()
+                        })
+                    elif thought_buffer:
+                        combined_thoughts = "<think>\n" + "\n\n".join(thought_buffer) + "\n</think>"
+                        messages.append({"role": "assistant", "content": combined_thoughts})
         else:
             action_items = task.get("action_items", []) or [task.get("description", "")]
             user_prompt_content = "Please create a plan for the following action items:\n- " + "\n- ".join(action_items)
             messages = [{'role': 'user', 'content': user_prompt_content}]
+
+        logger.info(f"Planner for task {task_id} is being run with the following history:")
+        logger.info(json.dumps(messages, indent=2, default=str))
 
         final_response_str = ""
         final_history = None
@@ -567,35 +645,54 @@ async def async_generate_plan(task_id: str, user_id: str):
         if not final_history:
             raise Exception("Planner agent returned no history.")
 
-        # --- NEW: Parse the full agent turn and save it to chat_history ---
-        assistant_turn_start_index = next((i for i, msg in reversed(list(enumerate(final_history))) if msg.get("role") in ["user", "system"]), -1) + 1
-        assistant_messages = final_history[assistant_turn_start_index:]
-        parsed_turn = parse_assistant_response(assistant_messages)
-        plan_json_str = parsed_turn.get("final_content", "")
-        turn_steps = parsed_turn.get("turn_steps", [])
+        # The planner prompt wraps the JSON in <answer> tags.
+        answer_match = re.search(r'<answer>([\s\S]*?)</answer>', final_response_str, re.DOTALL)
+        if answer_match:
+            json_str_to_parse = answer_match.group(1)
+        else:
+            # Fallback to cleaning the whole string if <answer> tags are missing
+            json_str_to_parse = clean_llm_output(final_response_str)
 
-        plan_data = JsonExtractor.extract_valid_json(plan_json_str)
-        if not plan_data or "plan" not in plan_data:
-            raise Exception(f"Planner agent returned invalid JSON inside <answer> tag: {plan_json_str}")
+        plan_data = JsonExtractor.extract_valid_json(json_str_to_parse)
 
-        new_assistant_message = {
-            "message_id": str(uuid.uuid4()),
-            "role": "assistant",
-            "content": "I have generated a new plan based on your request. Please review it for approval.",
-            "turn_steps": turn_steps,
-            "timestamp": datetime.datetime.now(datetime.timezone.utc)
-        }
+        if not plan_data or not isinstance(plan_data, dict):
+            logger.error(f"Failed to parse valid JSON plan from LLM for task {task_id}. Raw response: {final_response_str}")
+            # Save the raw response in the error field for debugging
+            raise Exception(f"Planner agent returned invalid JSON plan. Response body: {final_response_str}")
 
-        chat_history = task.get("chat_history", [])
-        if not isinstance(chat_history, list): chat_history = []
-        chat_history.append(new_assistant_message)
+        await db_manager.update_task_with_plan(task_id, plan_data, is_change_request) # noqa: E501
 
-        await db_manager.update_task_with_plan(task_id, plan_data, is_change_request, chat_history)
-        capture_event(user_id, "proactive_task_generated", {
-            "task_id": task_id,
-            "source": task.get("original_context", {}).get("source", "unknown"),
-            "plan_steps": len(plan_data.get("plan", []))
-        })
+        # --- NEW: Auto-approval logic for sub-tasks ---
+        auto_approve = task.get("original_context", {}).get("auto_approve", False)
+        if auto_approve:
+            logger.info(f"Task {task_id} is a sub-task with auto-approval enabled. Approving now.")
+            # This logic is copied and adapted from /approve-task endpoint
+            now = datetime.datetime.now(datetime.timezone.utc)
+            new_run = {
+                "run_id": str(uuid.uuid4()),
+                "status": "processing",
+                "plan": plan_data.get("plan", []),
+                "created_at": now,
+                "execution_start_time": now
+            }
+
+            updated_task = await db_manager.get_task(task_id, user_id)
+            current_runs = updated_task.get("runs", [])
+            if not isinstance(current_runs, list):
+                current_runs = []
+            current_runs.append(new_run)
+
+            update_payload = {
+                "runs": current_runs,
+                "status": "processing",
+                "last_execution_at": now,
+                "next_execution_at": None,
+            }
+            await db_manager.update_task_field(task_id, user_id, update_payload)
+            execute_task_plan.delay(task_id, user_id, new_run['run_id'])
+            await notify_user(user_id, f"Auto-approved and started sub-task: '{plan_data.get('name', '...')[:50]}...'", task_id, notification_type="taskStarted")
+            return # End execution here for auto-approved tasks
+
 
         # Notify user that a plan is ready for their approval
         await notify_user(
@@ -660,7 +757,7 @@ async def async_refine_task_details(task_id: str):
             # Inject user's timezone into the schedule object if it exists
             if 'schedule' in parsed_data and parsed_data.get('schedule'):
                 parsed_data['schedule']['timezone'] = user_timezone_str
-            await db_manager.update_task_field(task_id, parsed_data)
+            await db_manager.update_task_field(task_id, user_id, parsed_data)
             logger.info(f"Successfully refined and updated user task {task_id} with new details.")
 
     except Exception as e:
@@ -806,56 +903,6 @@ async def async_execute_triggered_task(user_id: str, source: str, event_type: st
 
     except Exception as e:
         logger.error(f"Error during async_execute_triggered_task for user {user_id}: {e}", exc_info=True)
-    finally:
-        await db_manager.close()
-
-# --- Polling Tasks ---
-@celery_app.task(name="poll_gmail_for_triggers")
-def poll_gmail_for_triggers(user_id: str, polling_state: dict):
-    logger.info(f"Polling Gmail for triggers for user {user_id}")
-    db_manager = GmailPollerDB()
-    service = GmailPollingService(db_manager)
-    run_async(service._run_single_user_poll_cycle(user_id, polling_state, mode='triggers'))
-
-@celery_app.task(name="poll_gcalendar_for_triggers")
-def poll_gcalendar_for_triggers(user_id: str, polling_state: dict):
-    logger.info(f"Polling GCalendar for triggers for user {user_id}")
-    db_manager = GCalPollerDB()
-    service = GCalendarPollingService(db_manager)
-    run_async(service._run_single_user_poll_cycle(user_id, polling_state, mode='triggers'))
-
-# --- Scheduler Tasks ---
-@celery_app.task(name="schedule_trigger_polling")
-def schedule_trigger_polling():
-    """Celery Beat task for the frequent triggered workflow polling."""
-    logger.info("Trigger Polling Scheduler: Checking for due tasks...")
-    run_async(async_schedule_polling('triggers'))
-
-async def async_schedule_polling(mode: str):
-    """Generic scheduler logic for both proactivity and triggers."""
-    db_manager = GmailPollerDB() # Can use either DB manager as they are identical
-    try:
-        supported_polling_services = ["gmail", "gcalendar"]
-        await db_manager.reset_stale_polling_locks("gmail", mode)
-        await db_manager.reset_stale_polling_locks("gcalendar", mode)
-
-        for service_name in supported_polling_services:
-            due_tasks_states = await db_manager.get_due_polling_tasks_for_service(service_name, mode)
-            logger.info(f"Found {len(due_tasks_states)} due '{mode}' tasks for {service_name}.")
-
-            for task_state in due_tasks_states:
-                user_id = task_state["user_id"]
-                locked_task_state = await db_manager.set_polling_status_and_get(user_id, service_name, mode)
-
-                if locked_task_state and '_id' in locked_task_state and isinstance(locked_task_state['_id'], ObjectId):
-                    locked_task_state['_id'] = str(locked_task_state['_id'])
-
-                if locked_task_state:
-                    if service_name == "gmail":
-                        poll_gmail_for_triggers.delay(user_id, locked_task_state)
-                    elif service_name == "gcalendar":
-                        poll_gcalendar_for_triggers.delay(user_id, locked_task_state)
-                    logger.info(f"Dispatched '{mode}' polling task for {user_id} - service: {service_name}")
     finally:
         await db_manager.close()
 

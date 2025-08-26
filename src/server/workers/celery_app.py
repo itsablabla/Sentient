@@ -40,7 +40,8 @@ celery_app = Celery(
     backend=CELERY_RESULT_BACKEND,
     include=[
         'workers.executor.tasks',
-        'workers.tasks'
+        'workers.tasks',
+        'workers.long_form_tasks'
     ]
 )
 
@@ -51,10 +52,6 @@ celery_app.conf.update(
             'task': 'run_due_tasks',
             'schedule': 300.0,
         },
-        # 'schedule-trigger-polling-every-minute': {
-        #     'task': 'schedule_trigger_polling',
-        #     'schedule': 60.0, # Runs every minute for fast triggers
-        # },
         'summarize-old-conversations-hourly': {
             'task': 'summarize_old_conversations',
             'schedule': 3600.0, # Run every hour

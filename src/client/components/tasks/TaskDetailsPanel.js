@@ -8,9 +8,10 @@ import {
 	IconRepeat,
 	IconDeviceFloppy,
 	IconSquareX,
-	IconPlayerPlay,
 	IconArchive,
 	IconCircleCheck,
+	IconPlayerPlay,
+	IconClock,
 	IconClipboardList,
 	IconUsersGroup
 } from "@tabler/icons-react"
@@ -33,7 +34,10 @@ const TaskDetailsPanel = ({
 	onArchiveTask,
 	className,
 	onSendChatMessage,
-	onAnswerClarifications
+	onAnswerClarifications,
+	onAnswerLongFormClarification,
+	onSelectTask,
+	onResumeTask
 }) => {
 	const [isEditing, setIsEditing] = useState(false)
 	const [editableTask, setEditableTask] = useState(task)
@@ -186,6 +190,11 @@ const TaskDetailsPanel = ({
 											<IconUsersGroup size={20} />
 										</span>
 									)}
+									{task.task_type === "long_form" && (
+										<span className="p-1.5 bg-purple-500/20 text-purple-300 rounded-md">
+											<IconClock size={20} />
+										</span>
+									)}
 									{getDisplayName(task)}
 								</h2>
 							)}
@@ -225,6 +234,10 @@ const TaskDetailsPanel = ({
 								task={task}
 								onSendChatMessage={onSendChatMessage}
 								onAnswerClarifications={onAnswerClarifications}
+								onAnswerLongFormClarification={
+									onAnswerLongFormClarification
+								}
+								onSelectTask={onSelectTask}
 							/>
 						)}
 					</main>
@@ -316,6 +329,19 @@ const TaskDetailsPanel = ({
 										>
 											Approve & Run
 										</ActionButton>
+									)}
+									{task.task_type === "long_form" &&
+										task.orchestrator_state?.current_state ===
+											"WAITING" && (
+											<ActionButton
+												onClick={() =>
+													onResumeTask(task.task_id)
+												}
+												icon={<IconPlayerPlay size={16} />}
+												className="bg-blue-600 text-white hover:bg-blue-500 w-full sm:w-auto flex-grow justify-center"
+											>
+												Resume Now
+											</ActionButton>
 									)}
 									<ActionButton
 										onClick={() =>

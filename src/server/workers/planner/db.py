@@ -57,6 +57,46 @@ class PlannerMongoManager:  # noqa: E501
         self.messages_collection = self.db["messages"]
         logger.info("PlannerMongoManager initialized.")
 
+    async def add_task(self, user_id: str, task_data: dict) -> str:
+        """Creates a new task document and returns its ID."""
+        task_id = str(uuid.uuid4())
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+
+        schedule = task_data.get("schedule")
+        if isinstance(schedule, str):
+            try:
+                schedule = json.loads(schedule)
+            except json.JSONDecodeError:
+                schedule = None
+
+        task_doc = {
+            "task_id": task_id,
+            "user_id": user_id,
+            "name": task_data.get("name", "New Task"),
+            "description": task_data.get("description", ""),
+            "status": "planning",
+            "assignee": "ai",
+            "priority": task_data.get("priority", 1),
+            "plan": [],
+            "runs": [],
+            "schedule": schedule,
+            "enabled": True,
+            "original_context": task_data.get("original_context", {"source": "manual_creation"}),
+            "created_at": now_utc,
+            "updated_at": now_utc,
+            "chat_history": [],
+            "next_execution_at": None,
+            "last_execution_at": None,
+            "task_type": task_data.get("task_type", "single"),
+        }
+
+        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
+        encrypt_doc(task_doc, SENSITIVE_TASK_FIELDS)
+
+        await self.tasks_collection.insert_one(task_doc)
+        logger.info(f"Created new task {task_id} (type: {task_doc['task_type']}) for user {user_id} with status 'planning'.")
+        return task_id
+
     async def create_initial_task(self, user_id: str, name: str, description: str, action_items: list, topics: list, original_context: dict, source_event_id: str) -> Dict:
         """Creates an initial task document when an action item is first processed."""
         task_id = str(uuid.uuid4())
@@ -79,21 +119,21 @@ class PlannerMongoManager:  # noqa: E501
             "chat_history": [],
         }
 
-        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details"]
+        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
         encrypt_doc(task_doc, SENSITIVE_TASK_FIELDS)
 
         await self.tasks_collection.insert_one(task_doc)
         logger.info(f"Created initial task {task_id} for user {user_id}")
         return task_doc
 
-    async def update_task_field(self, task_id: str, fields: dict):
+    async def update_task_field(self, task_id: str, user_id: str, fields: dict):
         """Updates specific fields of a task document."""
-        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details"]
+        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
         # The encrypt_doc function modifies the dictionary in place
         encrypt_doc(fields, SENSITIVE_TASK_FIELDS)
 
         await self.tasks_collection.update_one(
-            {"task_id": task_id},
+            {"task_id": task_id, "user_id": user_id},
             {"$set": fields}
         )
         logger.info(f"Updated fields for task {task_id}: {list(fields.keys())}")
@@ -127,10 +167,13 @@ class PlannerMongoManager:  # noqa: E501
         )
         logger.info(f"Updated task {task_id} with a generated plan. Matched: {result.matched_count}")
 
-    async def get_task(self, task_id: str) -> Optional[Dict]:
+    async def get_task(self, task_id: str, user_id: Optional[str] = None) -> Optional[Dict]:
         """Fetches a single task by its ID."""
-        doc = await self.tasks_collection.find_one({"task_id": task_id})
-        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details"]
+        query = {"task_id": task_id}
+        if user_id:
+            query["user_id"] = user_id
+        doc = await self.tasks_collection.find_one(query)
+        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
         decrypt_doc(doc, SENSITIVE_TASK_FIELDS)
         return doc
 
@@ -167,7 +210,7 @@ class PlannerMongoManager:  # noqa: E501
             "agent_id": "planner_agent"
         }
 
-        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "original_context"]
+        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "original_context", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
         encrypt_doc(task_doc, SENSITIVE_TASK_FIELDS)
 
         await self.tasks_collection.insert_one(task_doc)
