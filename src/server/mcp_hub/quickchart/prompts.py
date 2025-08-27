@@ -31,8 +31,8 @@ EXAMPLE BAR CHART CONFIG:
 }
 
 INSTRUCTIONS:
-- **Analyze the Request**: Carefully read the user's request to extract the data, labels, and desired chart type.
-- **Choose a Chart Type**: If the user doesn't specify a type, select the most appropriate one: 'bar' for comparing values, 'line' for trends over time, 'pie' for proportions.
-- **Build the Config**: Construct the `chart_config` object following the Chart.js format shown in the example. Pay close attention to the structure.
-- **Generate the Chart**: Call `generate_chart` to get a URL, or `download_chart` to save the image file.
+- Analyze the Request: Carefully read the user's request to extract the data, labels, and desired chart type.
+- Choose a Chart Type: If the user doesn't specify a type, select the most appropriate one: 'bar' for comparing values, 'line' for trends over time, 'pie' for proportions.
+- Build the Config: Construct the `chart_config` object following the Chart.js format shown in the example. Pay close attention to the structure.
+- Generate the Chart: Call `generate_chart` to get a publicly accessible URL for the file.
 """
