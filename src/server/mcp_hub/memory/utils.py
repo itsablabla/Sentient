@@ -127,6 +127,10 @@ def _get_normalized_embedding(text: str, task_type: str) -> np.ndarray:
 
 async def search_memory(user_id: str, query: str) -> str: # noqa: E501
     """Searches memory by performing a semantic search, filtering for relevance, and summarizing results."""
+    if not query or not query.strip():
+        logger.warning(f"search_memory called with an empty query for user {user_id}. Aborting.")
+        return "Please provide a search query to search your memory."
+
     logger.info(f"Executing search_memory for user_id='{user_id}' with query: '{query}'")
     pool = await db.get_db_pool()
     async with pool.acquire() as conn:
@@ -189,24 +193,37 @@ async def search_memory_by_source(user_id: str, query: str, source_name: str) ->
     """Searches memory by performing a semantic search within a specific source."""
     logger.info(f"Executing search_memory_by_source for user_id='{user_id}', source='{source_name}' with query: '{query}'")
     pool = await db.get_db_pool()
+    records = []
     async with pool.acquire() as conn:
         await register_vector(conn)
 
-        logger.info(f"Step 1/2: Performing semantic search in database for source '{source_name}'.")
-        query_embedding = _get_normalized_embedding(query, task_type="RETRIEVAL_QUERY")
+        if query and query.strip():
+            logger.info(f"Step 1/2: Performing semantic search in database for source '{source_name}'.")
+            query_embedding = _get_normalized_embedding(query, task_type="RETRIEVAL_QUERY")
 
-        records = await conn.fetch(
-            """
-            SELECT DISTINCT f.id, f.content, 1 - (f.embedding <=> $3) AS similarity
-            FROM facts f
-            WHERE f.user_id = $1 AND f.source = $2
-            ORDER BY similarity DESC
-            LIMIT 5;
-            """, user_id, source_name, query_embedding
-        )
+            records = await conn.fetch(
+                """
+                SELECT DISTINCT f.id, f.content, 1 - (f.embedding <=> $3) AS similarity
+                FROM facts f
+                WHERE f.user_id = $1 AND f.source = $2
+                ORDER BY similarity DESC
+                LIMIT 5;
+                """, user_id, source_name, query_embedding
+            )
+        else:
+            logger.info(f"Step 1/2: Query is empty. Fetching most recent facts for source '{source_name}'.")
+            records = await conn.fetch(
+                """
+                SELECT id, content
+                FROM facts
+                WHERE user_id = $1 AND source = $2
+                ORDER BY created_at DESC
+                LIMIT 5;
+                """, user_id, source_name
+            )
 
-        found_facts = {r['id']: r['content'] for r in records}
-        logger.info(f"Found {len(found_facts)} relevant facts from search.")
+    found_facts = {r['id']: r['content'] for r in records}
+    logger.info(f"Found {len(found_facts)} relevant facts from search.")
 
     if not found_facts:
         logger.info(f"No relevant facts found for source '{source_name}'. Returning message to user.")
@@ -214,7 +231,8 @@ async def search_memory_by_source(user_id: str, query: str, source_name: str) ->
 
     logger.info("Step 2/2: Summarizing search results into a coherent paragraph.")
     facts_list = list(found_facts.values())
-    prompt = fact_summarization_user_prompt_template.format(facts=json.dumps(facts_list))
+    summary_query = query if query and query.strip() else f"a summary of information from {source_name}"
+    prompt = fact_summarization_user_prompt_template.format(query=summary_query, facts=json.dumps(facts_list))
     summary_raw = llm.run_agent_with_prompt(agents["fact_summarization"], prompt)
     summary = clean_llm_output(summary_raw)
 

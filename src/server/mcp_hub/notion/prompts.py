@@ -43,5 +43,4 @@ The `content_blocks_json` parameter must be a JSON string representing a list `[
   }
 ]
 ```
-- Your entire response for a tool call MUST be a single, valid JSON object.
 """

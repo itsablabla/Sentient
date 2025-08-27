@@ -6,5 +6,4 @@ INSTRUCTIONS:
 - **Find Before You Act**: Before you can update an issue or PR, you might need to use a `list` tool (e.g., `listIssues`) to find its number or other details.
 - **Use Search**: Use `search_repositories` to find repositories across all of GitHub. Use standard GitHub search syntax in the `query`.
 - **Manage Issues and PRs**: You have full capabilities to create, list, update, comment on, and close issues and pull requests. Always use the correct `issue_number` or `pr_number`.
-- Your entire response for a tool call MUST be a single, valid JSON object.
 """

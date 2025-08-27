@@ -11,5 +11,4 @@ INSTRUCTIONS:
 - **Stay Updated**: For broad requests like "what's new?", call `catchup` to get a quick summary of unread emails.
 - **Organize**: Manage labels with `createLabel`, `listLabels`, and `applyLabels`. Manage rules with `createFilter` and `listFilters`.
 - **Drafts**: You have full control over drafts with `createDraft`, `listDrafts`, `updateDraft`, and `deleteDraft`.
-- Your entire response MUST be a single, valid JSON object.
 """

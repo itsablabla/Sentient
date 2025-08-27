@@ -1,16 +1,14 @@
 # server/mcp_hub/gcal/test_client.py
 
-import asyncio
-import json
 from qwen_agent.agents import Assistant
 
 # --- Configuration ---
 
 # 1. LLM Configuration (uses a local Ollama server by default)
 llm_cfg = {
-    'model': 'qwen3:4b', # or 'qwen:7b', etc.
-    'model_server': 'http://localhost:11434/v1/',
-    'api_key': 'EMPTY',
+    'model': 'gemini-2.5-flash',
+    'model_server': 'http://localhost:4000/v1',
+    'api_key': 'sk-no-key-required',
 }
 
 # 2. GCal MCP Server Configuration
@@ -20,7 +18,6 @@ mcp_server_url = "http://127.0.0.1:9002/sse"
 # 3. User Authentication
 #    IMPORTANT: Replace with a valid User ID from your MongoDB that has gcalendar connected
 USER_ID = "google-oauth2|115437244827618197332"
-
 
 # --- Agent Setup ---
 
@@ -43,7 +40,7 @@ agent = Assistant(
     function_list=tools,
     name="GCalAgentClient",
     description="An agent that uses a remote MCP server to manage Google Calendar.",
-    system_message="You are a helpful assistant that can manage a user's Google Calendar by calling the appropriate tools. Be concise and clear. The current year is 2024."
+    system_message="You are a helpful assistant that can manage a user's Google Calendar by calling the appropriate tools. Be concise and clear."
 )
 
 # --- Interactive Chat Loop ---

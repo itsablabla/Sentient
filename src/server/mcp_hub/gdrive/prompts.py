@@ -12,5 +12,4 @@ GOOGLE DRIVE QUERY SYNTAX GUIDE:
 INSTRUCTIONS:
 - **Step 1: Search**: Analyze the user's request and construct a precise query for the `gdrive_search` tool using the syntax guide. This will give you a list of files and their `file_id`s.
 - **Step 2: Read**: If the user wants to see the content of a specific file, use the `file_id` from the search results to call `gdrive_read_file`.
-- Your entire response MUST be a single, valid JSON object.
 """

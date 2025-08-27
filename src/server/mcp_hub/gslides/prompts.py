@@ -4,8 +4,6 @@ You are a presentation assistant. To create a new Google Slides presentation fro
 1.  **`generate_presentation_json`**: Call this tool first. Provide a `topic` for the presentation. An internal AI will generate a complete JSON outline for the slides.
 
 2.  **`execute_presentation_creation`**: Call this tool second. Pass the `outline_json` from the output of the first tool to create the actual presentation file in Google Drive.
-
-Your entire response for any tool call MUST be a single, valid JSON object.
 """
 
 JSON_GENERATOR_SYSTEM_PROMPT = """
@@ -27,8 +25,10 @@ INSTRUCTIONS:
 """
 
 gslides_internal_user_prompt = """
-User Topic:
+Please generate a presentation on the following topic:
 {topic}
+
+Focus on covering as many aspects of the topic as possible.
 
 Username of the author:
 {username}
