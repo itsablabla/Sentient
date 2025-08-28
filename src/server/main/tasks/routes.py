@@ -15,11 +15,11 @@ from .models import AddTaskRequest, UpdateTaskRequest, TaskIdRequest, TaskAction
 from main.llm import run_agent
 from main.tasks.models import AddTaskRequest, UpdateTaskRequest, TaskIdRequest, TaskActionRequest, TaskChatRequest, ProgressUpdateRequest
 from main.plans import PLAN_LIMITS
-from workers.tasks import generate_plan_from_context, execute_task_plan, calculate_next_run, refine_and_plan_ai_task
 from main.llm import run_agent, LLMProviderDownError
 from json_extractor import JsonExtractor
 from .prompts import TASK_CREATION_PROMPT
 from workers.long_form_tasks import start_long_form_task, execute_orchestrator_cycle
+from workers.utils.text_utils import clean_llm_output
 
 class GeneratePlanRequest(BaseModel):
     prompt: str
@@ -98,34 +98,81 @@ async def add_task(
     user_id, plan = user_id_and_plan
 
     if not request.prompt:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A prompt describing the goal is required.")
+        raise HTTPException(status_code=400, detail="A prompt describing the goal is required.")
 
-    # Unified task creation logic: all UI-created tasks are now long-form.
-    # Plan limit checks will be handled by the orchestrator based on the sub-tasks it creates.
-    task_data = {
-        "name": request.prompt,
-        "description": f"Long-form task to achieve the goal: {request.prompt}",
-        "task_type": "long_form",
-        "auto_approve_subtasks": request.auto_approve_subtasks,
-        "orchestrator_state": {
-            "main_goal": request.prompt,
-            "current_state": "CREATED", # Initial state
-            "current_step": 0,
-            "context_store": {},
-            "waiting_config": None,
-        },
-        "dynamic_plan": [],
-        "clarification_requests": [],
-        "execution_log": []
-    }
-    task_id = await mongo_manager.add_task(user_id, task_data)
-    if not task_id:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create long-form task.")
+    # 1. Use LLM to parse the prompt and determine if it's a simple task or a workflow
+    user_profile = await mongo_manager.get_user_profile(user_id)
+    personal_info = user_profile.get("userData", {}).get("personalInfo", {}) if user_profile else {}
+    user_name = personal_info.get("name", "User")
+    user_timezone_str = personal_info.get("timezone", "UTC")
+    try:
+        user_timezone = ZoneInfo(user_timezone_str)
+    except ZoneInfoNotFoundError:
+        user_timezone = ZoneInfo("UTC")
+    current_time_str = datetime.now(user_timezone).strftime('%Y-%m-%d %H:%M:%S %Z')
 
-    # The orchestrator's first step is to plan.
-    start_long_form_task.delay(task_id, user_id)
+    system_prompt = TASK_CREATION_PROMPT.format(
+        user_name=user_name,
+        user_timezone=user_timezone_str,
+        current_time=current_time_str
+    )
+    messages = [{'role': 'user', 'content': request.prompt}]
 
-    return {"message": "Task created successfully. The orchestrator will begin planning shortly.", "task_id": task_id}
+    try:
+        response_str = ""
+        for chunk in run_agent(system_message=system_prompt, function_list=[], messages=messages):
+            if isinstance(chunk, list) and chunk and chunk[-1].get("role") == "assistant":
+                response_str = chunk[-1].get("content", "")
+
+        if not response_str:
+            raise Exception("LLM failed to generate task details.")
+
+        parsed_data = JsonExtractor.extract_valid_json(clean_llm_output(response_str))
+        if not parsed_data or not isinstance(parsed_data, dict):
+            raise Exception(f"LLM returned invalid JSON for task details: {response_str}")
+
+    except Exception as e:
+        logger.error(f"Error parsing task prompt for user {user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to understand the task prompt.")
+
+    # 2. Triage based on the parsed schedule
+    schedule = parsed_data.get("schedule")
+    is_workflow = schedule and schedule.get("type") in ["recurring", "triggered"]
+
+    if is_workflow:
+        # This is a workflow, create a standard scheduled/triggered task
+        task_data = {
+            "name": parsed_data.get("name", request.prompt),
+            "description": parsed_data.get("description", request.prompt),
+            "priority": parsed_data.get("priority", 1),
+            "schedule": schedule,
+            "task_type": schedule.get("type"), # This will be 'recurring' or 'triggered'
+            "original_context": {"source": "ui_workflow_composer", "prompt": request.prompt}
+        }
+        task_id = await mongo_manager.add_task(user_id, task_data)
+        if not task_id:
+            raise HTTPException(status_code=500, detail="Failed to create workflow.")
+
+        generate_plan_from_context.delay(task_id, user_id)
+        return {"message": "Workflow created successfully. It will be planned shortly.", "task_id": task_id}
+    else:
+        # This is a standard task, create a long-form task
+        # Use the detailed description from the LLM as the primary source for the goal. Fallback to the raw prompt.
+        detailed_goal = parsed_data.get('description', request.prompt)
+
+        task_data = {
+            "name": parsed_data.get("name", request.prompt),
+            "description": detailed_goal,
+            "task_type": "long_form",
+            "auto_approve_subtasks": request.auto_approve_subtasks,
+            "orchestrator_state": {"main_goal": detailed_goal, "current_state": "CREATED"},
+        }
+        task_id = await mongo_manager.add_task(user_id, task_data)
+        if not task_id:
+            raise HTTPException(status_code=500, detail="Failed to create task.")
+
+        start_long_form_task.delay(task_id, user_id)
+        return {"message": "Task created successfully. The orchestrator will begin planning shortly.", "task_id": task_id}
 
 @router.post("/fetch-tasks")
 async def fetch_tasks(
@@ -176,15 +223,18 @@ async def delete_task(
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found.")
 
-    # Always delete the entire task, regardless of its type or number of runs.
-    message = await mongo_manager.delete_task(request.taskId, user_id)
-    if not message:
-        raise HTTPException(status_code=404, detail="Task not found or not deleted.")
+    # delete_task in db manager now handles sub-tasks and returns all deleted IDs.
+    deleted_successfully, all_deleted_ids = await mongo_manager.delete_task(request.taskId, user_id)
+
+    if not deleted_successfully:
+        # This case should ideally not be hit because of the get_task check above, but it's good for robustness.
+        raise HTTPException(status_code=404, detail="Task not found or failed to delete.")
 
     # Also delete any notifications related to the task.
-    await mongo_manager.delete_notifications_for_task(user_id, request.taskId)
+    for deleted_id in all_deleted_ids:
+        await mongo_manager.delete_notifications_for_task(user_id, deleted_id)
 
-    return {"message": message}
+    return {"message": "Task and its sub-tasks were deleted."}
 
 @router.post("/task-action", status_code=status.HTTP_200_OK)
 async def task_action(

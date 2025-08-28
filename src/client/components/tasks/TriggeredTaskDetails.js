@@ -8,7 +8,7 @@ import CollapsibleSection from "./CollapsibleSection"
 import ExecutionUpdate from "./ExecutionUpdate"
 import ReactMarkdown from "react-markdown"
 
-const TriggeredTaskDetails = ({ task }) => {
+const TriggeredTaskDetails = ({ task, userTimezone }) => {
 	if (!task) return null
 
 	const statusInfo = taskStatusColors[task.status] || taskStatusColors.default
@@ -139,10 +139,21 @@ const TriggeredTaskDetails = ({ task }) => {
 										</div>
 										<div className="text-xs text-neutral-400">
 											{runDate
-												? format(
-														runDate,
-														"MMMM d, yyyy 'at' p"
-													)
+												? new Intl.DateTimeFormat(
+														undefined,
+														{
+															year: "numeric",
+															month: "long",
+															day: "numeric",
+															hour: "numeric",
+															minute: "2-digit",
+															timeZoneName:
+																"short",
+															timeZone:
+																userTimezone ||
+																undefined
+														}
+													).format(runDate)
 												: "Run pending..."}
 										</div>
 									</div>

@@ -39,12 +39,22 @@ async def async_start_long_form_task(task_id: str, user_id: str):
     db_manager = PlannerMongoManager()
     try:
         await db_manager.update_task_field(task_id, user_id, {
-            "orchestrator_state.current_state": "PLANNING"
+            "orchestrator_state.current_state": "PLANNING",
+            "status": "processing" # Visually indicate that something is happening
         })
+        logger.info(f"Long-form task {task_id} moved to PLANNING state.")
+
         # Immediately trigger the first orchestrator cycle to generate the initial plan
         execute_orchestrator_cycle.delay(task_id)
+        logger.info(f"Dispatched orchestrator cycle for task {task_id}.")
+
     except Exception as e:
         logger.error(f"Error starting long-form task {task_id}: {e}", exc_info=True)
+        await db_manager.update_task_field(task_id, user_id, {
+            "orchestrator_state.current_state": "FAILED",
+            "status": "error",
+            "error": f"Failed to start orchestrator: {str(e)}"
+        })
     finally:
         await db_manager.close()
 
@@ -66,20 +76,10 @@ async def async_execute_orchestrator_cycle(task_id: str):
         orchestrator_state = task.get("orchestrator_state", {})
         current_state = orchestrator_state.get("current_state")
 
-        if current_state in ["COMPLETED", "FAILED", "SUSPENDED", "PAUSED"]:
+        # If the task is in a terminal or waiting state, do not run the cycle.
+        # The cycle will be re-triggered by user action, a timeout handler, or a sub-task completion.
+        if current_state in ["COMPLETED", "FAILED", "SUSPENDED", "PAUSED", "WAITING"]:
             logger.info(f"Orchestrator cycle for task {task_id} skipped. State is '{current_state}'.")
-            return
-
-        # If the task is waiting, check if the timeout has been reached. If not, do nothing.
-        # The cycle will be re-triggered by the timeout handler or by a sub-task completion.
-        if current_state == "WAITING":
-            waiting_config = orchestrator_state.get("waiting_config", {})
-            timeout_at = waiting_config.get("timeout_at")
-            # Ensure timeout_at is a datetime object before comparing
-            if timeout_at and isinstance(timeout_at, datetime.datetime):
-                if datetime.datetime.now(datetime.timezone.utc) < timeout_at:
-                    logger.info(f"Orchestrator cycle for task {task_id} skipped. Task is WAITING and timeout has not been reached.")
-                    return
             return
 
         # 1. Construct context for the agent
@@ -90,7 +90,7 @@ async def async_execute_orchestrator_cycle(task_id: str):
             "current_state": current_state,
             "dynamic_plan": json.dumps(task.get("dynamic_plan", []), default=str),
             "context_store": orchestrator_state.get("context_store", {}),
-            "execution_log": task.get("execution_log", [])[-5:], # Last 5 logs
+            "execution_log": (task.get("execution_log") or [])[-5:],
             "clarification_history": json.dumps(task.get("clarification_requests", []), default=str)
         }
 
@@ -180,7 +180,37 @@ async def async_execute_orchestrator_cycle(task_id: str):
 
     except Exception as e:
         logger.error(f"Error in orchestrator cycle for task {task_id}: {e}", exc_info=True)
-        await db_manager.update_task_field(task_id, user_id, {"orchestrator_state.current_state": "FAILED", "error": f"Orchestrator cycle failed: {str(e)}"})
+        await db_manager.update_task_field(task_id, user_id, {"orchestrator_state.current_state": "FAILED", "status": "error", "error": f"Orchestrator cycle failed: {str(e)}"})
+    finally:
+        await db_manager.close()
+
+async def async_handle_waiting_timeout(task_id: str, waiting_type: str):
+    db_manager = PlannerMongoManager()
+    try:
+        task = await db_manager.get_task(task_id)
+        if not task:
+            logger.warning(f"Timeout handler: Task {task_id} not found.")
+            return
+
+        orchestrator_state = task.get("orchestrator_state", {})
+        current_state = orchestrator_state.get("current_state")
+        waiting_config = orchestrator_state.get("waiting_config", {})
+
+        # Only proceed if the task is still in the expected waiting state and the timeout has actually passed
+        if current_state == "WAITING" and waiting_config.get("waiting_for") == waiting_type:
+            timeout_at = waiting_config.get("timeout_at")
+            if timeout_at and datetime.datetime.now(datetime.timezone.utc) >= timeout_at:
+                logger.info(f"Task {task_id} has timed out. Transitioning to ACTIVE and triggering orchestrator.")
+                user_id = task.get("user_id")
+                if not user_id:
+                    logger.error(f"Cannot update task {task_id}, user_id is missing.")
+                    return
+                await db_manager.update_task_field(task_id, user_id, {"orchestrator_state.current_state": "ACTIVE"})
+                execute_orchestrator_cycle.delay(task_id)
+            else:
+                logger.info(f"Timeout handler for task {task_id} ran, but timeout has not been reached. No action taken.")
+        else:
+            logger.info(f"Timeout handler for task {task_id} ran, but task is no longer in the expected WAITING state (current: {current_state}). No action taken.")
     finally:
         await db_manager.close()
 
@@ -188,9 +218,7 @@ async def async_execute_orchestrator_cycle(task_id: str):
 def handle_waiting_timeout(task_id: str, waiting_type: str):
     """Handle timeout for waiting tasks."""
     logger.info(f"Handling timeout for task {task_id}, waiting for {waiting_type}")
-    # Logic to decide on follow-up action (retry, escalate, etc.)
-    # This would trigger another orchestrator cycle to re-evaluate.
-    execute_orchestrator_cycle.delay(task_id)
+    run_async(async_handle_waiting_timeout(task_id, waiting_type))
 
 @celery_app.task(name="process_external_trigger")
 def process_external_trigger(task_id: str, trigger_data: Dict):

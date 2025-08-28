@@ -42,6 +42,7 @@ const TaskDetailsPanel = ({
 	const [isEditing, setIsEditing] = useState(false)
 	const [editableTask, setEditableTask] = useState(task)
 	const scheduleType = task?.schedule?.type
+	const [userTimezone, setUserTimezone] = useState(null)
 
 	const missingTools = useMemo(() => {
 		if (!task || !integrations) {
@@ -89,6 +90,22 @@ const TaskDetailsPanel = ({
 			setIsEditing(false) // Reset editing state when task is closed/changed
 		}
 	}, [task])
+
+	useEffect(() => {
+		const fetchUserTimezone = async () => {
+			try {
+				const response = await fetch("/api/user/data", { method: "POST" })
+				if (!response.ok) throw new Error("Failed to fetch user data")
+				const result = await response.json()
+				const timezone = result?.data?.personalInfo?.timezone
+				setUserTimezone(timezone || Intl.DateTimeFormat().resolvedOptions().timeZone) // Fallback to browser timezone
+			} catch (err) {
+				console.error("Failed to fetch user timezone", err)
+				setUserTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone) // Fallback on error
+			}
+		}
+		fetchUserTimezone()
+	}, [])
 
 	const handleStartEditing = () => {
 		// When editing, we need to make sure we're editing the plan from the latest run.
@@ -221,14 +238,16 @@ const TaskDetailsPanel = ({
 								handleStepChange={handleStepChange}
 								allTools={allTools}
 								integrations={integrations}
+								userTimezone={userTimezone}
 							/>
 						) : scheduleType === "recurring" ? (
 							<RecurringTaskDetails
 								task={task}
 								onAnswerClarifications={onAnswerClarifications}
+								userTimezone={userTimezone}
 							/>
 						) : scheduleType === "triggered" ? (
-							<TriggeredTaskDetails task={task} />
+							<TriggeredTaskDetails task={task} userTimezone={userTimezone} />
 						) : (
 							<TaskDetailsContent
 								task={task}
@@ -237,6 +256,7 @@ const TaskDetailsPanel = ({
 								onAnswerLongFormClarification={
 									onAnswerLongFormClarification
 								}
+								userTimezone={userTimezone}
 								onSelectTask={onSelectTask}
 							/>
 						)}

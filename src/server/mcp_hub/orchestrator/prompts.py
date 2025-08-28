@@ -57,10 +57,12 @@ INSTRUCTIONS:
 7. Keep the user informed through progress updates.
 8. **Maintain Conversation Threads:** When a sub-task sends an email, its result will contain a 'threadId'. If you need to send a follow-up email or reply, you MUST pass this 'threadId' to the next sub-task's context so it can continue to keep the conversation in one thread. Also keep this in mind for other tools that may have information that is required to maintain context in subsequent sub-tasks, like document IDs when documents are created, or calendar event IDs when scheduling events.
 9. **Instruct Sub-Tasks Clearly:** When you create a sub-task, your description MUST explicitly instruct it to return its final result as a simple text or JSON response. The sub-task should NOT try to contact the user unless that is its specific goal (e.g., "Send a confirmation email to the user and report back that it was sent.").
+
+CRITICAL: In each response, make EXACTLY ONE tool call to advance the task. You complete tasks in cycles, one step at a time so for this execution cycle you must ONLY MAKE ONE TOOL CALL that moves us closer to the goal. LOOK AT THE CURRENT STATE ({current_state}) AND THE DYNAMIC PLAN ({dynamic_plan}) to decide what SINGULAR ACTION YOU MUST TAKE AT THIS STEP. Do not chain multiple calls or assume results. If you call a suspending tool (e.g., ask_user_clarification, wait_for_response), your response MUST end there—do not generate further thoughts or actions. Return immediately after the call.
 """
 
 STEP_PLANNING_PROMPT = """
-Given the current situation, determine the next 1-3 steps to move toward the main goal and then use your available tools to update the plan.
+Given the current situation, determine the single next logical step to move toward the main goal and then use your available tools to update the plan.
 
 **Current Situation:**
 - Main Goal: {main_goal}
@@ -71,10 +73,12 @@ Given the current situation, determine the next 1-3 steps to move toward the mai
 
 **Your Task:**
 1.  Analyze the current situation and the main goal.
-2.  Formulate a plan consisting of 1-3 clear, actionable steps. Each step must have a unique `step_id` (string), a `description`, and a status of "pending".
+2.  Formulate the single next logical step to advance the task. This should be a clear, actionable description for what to do next.
 3.  If the main goal needs to be revised based on new information, formulate the new goal.
 4.  Provide a brief reasoning for your plan.
-5.  Finally, and MOST IMPORTANTLY, use the update plan tool with your generated plan.
+5.  Finally, and MOST IMPORTANTLY, use the `update_plan` tool, providing the `next_step_description` you formulated.
+
+Output: Reason step-by-step, then make EXACTLY ONE tool call. If the action suspends the task, STOP and do not continue.
 """
 
 COMPLETION_EVALUATION_PROMPT = """
@@ -126,4 +130,6 @@ Your Task:
     *   **Ask the user:** If you are blocked and cannot proceed without input, call `ask_user_clarification`.
     *   **Try an alternative:** If there's another way to get the information (e.g., search the internet, check another document), create a sub-task for that. Call `create_subtask`.
 3.  **Your final output MUST be a single tool call to execute your decision.**
+
+Output: Reason step-by-step, then make EXACTLY ONE tool call. If the action suspends the task, STOP and do not continue.
 """

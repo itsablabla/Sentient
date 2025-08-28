@@ -29,13 +29,21 @@ const toolIcons = {
 
 const exampleWorkflows = [
 	{
+		type: "workflow",
 		title: "Daily Briefing",
 		description:
 			"Get a summary of your unread emails and today's calendar events.",
-		prompt: "Every morning at 8 AM, send me a summary of unread emails and my upcoming calendar events for the day on WhatsApp.",
-		tools: ["gmail", "gcalendar"]
+		prompt: "Send me a summary of unread emails and my upcoming calendar events for the day on WhatsApp.",
+		tools: ["gmail", "gcalendar"],
+		params: {
+			workflowTab: "recurring",
+			recurringFrequency: "daily",
+			recurringTime: "08:00",
+			recurringDays: []
+		}
 	},
 	{
+		type: "task",
 		title: "Meeting Prep",
 		description:
 			"Find all relevant documents and emails about an upcoming meeting.",
@@ -43,31 +51,53 @@ const exampleWorkflows = [
 		tools: ["gcalendar", "gmail", "gdrive"]
 	},
 	{
+		type: "task",
 		title: "Schedule a Follow-up",
 		description: "Find a time and schedule a meeting with a contact.",
 		prompt: "Find a free slot on my Google Calendar for next week and schedule a follow-up call with jane.doe@example.com now.",
 		tools: ["gcalendar", "gpeople"]
 	},
 	{
+		type: "workflow",
 		title: "Weekly Lead Nurturing",
 		description:
 			"Draft personalized follow-up emails for new leads from Google Contacts.",
-		prompt: "Every Monday morning, find all contacts in my Google Contacts with the label 'Q3-Leads'. For each contact, search my gmail to see if we have discussed anything before. If not, draft a friendly, personalized outreach email asking if they would be open to collaborating and suggest a brief call.",
-		tools: ["gpeople", "gmail"]
+		prompt: "Find all contacts in my Google Contacts with the label 'Q3-Leads'. For each contact, search my gmail to see if we have discussed anything before. If not, draft a friendly, personalized outreach email asking if they would be open to collaborating and suggest a brief call.",
+		tools: ["gpeople", "gmail"],
+		params: {
+			workflowTab: "recurring",
+			recurringFrequency: "weekly",
+			recurringTime: "09:00",
+			recurringDays: ["Monday"]
+		}
 	},
 	{
+		type: "workflow",
 		title: "Content Idea Generation",
 		description:
 			"Research trends and populate your Notion database with new content ideas.",
-		prompt: "Every Friday, find the top 5 news articles from the past week in the 'technology' category. Also, perform an internet search for 'latest trends in AI productivity tools'. Summarize the key findings and add them as new ideas to the 'Content Ideas for The Week' Page under the Getting Started page in Notion.",
-		tools: ["internet_search", "notion"]
+		prompt: "Find the top 5 news articles from the past week in the 'technology' category. Also, perform an internet search for 'latest trends in AI productivity tools'. Summarize the key findings and add them as new ideas to the 'Content Ideas for The Week' Page under the Getting Started page in Notion.",
+		tools: ["internet_search", "notion"],
+		params: {
+			workflowTab: "recurring",
+			recurringFrequency: "weekly",
+			recurringTime: "16:00",
+			recurringDays: ["Friday"]
+		}
 	},
 	{
+		type: "workflow",
 		title: "Automated Meeting Agenda",
 		description:
 			"Generate a meeting agenda by summarizing recent activity from GitHub and Slack.",
-		prompt: "We have a project sync meeting every Friday at 5PM. Every Friday at 4 PM, summarize all closed issues in the 'Project-Sentient' GitHub repo from the last 7 days. Check the Trello board for Project-Sentient and see what the remaining cards on the 'To-Do' board are. Create a new Google Doc with this summary and outline what we can discuss in the meeting. Share this document with the team on Slack. Add a Google Calendar event for the meeting with the agenda attached.",
-		tools: ["gcalendar", "github", "slack", "gdocs"]
+		prompt: "Summarize all closed issues in the 'Project-Sentient' GitHub repo from the last 7 days. Check the Trello board for Project-Sentient and see what the remaining cards on the 'To-Do' board are. Create a new Google Doc with this summary and outline what we can discuss in the meeting. Share this document with the team on Slack. Add a Google Calendar event for the meeting with the agenda attached.",
+		tools: ["gcalendar", "github", "slack", "gdocs"],
+		params: {
+			workflowTab: "recurring",
+			recurringFrequency: "weekly",
+			recurringTime: "16:00",
+			recurringDays: ["Friday"]
+		}
 	}
 ]
 
@@ -98,7 +128,7 @@ const WelcomePanel = ({ onExampleClick, onClose }) => {
 					<IconX size={20} />
 				</button>
 			</header>
-			<div className="space-y-4 overflow-y-auto custom-scrollbar flex-1">
+			<div className="space-y-4 overflow-y-auto custom-scrollbar flex-1 px-4">
 				<h3 className="font-semibold text-neutral-300 px-2">
 					Example Workflows
 				</h3>
@@ -108,7 +138,7 @@ const WelcomePanel = ({ onExampleClick, onClose }) => {
 						initial={{ opacity: 0, y: 20 }}
 						animate={{ opacity: 1, y: 0 }}
 						transition={{ delay: index * 0.1 }}
-						onClick={() => onExampleClick(workflow.prompt)}
+						onClick={() => onExampleClick(workflow)}
 						className="bg-neutral-800/50 p-4 rounded-lg border border-neutral-700 hover:border-brand-orange cursor-pointer transition-colors flex flex-col justify-between"
 					>
 						<div>

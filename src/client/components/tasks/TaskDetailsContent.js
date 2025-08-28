@@ -78,7 +78,7 @@ const WaitingStateDisplay = ({ waitingConfig }) => {
 }
 
 // --- NEW COMPONENT ---
-const ExecutionLogDisplay = ({ log }) => {
+const ExecutionLogDisplay = ({ log, userTimezone }) => {
 	if (!log || log.length === 0) return null
 	return (
 		<CollapsibleSection title="Orchestrator Log" defaultOpen={true}>
@@ -95,11 +95,18 @@ const ExecutionLogDisplay = ({ log }) => {
 								<span className="font-semibold capitalize text-neutral-400">
 									{entry.action?.replace(/_/g, " ")}
 								</span>
-								<span>
-									{new Date(
-										entry.timestamp
-									).toLocaleString()}
-								</span>
+								<span>{
+									new Intl.DateTimeFormat(undefined, {
+										year: 'numeric',
+										month: 'numeric',
+										day: 'numeric',
+										hour: 'numeric',
+										minute: '2-digit',
+										second: '2-digit',
+										hour12: true,
+										timeZone: userTimezone || undefined
+									}).format(new Date(entry.timestamp))
+								}</span>
 							</div>
 							{entry.agent_reasoning && (
 								<p className="text-sm text-neutral-300 italic mt-2">
@@ -518,6 +525,7 @@ const TaskDetailsContent = ({
 	handleStepChange,
 	allTools,
 	integrations,
+	userTimezone,
 	onSendChatMessage,
 	onAnswerClarifications,
 	onAnswerLongFormClarification,
@@ -564,6 +572,7 @@ const TaskDetailsContent = ({
 				displayTask.execution_log && (
 					<ExecutionLogDisplay
 						log={displayTask.execution_log}
+						userTimezone={userTimezone}
 					/>
 				)}
 

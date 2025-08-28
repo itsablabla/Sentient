@@ -17,13 +17,23 @@ logger = logging.getLogger(__name__)
 
 # Note: @mcp.tool() decorator is applied in main.py
 
-async def update_plan(ctx: Context, new_steps: List[Dict], reasoning: str, main_goal_update: str = None) -> Dict:
-    """Update the dynamic plan with new steps or modified goal"""
+async def update_plan(ctx: Context, next_step_description: str, reasoning: str, main_goal_update: Optional[str] = None) -> Dict:
+    """Adds a single new step to the dynamic plan to be executed next."""
     user_id = auth.get_user_id_from_context(ctx)
     task_id = auth.get_task_id_from_context(ctx)
-    await state_manager.update_dynamic_plan(task_id, user_id, new_steps, main_goal_update)
-    await state_manager.add_execution_log(task_id, user_id, "plan_updated", {"new_step_count": len(new_steps)}, reasoning)
-    return {"status": "success", "message": "Plan updated successfully."}
+
+    new_step = {
+        "step_id": str(uuid.uuid4()),
+        "description": next_step_description,
+        "status": "pending",
+        "created_at": datetime.datetime.now(datetime.timezone.utc),
+        "result": None,
+        "sub_task_id": None
+    }
+
+    await state_manager.add_step_to_dynamic_plan(task_id, user_id, new_step, main_goal_update)
+    await state_manager.add_execution_log(task_id, user_id, "plan_step_added", {"step_description": next_step_description}, reasoning)
+    return {"status": "success", "message": "New step added to the plan."}
 
 async def update_context(ctx: Context, key: str, value: Any, reasoning: str) -> Dict:
     """Store information in the task's context store"""
@@ -87,7 +97,10 @@ async def wait_for_response(ctx: Context, waiting_for: str, timeout_minutes: int
     task_id = auth.get_task_id_from_context(ctx)
     await waiting_manager.set_waiting_state(task_id, user_id, waiting_for, timeout_minutes, max_retries)
     await state_manager.add_execution_log(task_id, user_id, "waiting_started", {"waiting_for": waiting_for, "timeout_minutes": timeout_minutes}, reasoning)
-    return {"status": "success", "message": f"Task is now waiting for '{waiting_for}'."}
+    return {
+        "status": "success",
+        "message": f"Task is now waiting for '{waiting_for}'. DO NOT CONTINUE OR MAKE FURTHER CALLS IN THIS CYCLE."
+    }
 
 async def ask_user_clarification(ctx: Context, question: str, urgency: str = "normal", reasoning: str = "") -> Dict:
     """Suspend task and ask user for clarification"""
@@ -124,7 +137,10 @@ async def ask_user_clarification(ctx: Context, question: str, urgency: str = "no
             payload={"request_id": request_id}
         )
 
-        return {"status": "success", "message": "Clarification requested from user. Task is suspended."}
+        return {
+            "status": "success",
+            "message": "Clarification requested from user. Task is suspended. DO NOT CONTINUE OR MAKE FURTHER CALLS IN THIS CYCLE."
+        }
     finally:
         await db.close()
 
@@ -149,8 +165,8 @@ async def evaluate_completion(ctx: Context, reasoning: str) -> Dict:
 
     prompt = COMPLETION_EVALUATION_PROMPT.format(
         main_goal=task.get("orchestrator_state", {}).get("main_goal"),
-        context_store=json.dumps(task.get("orchestrator_state", {}).get("context_store", {})),
-        recent_results=json.dumps(recent_results_data)
+        context_store=json.dumps(task.get("orchestrator_state", {}).get("context_store", {}), default=str),
+        recent_results=json.dumps(recent_results_data, default=str)
     )
     messages = [{'role': 'user', 'content': prompt}]
     final_content_str = ""

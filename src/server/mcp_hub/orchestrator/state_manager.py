@@ -1,6 +1,6 @@
 import logging
 import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from workers.planner.db import PlannerMongoManager
 
 logger = logging.getLogger(__name__)
@@ -52,14 +52,20 @@ async def add_execution_log(task_id: str, user_id: str, action: str, details: Di
         )
     finally:
         await db.close()
-
-async def update_dynamic_plan(task_id: str, user_id: str, new_steps: List[Dict], goal: str = None):
+async def add_step_to_dynamic_plan(task_id: str, user_id: str, new_step: Dict, goal: Optional[str] = None):
+    """Appends a new step to the task's dynamic_plan array."""
     db = PlannerMongoManager()
     try:
-        update = {"dynamic_plan": new_steps}
+        update_payload = {
+            "$push": {"dynamic_plan": new_step}
+        }
         if goal:
-            update["orchestrator_state.main_goal"] = goal
-        await db.update_task_field(task_id, user_id, update)
+            update_payload["$set"] = {"orchestrator_state.main_goal": goal}
+
+        await db.tasks_collection.update_one(
+            {"task_id": task_id, "user_id": user_id},
+            update_payload
+        )
     finally:
         await db.close()
 

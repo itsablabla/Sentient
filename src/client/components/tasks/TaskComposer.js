@@ -60,7 +60,8 @@ const TaskComposer = ({
 	onTaskCreated,
 	isPro,
 	onUpgradeClick,
-	onClose
+	onClose,
+	initialData
 }) => {
 	const [goalInput, setGoalInput] = useState("")
 	const [workflowTab, setWorkflowTab] = useState("recurring")
@@ -78,11 +79,26 @@ const TaskComposer = ({
 	useClickOutside(composerRef, onClose)
 
 	useEffect(() => {
-		// Reset state when view changes
-		setGoalInput("")
-		setSelectedTrigger(null)
-		setRecurringDays([])
-	}, [view])
+		if (initialData) {
+			setGoalInput(initialData.prompt || "")
+			if (initialData.type === "workflow" && initialData.params) {
+				setWorkflowTab(initialData.params.workflowTab || "recurring")
+				setRecurringFrequency(
+					initialData.params.recurringFrequency || "daily"
+				)
+				setRecurringTime(initialData.params.recurringTime || "09:00")
+				setRecurringDays(initialData.params.recurringDays || [])
+			}
+		} else {
+			// Reset all state for a fresh composer instance
+			setGoalInput("")
+			setWorkflowTab("recurring")
+			setRecurringFrequency("daily")
+			setRecurringDays([])
+			setRecurringTime("09:00")
+			setSelectedTrigger(null)
+		}
+	}, [initialData])
 
 	const handleDayToggle = (day) => {
 		setRecurringDays((prev) =>

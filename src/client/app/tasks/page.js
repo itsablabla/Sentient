@@ -143,7 +143,13 @@ function TasksPageContent() {
 	const [searchQuery, setSearchQuery] = useState("")
 	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
 	const [isComposerOpen, setIsComposerOpen] = useState(false)
+	const [composerInitialData, setComposerInitialData] = useState(null)
 	const { isPro } = usePlan()
+
+	const handleClosePanel = useCallback(() => {
+		router.push("/tasks", { scroll: false }) // Clear URL param
+		setIsModalOpen(false)
+	}, [router])
 
 	useEffect(() => {
 		const checkMobile = () => window.innerWidth < 768
@@ -166,16 +172,27 @@ function TasksPageContent() {
 	}, [isMobile, selectedTaskId])
 
 	useEffect(() => {
-		const taskId = searchParams.get("taskId")
-		if (taskId) {
-			const task = allTasks.find((t) => t.task_id === taskId)
-			if (task) {
-				if (isMobile) setIsModalOpen(true)
+		// Wait until tasks are loaded before trying to find a selected task.
+		// This prevents clearing the URL prematurely on page load.
+		if (!isLoading) {
+			const taskId = searchParams.get("taskId")
+			if (taskId) {
+				const task = allTasks.find((t) => t.task_id === taskId)
+				if (task) {
+					// Task exists, open the modal on mobile.
+					if (isMobile) setIsModalOpen(true)
+				} else {
+					// A taskId is in the URL, but no matching task was found.
+					// This happens with invalid links or after a task is deleted.
+					// Clean up the state by closing the panel and clearing the URL.
+					handleClosePanel()
+				}
+			} else {
+				// No taskId in the URL, so ensure the modal is closed.
+				setIsModalOpen(false)
 			}
-		} else {
-			setIsModalOpen(false)
 		}
-	}, [searchParams, allTasks, isMobile])
+	}, [searchParams, allTasks, isMobile, isLoading, handleClosePanel])
 
 	const fetchTasks = useCallback(async () => {
 		setIsLoading(true)
@@ -336,13 +353,14 @@ function TasksPageContent() {
 		}
 	}
 
-	const handleClosePanel = () => {
-		router.push("/tasks", { scroll: false }) // Clear URL param
-		setIsModalOpen(false)
-	}
-
-	const handleExampleClick = (prompt) => {
-		handleCreateTask({ prompt })
+	const handleExampleClick = (example) => {
+		if (example.type === "workflow") {
+			setView("workflows")
+		} else {
+			setView("tasks")
+		}
+		setComposerInitialData(example)
+		setIsComposerOpen(true)
 	}
 
 	const renderTaskDetails = (task) => (
@@ -480,11 +498,16 @@ function TasksPageContent() {
 							view={view}
 							onTaskCreated={(payload) => {
 								handleCreateTask(payload)
-								setIsComposerOpen(false) // Close on creation
+								setIsComposerOpen(false)
+								setComposerInitialData(null)
 							}}
 							isPro={isPro}
 							onUpgradeClick={() => setUpgradeModalOpen(true)}
-							onClose={() => setIsComposerOpen(false)}
+							onClose={() => {
+								setIsComposerOpen(false)
+								setComposerInitialData(null)
+							}}
+							initialData={composerInitialData}
 						/>
 					)}
 				</AnimatePresence>

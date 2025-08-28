@@ -290,12 +290,12 @@ class MongoManager:
         # Add type-specific fields based on the new schema
         task_type = task_doc["task_type"]
         if task_type == "swarm":
-            task_doc["swarm_details"] = task_data.get("swarm_details")
+            task_doc["swarm_details"] = task_data.get("swarm_details", {})
         elif task_type == "long_form":
             task_doc["orchestrator_state"] = task_data.get("orchestrator_state")
-            task_doc["dynamic_plan"] = task_data.get("dynamic_plan")
-            task_doc["clarification_requests"] = task_data.get("clarification_requests")
-            task_doc["execution_log"] = task_data.get("execution_log")
+            task_doc["dynamic_plan"] = task_data.get("dynamic_plan", [])
+            task_doc["clarification_requests"] = task_data.get("clarification_requests", [])
+            task_doc["execution_log"] = task_data.get("execution_log", [])
             task_doc["auto_approve_subtasks"] = task_data.get("auto_approve_subtasks", False)
 
         SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
@@ -355,10 +355,36 @@ class MongoManager:
         # Always write back to the top-level field for consistency
         return await self.update_task(task_id, {"clarifying_questions": current_questions})
 
-    async def delete_task(self, task_id: str, user_id: str) -> str:
-        """Deletes a task."""
-        result = await self.task_collection.delete_one({"task_id": task_id, "user_id": user_id})
-        return "Task deleted successfully." if result.deleted_count > 0 else None
+    async def delete_task(self, task_id: str, user_id: str) -> Tuple[bool, List[str]]:
+        """
+        Deletes a parent task and all its sub-tasks.
+        Returns a tuple: (success_flag, list_of_all_deleted_task_ids).
+        """
+        # 1. Find all sub-tasks to get their IDs for notification cleanup
+        sub_task_query = {
+            "user_id": user_id,
+            "original_context.parent_task_id": task_id
+        }
+        sub_tasks_cursor = self.task_collection.find(sub_task_query, {"task_id": 1})
+        sub_tasks_to_delete = await sub_tasks_cursor.to_list(length=None)
+        sub_task_ids = [st["task_id"] for st in sub_tasks_to_delete]
+
+        # 2. Delete sub-tasks if any exist
+        if sub_task_ids:
+            delete_subtasks_result = await self.task_collection.delete_many(sub_task_query)
+            logger.info(f"Deleted {delete_subtasks_result.deleted_count} sub-tasks for parent task {task_id}.")
+
+        # 3. Delete the parent task
+        delete_parent_result = await self.task_collection.delete_one({"task_id": task_id, "user_id": user_id})
+        parent_deleted = delete_parent_result.deleted_count > 0
+
+        if not parent_deleted and not sub_task_ids:
+            return False, []
+
+        all_deleted_ids = [task_id] if parent_deleted else []
+        all_deleted_ids.extend(sub_task_ids)
+
+        return True, all_deleted_ids
 
     async def decline_task(self, task_id: str, user_id: str) -> str:
         """Declines a task by setting its status to 'declined'."""
