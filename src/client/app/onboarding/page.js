@@ -11,13 +11,19 @@ import {
 	IconBrandWhatsapp,
 	IconLoader,
 	IconCheck,
-	IconX
+	IconX,
+	IconPhone,
+	IconMicrophone,
+	IconBrain,
+	IconMail,
+	IconCalendarEvent,
+	IconBrandSlack,
+	IconBrandNotion
 } from "@tabler/icons-react"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import ProgressBar from "@components/onboarding/ProgressBar"
 import SparkleEffect from "@components/ui/SparkleEffect"
-import { GridBackground } from "@components/ui/GridBackground"
-import { UseCaseCarousel } from "@components/onboarding/UseCaseCarousel"
+import SiriSpheres from "@components/voice-visualization/SiriSpheres"
 
 // --- Helper Components ---
 
@@ -40,55 +46,199 @@ const FormattedPaQuestion = () => (
 	</div>
 )
 
-const TypingIndicator = () => (
-	<motion.div
-		initial={{ opacity: 0 }}
-		animate={{ opacity: 1 }}
-		exit={{ opacity: 0 }}
-		className="flex items-center gap-2"
-	>
-		<span className="text-brand-orange">[SENTIENT]:</span>
+const IntroStage = ({ onComplete }) => {
+	const [introIndex, setIntroIndex] = useState(0)
+	const [showButton, setShowButton] = useState(false)
+	const [audioLevel, setAudioLevel] = useState(0.1)
+
+	const introMessages = [
+		"Hello, I'm Sentient.",
+		"Text or call me...",
+		"...and I can get work done for you across your apps...",
+		"...while learning about you.",
+		"Let's get started."
+	]
+
+	useEffect(() => {
+		if (introIndex < introMessages.length - 1) {
+			const timer = setTimeout(() => {
+				setIntroIndex((prev) => prev + 1)
+			}, 2500) // Time each message is shown
+			return () => clearTimeout(timer)
+		} else {
+			const buttonTimer = setTimeout(() => {
+				setShowButton(true)
+			}, 1500)
+			return () => clearTimeout(buttonTimer)
+		}
+	}, [introIndex, introMessages.length])
+
+	useEffect(() => {
+		const interval = setInterval(() => {
+			// A gentle sine wave for pulsing effect
+			setAudioLevel(Math.sin(Date.now() / 500) * 0.1 + 0.15)
+		}, 50)
+		return () => clearInterval(interval)
+	}, [])
+
+	const icons = [
+		// index 1: Text or call me
+		{
+			key: "phone",
+			component: <IconPhone />,
+			top: "40%",
+			left: "30%",
+			size: 45,
+			triggerIndex: 1,
+			exitIndex: 2
+		},
+		{
+			key: "mic",
+			component: <IconMicrophone />,
+			top: "45%",
+			left: "65%",
+			size: 45,
+			triggerIndex: 1,
+			exitIndex: 2
+		},
+		// index 2: across your apps
+		{
+			key: "mail",
+			component: <IconMail />,
+			top: "15%",
+			left: "10%",
+			size: 40,
+			triggerIndex: 2,
+			exitIndex: 3
+		},
+		{
+			key: "cal",
+			component: <IconCalendarEvent />,
+			top: "25%",
+			left: "85%",
+			size: 50,
+			triggerIndex: 2,
+			exitIndex: 3
+		},
+		{
+			key: "slack",
+			component: <IconBrandSlack />,
+			top: "70%",
+			left: "5%",
+			size: 45,
+			triggerIndex: 2,
+			exitIndex: 3
+		},
+		{
+			key: "notion",
+			component: <IconBrandNotion />,
+			top: "80%",
+			left: "90%",
+			size: 55,
+			triggerIndex: 2,
+			exitIndex: 3
+		},
+		// index 3: learning about you
+		{
+			key: "brain",
+			component: <IconBrain />,
+			top: "40%",
+			left: "45%",
+			size: 60,
+			triggerIndex: 3,
+			exitIndex: 4
+		}
+	]
+
+	return (
 		<motion.div
-			className="w-2 h-4 bg-brand-orange"
-			animate={{ opacity: [0, 1, 0] }}
-			transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
-		/>
-	</motion.div>
-)
+			key="intro-stage"
+			className="relative w-full h-screen flex flex-col items-center justify-center text-center overflow-hidden bg-brand-black"
+		>
+			<InteractiveNetworkBackground />
+			<div className="absolute inset-0 -z-10 overflow-hidden">
+				<AnimatePresence>
+					{icons.map(
+						(icon) =>
+							introIndex >= icon.triggerIndex &&
+							introIndex < icon.exitIndex && (
+								<motion.div
+									key={icon.key}
+									className="absolute text-neutral-800"
+									style={{ top: icon.top, left: icon.left }}
+									initial={{ opacity: 0, scale: 0.8 }}
+									animate={{
+										opacity: 0.3,
+										scale: 1,
+										y: [0, Math.random() * 20 - 10, 0],
+										transition: {
+											y: {
+												duration:
+													Math.random() * 10 + 5,
+												repeat: Infinity,
+												repeatType: "mirror",
+												ease: "easeInOut"
+											},
+											default: { duration: 0.5 }
+										}
+									}}
+									exit={{
+										opacity: 0,
+										scale: 0.8,
+										transition: { duration: 0.5 }
+									}}
+								>
+									{React.cloneElement(icon.component, {
+										size: icon.size
+									})}
+								</motion.div>
+							)
+					)}
+				</AnimatePresence>
+			</div>
 
-const NavigationHint = ({ onBack, onNext, isNextDisabled }) => (
-	<div className="mt-6 text-center">
-		{/* Mobile Buttons */}
-		<div className="md:hidden flex justify-center gap-4">
-			<button
-				onClick={onBack}
-				className="py-2 px-5 rounded-md bg-neutral-700 hover:bg-neutral-600 text-sm font-semibold"
+			<motion.div
+				layoutId="onboarding-sphere"
+				className="w-[350px] h-[350px] md:w-[400px] md:h-[400px] flex items-center justify-center"
 			>
-				Back
-			</button>
-			<button
-				onClick={onNext}
-				disabled={isNextDisabled}
-				className="py-2 px-5 rounded-md bg-brand-orange/80 hover:bg-brand-orange text-brand-black text-sm font-semibold disabled:opacity-50"
-			>
-				Next
-			</button>
-		</div>
+				<SiriSpheres status="connected" audioLevel={audioLevel} />
+			</motion.div>
 
-		{/* Desktop Hint */}
-		<p className="hidden md:block text-xs text-neutral-500">
-			Press{" "}
-			<kbd className="px-2 py-1 text-xs font-semibold text-neutral-400 bg-neutral-800 border border-neutral-700 rounded-md">
-				Enter
-			</kbd>{" "}
-			to continue, or{" "}
-			<kbd className="px-2 py-1 text-xs font-semibold text-neutral-400 bg-neutral-800 border border-neutral-700 rounded-md">
-				←
-			</kbd>{" "}
-			to go back.
-		</p>
-	</div>
-)
+			<div className="w-full flex flex-col items-center justify-start pt-8 px-4 h-48">
+				<div className="h-12">
+					<AnimatePresence mode="wait">
+						<motion.p
+							key={introIndex}
+							initial={{ opacity: 0, y: 10 }}
+							animate={{ opacity: 1, y: 0 }}
+							exit={{ opacity: 0, y: -10 }}
+							transition={{ duration: 0.5 }}
+							className="text-3xl md:text-4xl font-medium text-neutral-200"
+						>
+							{introMessages[introIndex]}
+						</motion.p>
+					</AnimatePresence>
+				</div>
+
+				<div className="h-16 mt-4">
+					<AnimatePresence>
+						{showButton && (
+							<motion.button
+								onClick={onComplete}
+								initial={{ opacity: 0, scale: 0.9 }}
+								animate={{ opacity: 1, scale: 1 }}
+								transition={{ delay: 0.2, duration: 0.5 }}
+								className="rounded-lg bg-brand-orange px-8 py-3 text-lg font-semibold text-brand-black transition-colors hover:bg-brand-orange/90"
+							>
+								Let's Begin
+							</motion.button>
+						)}
+					</AnimatePresence>
+				</div>
+			</div>
+		</motion.div>
+	)
+}
 
 // --- Onboarding Data ---
 
@@ -229,60 +379,23 @@ const OnboardingPage = () => {
 	const [answers, setAnswers] = useState({})
 	const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
 	const [isLoading, setIsLoading] = useState(true)
-	const [conversation, setConversation] = useState([])
 	const [score, setScore] = useState(0)
 	const [maxQuestionIndexReached, setMaxQuestionIndexReached] = useState(0)
 	const [sparkleTrigger, setSparkleTrigger] = useState(0)
-	const [isAiTyping, setIsAiTyping] = useState(false)
 	const posthog = usePostHog()
 	const router = useRouter()
-	const chatEndRef = useRef(null)
 	const statusChecked = useRef(false)
 	const [whatsappStatus, setWhatsappStatus] = useState("idle") // idle, checking, valid, invalid
 	const [whatsappError, setWhatsappError] = useState("")
 	const debounceTimeoutRef = useRef(null)
+	const [modelReacting, setModelReacting] = useState(false)
+	const [audioLevel, setAudioLevel] = useState(0.1)
 
 	const [locationState, setLocationState] = useState({
 		loading: false,
 		data: null,
 		error: null
 	})
-
-	const addAiMessage = useCallback(
-		(index) => {
-			let message = sentientComments[index]
-			if (message.includes("{user-name}")) {
-				message = message.replace(
-					"{user-name}",
-					answers["user-name"] || "friend"
-				)
-			}
-			// Append the question text if it exists for the current step
-			if (index < questions.length) {
-				const question = questions[index]
-				if (question) {
-					if (question.id === "needs-pa") {
-						setConversation((prev) => [
-							...prev,
-							{
-								sender: "ai",
-								text: message,
-								type: "formatted-pa-question"
-							}
-						])
-						return
-					}
-					message += `\n\n${question.question}`
-				}
-			}
-
-			setConversation((prev) => [
-				...prev,
-				{ sender: "ai", text: message }
-			])
-		},
-		[answers]
-	)
 
 	const verifyWhatsappNumber = async (number) => {
 		if (!/^\+[1-9]\d{1,14}$/.test(number.trim())) {
@@ -517,68 +630,34 @@ const OnboardingPage = () => {
 	}
 
 	const handleNext = useCallback(() => {
-		if (!isCurrentQuestionAnswered() || isAiTyping) return
+		if (!isCurrentQuestionAnswered()) return
 
-		// Slice conversation history to the correct point before adding the new answer.
-		// This ensures that if a user goes back and changes an answer, the subsequent
-		// conversation history is cleared.
-		const conversationSliceIndex = 1 + currentQuestionIndex * 2
-		const currentQuestion = questions[currentQuestionIndex]
-		const answer = answers[currentQuestion.id]
-
-		// Format answer for display
-		let displayAnswer = answer
-		if (Array.isArray(answer)) {
-			displayAnswer = answer.join(", ")
-		}
-
-		setConversation((prev) => {
-			const slicedPrev = prev.slice(0, conversationSliceIndex)
-			return [...slicedPrev, { sender: "user", text: displayAnswer }]
-		})
+		setModelReacting(true)
+		setTimeout(() => setModelReacting(false), 600)
+		setSparkleTrigger((c) => c + 1)
 
 		if (currentQuestionIndex >= maxQuestionIndexReached) {
 			setScore((s) => s + 10)
 			setMaxQuestionIndexReached(currentQuestionIndex + 1)
 		}
 
-		setSparkleTrigger((c) => c + 1)
-		setIsAiTyping(true)
-
-		setTimeout(() => {
-			setIsAiTyping(false)
-			if (currentQuestionIndex < questions.length - 1) {
-				setCurrentQuestionIndex((prev) => prev + 1)
-				addAiMessage(currentQuestionIndex + 1)
-			} else {
-				addAiMessage(questions.length) // Final comment
-				setTimeout(handleSubmit, 1500)
-			}
-		}, 1500) // 1.5 second typing delay
+		if (currentQuestionIndex < questions.length - 1) {
+			setCurrentQuestionIndex((prev) => prev + 1)
+		} else {
+			handleSubmit()
+		}
 	}, [
 		currentQuestionIndex,
-		answers,
 		isCurrentQuestionAnswered,
 		handleSubmit,
-		addAiMessage,
-		locationState.data,
-		maxQuestionIndexReached,
-		isAiTyping
+		maxQuestionIndexReached
 	])
 
 	const handleBack = useCallback(() => {
-		if (currentQuestionIndex > 0 && !isAiTyping) {
-			setCurrentQuestionIndex((prev) => {
-				const newIndex = prev - 1
-				// Slice conversation to remove the last user answer and the AI question that followed.
-				const conversationSliceIndex = 1 + newIndex * 2
-				setConversation((prevConv) =>
-					prevConv.slice(0, conversationSliceIndex)
-				)
-				return newIndex
-			})
+		if (currentQuestionIndex > 0) {
+			setCurrentQuestionIndex((prev) => prev - 1)
 		}
-	}, [currentQuestionIndex, isAiTyping])
+	}, [currentQuestionIndex])
 
 	// --- Effects ---
 
@@ -588,19 +667,14 @@ const OnboardingPage = () => {
 
 		const checkStatus = async () => {
 			try {
-				const response = await fetch("/api/user/data", {method: "POST"})
+				const response = await fetch("/api/user/data", {
+					method: "POST"
+				})
 				if (!response.ok) throw new Error("Could not fetch user data.")
 				const result = await response.json()
 				if (result?.data?.onboardingComplete) {
 					router.push("/chat?show_demo=true")
 				} else {
-					const firstQuestion = questions[0]?.question || ""
-					setConversation([
-						{
-							sender: "ai",
-							text: `${sentientComments[0]}\n\n${firstQuestion}`
-						}
-					])
 					setIsLoading(false)
 				}
 			} catch (error) {
@@ -624,10 +698,7 @@ const OnboardingPage = () => {
 
 	useEffect(() => {
 		const handleKeyDown = (e) => {
-			if (stage === "intro" && e.key === "Enter") {
-				e.preventDefault()
-				setStage("questions")
-			} else if (stage === "questions") {
+			if (stage === "questions") {
 				if (e.key === "ArrowLeft") {
 					e.preventDefault()
 					handleBack()
@@ -647,8 +718,17 @@ const OnboardingPage = () => {
 	}, [stage, handleBack, handleNext, currentQuestionIndex])
 
 	useEffect(() => {
-		chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
-	}, [conversation, isAiTyping])
+		let interval
+		if (modelReacting) {
+			setAudioLevel(0.6) // Spike the level for reaction
+		} else {
+			// Gentle pulse
+			interval = setInterval(() => {
+				setAudioLevel(Math.sin(Date.now() / 400) * 0.05 + 0.1)
+			}, 50)
+		}
+		return () => clearInterval(interval)
+	}, [modelReacting])
 
 	// --- Render Logic ---
 
@@ -661,152 +741,76 @@ const OnboardingPage = () => {
 	}
 
 	const renderContent = () => {
-		const introVariants = {
-			hidden: { opacity: 0 },
-			visible: {
-				opacity: 1,
-				transition: {
-					staggerChildren: 0.3
-				}
-			}
-		}
-
-		const itemVariants = {
-			hidden: { y: 20, opacity: 0 },
-			visible: {
-				y: 0,
-				opacity: 1,
-				transition: { type: "spring", stiffness: 100 }
-			}
-		}
-
 		switch (stage) {
-			case "intro":
-				return (
-					<motion.div
-						key="intro"
-						variants={introVariants}
-						initial="hidden"
-						animate="visible"
-						exit={{ opacity: 0, y: -20 }}
-						className="text-center flex flex-col items-center"
-					>
-						<motion.div variants={itemVariants} className="mb-8">
-							<IconSparkles
-								size={80}
-								className="mx-auto text-brand-orange drop-shadow-[0_0_15px_rgba(0,173,181,0.5)]"
-							/>
-						</motion.div>
-						<motion.h1
-							variants={itemVariants}
-							className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-b from-neutral-50 to-neutral-400"
-						>
-							Welcome. I'm Sentient.
-						</motion.h1>
-						<motion.p
-							variants={itemVariants}
-							className="text-lg md:text-xl text-neutral-300 max-w-xl mx-auto"
-						>
-							I'm excited to get to know you.
-						</motion.p>
-						<motion.div
-							variants={itemVariants}
-							className="mt-12 flex flex-col items-center gap-4"
-						>
-							<motion.button
-								onClick={() => {
-									setStage("questions")
-								}}
-								className="rounded-lg bg-brand-orange px-8 py-3 text-lg font-semibold text-brand-black transition-colors hover:bg-brand-orange/90"
-								whileHover={{ scale: 1.05 }}
-								whileTap={{ scale: 0.95 }}
-							>
-								Let's Begin
-							</motion.button>
-						</motion.div>
-					</motion.div>
-				)
-
 			case "questions":
 				const currentQuestion = questions[currentQuestionIndex] ?? null
 				return (
 					<motion.div
-						key="questions"
-						initial={{ opacity: 0 }}
-						animate={{ opacity: 1 }}
-						exit={{ opacity: 0 }}
-						className="w-full h-full flex flex-col font-mono"
+						key="questions-stage"
+						className="w-full max-w-2xl"
 					>
-						<div className="pt-8 pb-4 flex-shrink-0">
+						<div className="bg-neutral-900/50 border border-neutral-700/50 rounded-2xl p-6 sm:p-8 text-left space-y-6 flex flex-col">
+							{/* 3D Model Container */}
+							<motion.div
+								layoutId="onboarding-sphere"
+								className="h-40 w-full flex items-center justify-center -mt-4 -mb-4"
+							>
+								<SiriSpheres
+									status="connected"
+									audioLevel={audioLevel}
+								/>
+							</motion.div>
+
+							{/* Progress Bar */}
 							<ProgressBar
 								score={score}
 								totalQuestions={questions.length}
 							/>
-						</div>
-						<div className="flex-1 w-full max-w-4xl mx-auto overflow-y-auto custom-scrollbar p-4 space-y-2 text-sm md:text-base bg-black/30 border border-brand-gray rounded-lg">
-							{conversation.map((msg, index) => (
-								<div key={index}>
-									{msg.sender === "ai" ? (
-										<div>
-											<p className="whitespace-pre-wrap">
-												<span className="text-brand-orange">
-													[SENTIENT]:
-												</span>
-												<span className="text-brand-white">
-													{" "}
-													{msg.text}
-												</span>
-											</p>
-											{msg.type ===
-												"formatted-pa-question" && (
-												<FormattedPaQuestion />
-											)}
-										</div>
-									) : (
-										<p className="whitespace-pre-wrap">
-											<span className="text-green-400">
-												[YOU]:
-											</span>
-											<span className="text-neutral-300">
-												{" "}
-												{msg.text}
-											</span>
-										</p>
-									)}
-								</div>
-							))}
-							{isAiTyping && <TypingIndicator />}
-							<div ref={chatEndRef} />
-						</div>
-						<div className="w-full max-w-4xl mx-auto p-4 flex-shrink-0">
+
+							{/* Question Text */}
 							<AnimatePresence mode="wait">
-								{currentQuestion && !isAiTyping && (
-									<motion.div
-										key={currentQuestionIndex}
-										initial={{ opacity: 0, y: 20 }}
-										animate={{ opacity: 1, y: 0 }}
-										exit={{ opacity: 0, y: -20 }}
-									>
-										<div className="flex items-center gap-2">
-											<span className="text-green-400">
-												{">"}
-											</span>
-											<div className="flex-1">
-												{renderInput(currentQuestion)}
-											</div>
-										</div>
-									</motion.div>
-								)}
+								<motion.div
+									key={currentQuestionIndex}
+									initial={{ opacity: 0, y: 20 }}
+									animate={{ opacity: 1, y: 0 }}
+									exit={{ opacity: 0, y: -20 }}
+									className="min-h-[120px]" // Give it some min height to avoid layout shifts
+								>
+									<p className="text-lg md:text-xl text-neutral-200 whitespace-pre-wrap">
+										{currentQuestion.question}
+									</p>
+									{currentQuestion.id === "needs-pa" && (
+										<FormattedPaQuestion />
+									)}
+								</motion.div>
 							</AnimatePresence>
-							{currentQuestion && !isAiTyping && (
-								<NavigationHint
-									onBack={handleBack}
-									onNext={handleNext}
-									isNextDisabled={
-										!isCurrentQuestionAnswered()
-									}
-								/>
-							)}
+
+							{/* Answer Input */}
+							<div className="min-h-[50px]">
+								{currentQuestion &&
+									renderInput(currentQuestion)}
+							</div>
+
+							{/* Navigation */}
+							<div className="flex justify-between items-center pt-4 border-t border-neutral-800">
+								<button
+									onClick={handleBack}
+									disabled={currentQuestionIndex === 0}
+									className="py-2 px-5 rounded-md bg-neutral-700 hover:bg-neutral-600 text-sm font-semibold disabled:opacity-50"
+								>
+									Back
+								</button>
+								<button
+									onClick={handleNext}
+									disabled={!isCurrentQuestionAnswered()}
+									className="py-2 px-5 rounded-md bg-brand-orange hover:bg-brand-orange/90 text-brand-black text-sm font-semibold disabled:opacity-50"
+								>
+									{currentQuestionIndex ===
+									questions.length - 1
+										? "Finish"
+										: "Next"}
+								</button>
+							</div>
 						</div>
 					</motion.div>
 				)
@@ -826,11 +830,6 @@ const OnboardingPage = () => {
 						</h1>
 					</motion.div>
 				)
-
-			case "whatsNext":
-				// This stage is removed as per the simplified flow.
-				// The app will redirect directly after submitting.
-				return null
 
 			case "complete":
 				return (
@@ -872,26 +871,50 @@ const OnboardingPage = () => {
 							placeholder={currentQuestion.placeholder}
 							required={currentQuestion.required}
 							autoFocus
-							className="w-full px-4 py-2 bg-transparent text-brand-white placeholder:text-neutral-500 focus:ring-0 border-none p-0"
+							className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg focus:ring-2 focus:ring-brand-orange"
 						/>
 						{currentQuestion.id ===
 							"whatsapp_notifications_number" && (
-							<div className="absolute right-0 top-1/2 -translate-y-1/2">
+							<div className="absolute right-3 top-1/2 -translate-y-1/2">
 								{whatsappStatus === "checking" && (
-									<IconLoader
-										size={18}
-										className="animate-spin text-neutral-400"
-									/>
+									<motion.div
+										key="loader"
+										initial={{ opacity: 0 }}
+										animate={{ opacity: 1 }}
+										exit={{ opacity: 0 }}
+									>
+										<IconLoader
+											size={18}
+											className="animate-spin text-neutral-400"
+										/>
+									</motion.div>
 								)}
-								{whatsappStatus === "valid" && (
-									<IconCheck
-										size={18}
-										className="text-green-500"
-									/>
-								)}
-								{whatsappStatus === "invalid" && (
-									<IconX size={18} className="text-red-500" />
-								)}
+								<AnimatePresence>
+									{whatsappStatus === "valid" && (
+										<motion.div
+											key="valid"
+											initial={{ scale: 0.5, opacity: 0 }}
+											animate={{ scale: 1, opacity: 1 }}
+										>
+											<IconCheck
+												size={18}
+												className="text-green-500"
+											/>
+										</motion.div>
+									)}
+									{whatsappStatus === "invalid" && (
+										<motion.div
+											key="invalid"
+											initial={{ scale: 0.5, opacity: 0 }}
+											animate={{ scale: 1, opacity: 1 }}
+										>
+											<IconX
+												size={18}
+												className="text-red-500"
+											/>
+										</motion.div>
+									)}
+								</AnimatePresence>
 							</div>
 						)}
 						{currentQuestion.id ===
@@ -912,7 +935,7 @@ const OnboardingPage = () => {
 							handleAnswer(currentQuestion.id, e.target.value)
 						}
 						required={currentQuestion.required}
-						className="w-full px-4 py-2 bg-transparent text-brand-white placeholder:text-neutral-500 focus:ring-0 border-none p-0 appearance-none"
+						className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg focus:ring-2 focus:ring-brand-orange appearance-none"
 					>
 						{currentQuestion.options.map((option) => (
 							<option
@@ -933,7 +956,7 @@ const OnboardingPage = () => {
 						onChange={(e) =>
 							handleAnswer(currentQuestion.id, e.target.value)
 						}
-						className="w-full px-4 py-2 bg-transparent text-brand-white placeholder:text-neutral-500 focus:ring-0 border-none p-0 resize-none"
+						className="w-full h-24 px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg focus:ring-2 focus:ring-brand-orange resize-none custom-scrollbar"
 						placeholder={currentQuestion.placeholder}
 						autoFocus
 						rows={1}
@@ -953,19 +976,19 @@ const OnboardingPage = () => {
 							onChange={(e) =>
 								handleAnswer("location", e.target.value)
 							}
-							className="w-full px-4 py-2 bg-transparent text-brand-white placeholder:text-neutral-500 focus:ring-0 border-none p-0"
+							className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg focus:ring-2 focus:ring-brand-orange"
 						/>
 						<button
 							type="button"
 							onClick={handleGetLocation}
 							disabled={locationState.loading}
-							className="translate-y-3 text-sm text-center text-brand-orange hover:underline whitespace-nowrap"
+							className="text-sm text-center text-brand-orange hover:underline whitespace-nowrap"
 						>
 							{locationState.loading
 								? "Detecting..."
 								: "or [Detect Current Location]"}
 						</button>
-						{locationState.data && !isAiTyping && (
+						{locationState.data && (
 							<p className="text-sm text-green-400">
 								Location captured!
 							</p>
@@ -1011,36 +1034,20 @@ const OnboardingPage = () => {
 	}
 
 	return (
-		<div className="grid md:grid-cols-20 min-h-screen w-full text-brand-white overflow-hidden">
-			{/* Left Column: Onboarding Flow */}
-			<div className="relative flex flex-col items-center justify-center w-full p-4 sm:p-8 overflow-hidden md:col-span-13">
-				<div className="absolute inset-0 z-[-1]">
-					<InteractiveNetworkBackground />
-				</div>
-				<div className="absolute -top-[250px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-brand-orange/10 rounded-full blur-3xl -z-10" />
-				<div className="relative z-10 w-full h-full flex flex-col items-center justify-center">
-					<SparkleEffect trigger={sparkleTrigger} />
-					<AnimatePresence mode="wait">
-						{renderContent()}
-					</AnimatePresence>
-				</div>
+		<div className="relative flex flex-col items-center justify-center min-h-screen w-full text-brand-white overflow-hidden p-4 sm:p-8">
+			<div className="absolute inset-0 z-[-1]">
+				<InteractiveNetworkBackground />
 			</div>
-
-			{/* Right Column: Use Case Carousel (Desktop Only) */}
-			<div className="hidden md:flex flex-col items-center justify-center relative md:col-span-7">
-				<GridBackground>
-					<motion.div
-						initial={{ opacity: 0, scale: 0.9 }}
-						animate={{ opacity: 1, scale: 1 }}
-						transition={{
-							duration: 0.5,
-							delay: 0.2,
-							ease: "easeOut"
-						}}
-					>
-						<UseCaseCarousel />
-					</motion.div>
-				</GridBackground>
+			<div className="absolute -top-[250px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-brand-orange/10 rounded-full blur-3xl -z-10" />
+			<div className="relative z-10 w-full flex flex-col items-center justify-center">
+				<SparkleEffect trigger={sparkleTrigger} />
+				<AnimatePresence mode="wait">
+					{stage === "intro" ? (
+						<IntroStage onComplete={() => setStage("questions")} />
+					) : (
+						renderContent()
+					)}
+				</AnimatePresence>
 			</div>
 		</div>
 	)
