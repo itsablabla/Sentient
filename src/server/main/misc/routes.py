@@ -3,13 +3,16 @@ import uuid
 import json
 import traceback
 import secrets
-import asyncio
+import asyncio, datetime
 from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, Depends, HTTPException, status, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, status, Request, WebSocket, WebSocketDisconnect, Query
 from fastapi.responses import JSONResponse
 import logging
 
 from main.models import OnboardingRequest
+from main.memories.db import get_db_pool as get_memories_pg_pool
+from mcp_hub.memory.utils import _get_normalized_embedding
+from pgvector.asyncpg import register_vector
 from main.auth.utils import PermissionChecker, AuthHelper
 from main.config import AUTH0_AUDIENCE
 from main.dependencies import mongo_manager, auth_helper, websocket_manager as main_websocket_manager
@@ -310,3 +313,63 @@ async def update_privacy_filters_endpoint(
         raise HTTPException(status_code=500, detail="Failed to update privacy filters.")
         
     return JSONResponse(content={"message": "Privacy filters updated successfully."})
+
+@router.get("/search/interactive", summary="Interactive search for tasks, chats, and memories")
+async def interactive_search(
+    query: str = Query(..., min_length=3),
+    user_id: str = Depends(auth_helper.get_current_user_id)
+):
+    # Search tasks
+    task_cursor = mongo_manager.task_collection.find(
+        {"user_id": user_id, "$text": {"$search": query}},
+        {"score": {"$meta": "textScore"}}
+    ).sort([("score", {"$meta": "textScore"})]).limit(5)
+    tasks = await task_cursor.to_list(length=5)
+    
+    # Search messages
+    message_cursor = mongo_manager.messages_collection.find(
+        {"user_id": user_id, "$text": {"$search": query}},
+        {"score": {"$meta": "textScore"}}
+    ).sort([("score", {"$meta": "textScore"})]).limit(5)
+    messages = await message_cursor.to_list(length=5)
+
+    # Search memories (Postgres with pgvector)
+    memories = []
+    try:
+        pool = await get_memories_pg_pool()
+        async with pool.acquire() as conn:
+            await register_vector(conn)
+            query_embedding = _get_normalized_embedding(query, task_type="RETRIEVAL_QUERY")
+            
+            memories_records = await conn.fetch(
+                """
+                SELECT id, content, created_at, 1 - (embedding <=> $2) AS similarity
+                FROM facts
+                WHERE user_id = $1
+                ORDER BY similarity DESC
+                LIMIT 5;
+                """,
+                user_id, query_embedding
+            )
+        memories = [dict(record) for record in memories_records]
+    except Exception as e:
+        logger.error(f"Error during memory search for user {user_id}: {e}", exc_info=True)
+        # Don't fail the whole search if memory search fails
+        
+    results = []
+    for task in tasks:
+        results.append({"type": "task", "task_id": task["task_id"], "name": task.get("name"), "timestamp": task["created_at"]})
+    for msg in messages:
+        results.append({"type": "chat", "message_id": msg["message_id"], "content": msg["content"], "timestamp": msg["timestamp"]})
+    for mem in memories:
+        results.append({"type": "memory", "id": mem["id"], "content": mem["content"], "timestamp": mem["created_at"]})
+
+    # Sort all combined results by timestamp
+    results.sort(key=lambda x: x["timestamp"], reverse=True)
+    
+    # Ensure all timestamps are ISO strings
+    for r in results:
+        if isinstance(r['timestamp'], datetime.datetime):
+            r['timestamp'] = r['timestamp'].isoformat()
+
+    return {"results": results[:10]}

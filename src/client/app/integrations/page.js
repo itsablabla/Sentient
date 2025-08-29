@@ -35,6 +35,7 @@ import {
 	IconCalendarEvent,
 	IconWorldSearch,
 	IconSearch,
+	IconBolt,
 	IconSparkles,
 	IconAlertTriangle,
 	IconEye,
@@ -146,8 +147,8 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 					>
 						<header className="text-center mb-4">
 							<h2 className="text-2xl font-bold text-white flex items-center justify-center gap-2">
-								<IconSparkles className="text-brand-orange" />
-								Upgrade to Pro
+								<IconBolt className="text-yellow-400" />
+								Unlock Pro Features
 							</h2>
 							<p className="text-neutral-400 mt-2">
 								Unlock powerful features to conquer your day.
@@ -179,7 +180,7 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 								onClick={handleUpgrade}
 								className="w-full py-2.5 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
 							>
-								Upgrade to Pro - $9/month
+								Upgrade Now - $9/month
 							</button>
 							<button
 								onClick={onClose}
@@ -645,7 +646,7 @@ const InfoPanel = ({ onClose, title, children }) => (
 const IntegrationHeader = ({
 	searchQuery,
 	onSearchChange,
-	categories,
+	categoriesToShow,
 	activeCategory,
 	onCategoryChange
 }) => {
@@ -668,7 +669,7 @@ const IntegrationHeader = ({
 
 			{/* Filter Pills */}
 			<div className="mt-4 flex flex-wrap gap-2">
-				{categories.map((category) => (
+				{categoriesToShow.map((category) => (
 					<button
 						key={category}
 						onClick={() => onCategoryChange(category)}
@@ -756,14 +757,14 @@ const IntegrationCard = ({
 				<div className="flex flex-col items-end gap-1">
 					{tagType && <IntegrationTag type={tagType} />}
 					{isProFeature && (
-						<span
+						<div
 							className={cn(
-								"px-2 py-0.5 rounded-full text-xs font-semibold",
+								"p-1.5 rounded-full text-xs font-semibold",
 								"bg-yellow-500/20 text-yellow-300"
 							)}
 						>
-							Pro
-						</span>
+							<IconBolt size={12} />
+						</div>
 					)}
 				</div>
 			</div>
@@ -803,7 +804,7 @@ const IntegrationsPage = () => {
 	const [loading, setLoading] = useState(true)
 	const [processingIntegration, setProcessingIntegration] = useState(null)
 	const [searchQuery, setSearchQuery] = useState("")
-	const [activeCategory, setActiveCategory] = useState("Most Popular")
+	const [activeCategory, setActiveCategory] = useState("Calendars")
 	const [selectedIntegration, setSelectedIntegration] = useState(null)
 	const [activeManualIntegration, setActiveManualIntegration] = useState(null)
 	const [isWhatsAppDisclaimerOpen, setIsWhatsAppDisclaimerOpen] =
@@ -1308,11 +1309,13 @@ const IntegrationsPage = () => {
 		() => [...userIntegrations, ...defaultTools],
 		[userIntegrations, defaultTools]
 	)
-
-	const categories = useMemo(() => {
-		const allCats = allIntegrations.map((i) => i.category).filter(Boolean)
-		return ["Most Popular", ...[...new Set(allCats)].sort()]
-	}, [allIntegrations])
+	const categoriesToShow = [
+		"Calendars",
+		"Inbox",
+		"Communication",
+		"Information",
+		"Advanced"
+	]
 
 	const displayedIntegrations = useMemo(() => {
 		// This filter function is used when a search query is active.
@@ -1333,21 +1336,9 @@ const IntegrationsPage = () => {
 		}
 
 		// Otherwise, if the search is empty, apply the active category filter.
-		if (activeCategory === "Most Popular") {
-			const filteredList = allIntegrations.filter((integration) =>
-				MOST_POPULAR_INTEGRATION_NAMES.includes(integration.name)
-			)
-			filteredList.sort(
-				(a, b) =>
-					MOST_POPULAR_INTEGRATION_NAMES.indexOf(a.name) -
-					MOST_POPULAR_INTEGRATION_NAMES.indexOf(b.name)
-			)
-			return filteredList
-		} else {
-			return allIntegrations.filter(
-				(integration) => integration.category === activeCategory
-			)
-		}
+		return allIntegrations.filter(
+			(integration) => integration.category === activeCategory
+		)
 	}, [
 		activeCategory,
 		allIntegrations,
@@ -1552,7 +1543,7 @@ const IntegrationsPage = () => {
 							<IntegrationHeader
 								searchQuery={searchQuery}
 								onSearchChange={setSearchQuery}
-								categories={categories}
+								categoriesToShow={categoriesToShow}
 								activeCategory={activeCategory}
 								onCategoryChange={setActiveCategory}
 							/>
