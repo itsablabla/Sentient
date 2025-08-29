@@ -12,14 +12,9 @@ import {
 	IconLoader,
 	IconCheck,
 	IconX,
-	IconPhone,
-	IconMicrophone,
-	IconBrain,
-	IconMail,
-	IconCalendarEvent,
-	IconBrandSlack,
-	IconBrandNotion
+	IconBrain
 } from "@tabler/icons-react"
+import Typewriter from "typewriter-effect"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import ProgressBar from "@components/onboarding/ProgressBar"
 import SparkleEffect from "@components/ui/SparkleEffect"
@@ -47,31 +42,7 @@ const FormattedPaQuestion = () => (
 )
 
 const IntroStage = ({ onComplete }) => {
-	const [introIndex, setIntroIndex] = useState(0)
-	const [showButton, setShowButton] = useState(false)
 	const [audioLevel, setAudioLevel] = useState(0.1)
-
-	const introMessages = [
-		"Hello, I'm Sentient.",
-		"Text or call me...",
-		"...and I can get work done for you across your apps...",
-		"...while learning about you.",
-		"Let's get started."
-	]
-
-	useEffect(() => {
-		if (introIndex < introMessages.length - 1) {
-			const timer = setTimeout(() => {
-				setIntroIndex((prev) => prev + 1)
-			}, 2500) // Time each message is shown
-			return () => clearTimeout(timer)
-		} else {
-			const buttonTimer = setTimeout(() => {
-				setShowButton(true)
-			}, 1500)
-			return () => clearTimeout(buttonTimer)
-		}
-	}, [introIndex, introMessages.length])
 
 	useEffect(() => {
 		const interval = setInterval(() => {
@@ -81,159 +52,49 @@ const IntroStage = ({ onComplete }) => {
 		return () => clearInterval(interval)
 	}, [])
 
-	const icons = [
-		// index 1: Text or call me
-		{
-			key: "phone",
-			component: <IconPhone />,
-			top: "40%",
-			left: "30%",
-			size: 45,
-			triggerIndex: 1,
-			exitIndex: 2
-		},
-		{
-			key: "mic",
-			component: <IconMicrophone />,
-			top: "45%",
-			left: "65%",
-			size: 45,
-			triggerIndex: 1,
-			exitIndex: 2
-		},
-		// index 2: across your apps
-		{
-			key: "mail",
-			component: <IconMail />,
-			top: "15%",
-			left: "10%",
-			size: 40,
-			triggerIndex: 2,
-			exitIndex: 3
-		},
-		{
-			key: "cal",
-			component: <IconCalendarEvent />,
-			top: "25%",
-			left: "85%",
-			size: 50,
-			triggerIndex: 2,
-			exitIndex: 3
-		},
-		{
-			key: "slack",
-			component: <IconBrandSlack />,
-			top: "70%",
-			left: "5%",
-			size: 45,
-			triggerIndex: 2,
-			exitIndex: 3
-		},
-		{
-			key: "notion",
-			component: <IconBrandNotion />,
-			top: "80%",
-			left: "90%",
-			size: 55,
-			triggerIndex: 2,
-			exitIndex: 3
-		},
-		// index 3: learning about you
-		{
-			key: "brain",
-			component: <IconBrain />,
-			top: "40%",
-			left: "45%",
-			size: 60,
-			triggerIndex: 3,
-			exitIndex: 4
-		}
-	]
-
 	return (
 		<motion.div
 			key="intro-stage"
-			className="relative w-full h-screen flex flex-col items-center justify-center text-center overflow-hidden bg-brand-black"
+			className="relative w-full h-screen flex flex-col items-center justify-center text-center overflow-hidden"
 		>
 			<InteractiveNetworkBackground />
-			<div className="absolute inset-0 -z-10 overflow-hidden">
-				<AnimatePresence>
-					{icons.map(
-						(icon) =>
-							introIndex >= icon.triggerIndex &&
-							introIndex < icon.exitIndex && (
-								<motion.div
-									key={icon.key}
-									className="absolute text-neutral-800"
-									style={{ top: icon.top, left: icon.left }}
-									initial={{ opacity: 0, scale: 0.8 }}
-									animate={{
-										opacity: 0.3,
-										scale: 1,
-										y: [0, Math.random() * 20 - 10, 0],
-										transition: {
-											y: {
-												duration:
-													Math.random() * 10 + 5,
-												repeat: Infinity,
-												repeatType: "mirror",
-												ease: "easeInOut"
-											},
-											default: { duration: 0.5 }
-										}
-									}}
-									exit={{
-										opacity: 0,
-										scale: 0.8,
-										transition: { duration: 0.5 }
-									}}
-								>
-									{React.cloneElement(icon.component, {
-										size: icon.size
-									})}
-								</motion.div>
-							)
-					)}
-				</AnimatePresence>
-			</div>
 
 			<motion.div
 				layoutId="onboarding-sphere"
-				className="w-[350px] h-[350px] md:w-[400px] md:h-[400px] flex items-center justify-center"
+				className="w-[250px] h-[250px] md:w-[300px] md:h-[300px] flex items-center justify-center"
 			>
 				<SiriSpheres status="connected" audioLevel={audioLevel} />
 			</motion.div>
 
 			<div className="w-full flex flex-col items-center justify-start pt-8 px-4 h-48">
-				<div className="h-12">
-					<AnimatePresence mode="wait">
-						<motion.p
-							key={introIndex}
-							initial={{ opacity: 0, y: 10 }}
-							animate={{ opacity: 1, y: 0 }}
-							exit={{ opacity: 0, y: -10 }}
-							transition={{ duration: 0.5 }}
-							className="text-3xl md:text-4xl font-medium text-neutral-200"
-						>
-							{introMessages[introIndex]}
-						</motion.p>
-					</AnimatePresence>
-				</div>
-
-				<div className="h-16 mt-4">
-					<AnimatePresence>
-						{showButton && (
-							<motion.button
-								onClick={onComplete}
-								initial={{ opacity: 0, scale: 0.9 }}
-								animate={{ opacity: 1, scale: 1 }}
-								transition={{ delay: 0.2, duration: 0.5 }}
-								className="rounded-lg bg-brand-orange px-8 py-3 text-lg font-semibold text-brand-black transition-colors hover:bg-brand-orange/90"
-							>
-								Let's Begin
-							</motion.button>
-						)}
-					</AnimatePresence>
+				<div className="h-24">
+					<Typewriter
+						onInit={(typewriter) => {
+							typewriter
+								.pauseFor(1000)
+								.typeString(
+									"Hi there. I'm <strong>Sentient</strong>."
+								)
+								.pauseFor(1000)
+								.typeString(
+									"<br/>I get work done for you across your apps,"
+								)
+								.pauseFor(500)
+								.typeString(" while learning about you.")
+								.pauseFor(2000)
+								.callFunction(() => {
+									onComplete()
+								})
+								.start()
+						}}
+						options={{
+							delay: 50,
+							wrapperClassName:
+								"text-3xl md:text-4xl font-medium text-neutral-200",
+							cursorClassName:
+								"text-3xl md:text-4xl font-medium text-brand-orange"
+						}}
+					/>
 				</div>
 			</div>
 		</motion.div>
@@ -747,20 +608,19 @@ const OnboardingPage = () => {
 				return (
 					<motion.div
 						key="questions-stage"
-						className="w-full max-w-2xl"
+						className="w-full max-w-2xl flex flex-col items-center"
 					>
-						<div className="bg-neutral-900/50 border border-neutral-700/50 rounded-2xl p-6 sm:p-8 text-left space-y-6 flex flex-col">
-							{/* 3D Model Container */}
-							<motion.div
-								layoutId="onboarding-sphere"
-								className="h-40 w-full flex items-center justify-center -mt-4 -mb-4"
-							>
-								<SiriSpheres
-									status="connected"
-									audioLevel={audioLevel}
-								/>
-							</motion.div>
-
+						{/* 3D Model Container */}
+						<motion.div
+							layoutId="onboarding-sphere"
+							className="h-40 w-full flex items-center justify-center -mb-8"
+						>
+							<SiriSpheres
+								status="connected"
+								audioLevel={audioLevel}
+							/>
+						</motion.div>
+						<div className="w-full bg-neutral-900/50 border border-neutral-700/50 rounded-2xl p-6 sm:p-8 text-left space-y-6 flex flex-col">
 							{/* Progress Bar */}
 							<ProgressBar
 								score={score}
