@@ -73,6 +73,7 @@ const TaskComposer = ({
 	const [recurringTime, setRecurringTime] = useState("09:00")
 
 	// State for triggered workflows
+	const textareaRef = useRef(null)
 	const [selectedTrigger, setSelectedTrigger] = useState(null)
 
 	const composerRef = useRef(null)
@@ -104,6 +105,16 @@ const TaskComposer = ({
 		setRecurringDays((prev) =>
 			prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
 		)
+	}
+
+	const handleGoalInputChange = (e) => {
+		setGoalInput(e.target.value)
+		// Auto-resize logic
+		if (textareaRef.current) {
+			textareaRef.current.style.height = "auto"
+			const newHeight = Math.min(textareaRef.current.scrollHeight, 150) // Max height 150px
+			textareaRef.current.style.height = `${newHeight}px`
+		}
 	}
 
 	const handleCreateTask = async () => {
@@ -169,7 +180,7 @@ const TaskComposer = ({
 			animate={{ opacity: 1, y: 0, scale: 1 }}
 			exit={{ opacity: 0, y: 100, scale: 0.9 }}
 			transition={{ type: "spring", stiffness: 300, damping: 30 }}
-			className="fixed bottom-8 w-[90vw] max-w-2xl left-1/2 -translate-x-1/2 bg-neutral-900/50 backdrop-blur-lg border border-neutral-700 rounded-2xl shadow-2xl z-[60]"
+			className="absolute bottom-8 w-[90vw] max-w-2xl left-1/2 -translate-x-1/2 bg-neutral-900/50 backdrop-blur-lg border border-neutral-700 rounded-2xl shadow-2xl z-50"
 		>
 			<div className="relative p-4">
 				{view === "tasks" ? (
@@ -177,10 +188,9 @@ const TaskComposer = ({
 						<div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
 							<div className="relative flex-1">
 								<textarea
+									ref={textareaRef}
 									value={goalInput}
-									onChange={(e) =>
-										setGoalInput(e.target.value)
-									}
+									onChange={handleGoalInputChange}
 									placeholder=" "
 									onKeyDown={(e) => {
 										if (e.key === "Enter" && !e.shiftKey) {
@@ -188,7 +198,7 @@ const TaskComposer = ({
 											handleCreateTask()
 										}
 									}}
-									className="w-full h-full p-3 bg-neutral-800 border border-neutral-700 rounded-lg focus:ring-2 focus:ring-brand-orange resize-none custom-scrollbar relative z-10"
+									className="w-full p-3 bg-transparent border border-neutral-700 rounded-lg focus:ring-2 focus:ring-brand-orange resize-none custom-scrollbar relative z-10"
 									rows={1}
 									style={{ maxHeight: "150px" }}
 								/>
@@ -357,13 +367,13 @@ const TaskComposer = ({
 								)}
 
 								<textarea
+									ref={textareaRef}
 									value={goalInput}
-									onChange={(e) =>
-										setGoalInput(e.target.value)
-									}
+									onChange={handleGoalInputChange}
 									placeholder="Describe the goal of the workflow..."
 									className="w-full p-3 bg-neutral-800 border border-neutral-700 rounded-lg focus:ring-2 focus:ring-brand-orange resize-none custom-scrollbar"
 									rows={2}
+									style={{ maxHeight: "150px" }}
 								/>
 							</motion.div>
 						</AnimatePresence>
@@ -375,3 +385,4 @@ const TaskComposer = ({
 }
 
 export default TaskComposer
+

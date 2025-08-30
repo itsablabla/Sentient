@@ -37,7 +37,8 @@ Here is the complete list of services (tools) available to the executor agent, t
   "quickchart": "Use this tool to generate charts and graphs quickly from data inputs.",
   "slack": "Use this tool to perform actions in the messaging platform Slack.",
   "trello": "Use this tool for managing boards in Trello.",
-  "whatsapp": "Use this tool only for sending Whatsapp messages to the user."
+  "whatsapp": "Use this tool only for sending Whatsapp messages to the user.",
+  "gtasks": "Use this tool to manage the user's todos in Google Tasks.",
 }}
 
 

@@ -499,6 +499,27 @@ function TasksPageContent() {
 						)}
 					</div>
 
+					{/* Floating Task Composer */}
+					<AnimatePresence>
+						{isComposerOpen && (
+							<TaskComposer
+								view={view}
+								onTaskCreated={(payload) => {
+									handleCreateTask(payload)
+									setIsComposerOpen(false)
+									setComposerInitialData(null)
+								}}
+								isPro={isPro}
+								onUpgradeClick={() => setUpgradeModalOpen(true)}
+								onClose={() => {
+									setIsComposerOpen(false)
+									setComposerInitialData(null)
+								}}
+								initialData={composerInitialData}
+							/>
+						)}
+					</AnimatePresence>
+
 					{/* Floating Action Button */}
 					<AnimatePresence>
 						{!isComposerOpen && (
@@ -510,7 +531,7 @@ function TasksPageContent() {
 									duration: 0.3,
 									ease: "easeInOut"
 								}}
-								className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50"
+								className="absolute bottom-8 left-1/2 -translate-x-1/2 z-40"
 							>
 								<button
 									onClick={() => setIsComposerOpen(true)}
@@ -524,27 +545,6 @@ function TasksPageContent() {
 						)}
 					</AnimatePresence>
 				</main>
-
-				{/* Floating Task Composer */}
-				<AnimatePresence>
-					{isComposerOpen && (
-						<TaskComposer
-							view={view}
-							onTaskCreated={(payload) => {
-								handleCreateTask(payload)
-								setIsComposerOpen(false)
-								setComposerInitialData(null)
-							}}
-							isPro={isPro}
-							onUpgradeClick={() => setUpgradeModalOpen(true)}
-							onClose={() => {
-								setIsComposerOpen(false)
-								setComposerInitialData(null)
-							}}
-							initialData={composerInitialData}
-						/>
-					)}
-				</AnimatePresence>
 
 				<AnimatePresence>
 					{!isMobile && selectedTask && (

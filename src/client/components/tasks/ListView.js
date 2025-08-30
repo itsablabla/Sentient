@@ -164,7 +164,11 @@ const ListView = ({
 
 	if (tasks.length === 0 && !searchQuery) {
 		return (
-			<WelcomePanel onExampleClick={onExampleClick} onClose={() => {}} />
+			<WelcomePanel
+				view={view}
+				onExampleClick={onExampleClick}
+				onClose={() => {}}
+			/>
 		)
 	}
 
