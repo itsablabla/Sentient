@@ -665,6 +665,44 @@ async def async_run_single_item_worker(sub_task_id: str, parent_task_id: str, us
     """
     db = get_db_client()
 
+    # --- Start: Safe DB Helper Functions ---
+    async def update_sub_task_safely(sub_task_id: str, update_data: Dict):
+        """Safely updates a sub-task, handling encryption for sensitive fields."""
+        SENSITIVE_SUBTASK_FIELDS = ["runs", "error", "result"]
+        encrypt_doc(update_data, SENSITIVE_SUBTASK_FIELDS)
+        await db.tasks.update_one({"task_id": sub_task_id}, {"$set": update_data})
+        await push_task_list_update(user_id, parent_task_id, "swarm_progress")
+
+    async def add_sub_task_run_update_safely(sub_task_id: str, update_type: str, content: Any):
+        """Safely adds a progress update to a sub-task's run using the F-D-M-E-S pattern."""
+        sub_task = await db.tasks.find_one({"task_id": sub_task_id})
+        if not sub_task:
+            logger.error(f"Cannot add progress update: Sub-task {sub_task_id} not found.")
+            return
+
+        SENSITIVE_SUBTASK_FIELDS = ["runs", "error", "result"]
+        decrypt_doc(sub_task, SENSITIVE_SUBTASK_FIELDS)
+
+        runs = sub_task.get("runs", [])
+        if not runs: return
+
+        if "progress_updates" not in runs[0] or not isinstance(runs[0]["progress_updates"], list):
+            runs[0]["progress_updates"] = []
+
+        update = {
+            "message": {"type": update_type, "content": content},
+            "timestamp": datetime.datetime.now(datetime.timezone.utc)
+        }
+        runs[0]["progress_updates"].append(update)
+
+        update_payload = {"runs": runs}
+        encrypt_doc(update_payload, ["runs"])
+
+        await db.tasks.update_one({"task_id": sub_task_id}, {"$set": update_payload})
+        await push_task_list_update(user_id, parent_task_id, "swarm_progress")
+
+    # --- End: Safe DB Helper Functions ---
+
     async def update_sub_task(update_data: Dict):
         """Updates the sub-task document."""
         await db.tasks.update_one({"task_id": sub_task_id}, {"$set": update_data})
@@ -693,7 +731,7 @@ async def async_run_single_item_worker(sub_task_id: str, parent_task_id: str, us
             "execution_start_time": datetime.datetime.now(datetime.timezone.utc),
             "progress_updates": []
         }
-        await update_sub_task({"status": "processing", "runs": [run_doc]})
+        await update_sub_task_safely(sub_task_id, {"status": "processing", "runs": [run_doc]})
         
         # 2. Get user context
         user_profile = await db.user_profiles.find_one({"user_id": user_id})
@@ -729,10 +767,10 @@ async def async_run_single_item_worker(sub_task_id: str, parent_task_id: str, us
         
         item_context = json.dumps(item, indent=2, default=str)
         full_worker_prompt = f"**Task:**\n{worker_prompt}\n\n**Input Data for this Task:**\n```json\n{item_context}\n```"
-        
+
         messages = [{'role': 'user', 'content': full_worker_prompt}]
 
-        await add_sub_task_run_update("info", f"Starting work on item: {str(item)[:100]}")
+        await add_sub_task_run_update_safely("info", f"Starting work on item: {str(item)[:100]}")
 
         # 5. Run the agent
         llm_cfg = {
@@ -765,50 +803,45 @@ async def async_run_single_item_worker(sub_task_id: str, parent_task_id: str, us
                 final_result = None
             else:
                 final_result = cleaned_content
-        
-        await db.tasks.update_one(
-            {"task_id": sub_task_id},
-            {
-                "$set": {
-                    "status": "completed",
-                    "runs.0.status": "completed",
-                    "runs.0.result": final_result
-                }
-            }
-        )
+
+        await update_sub_task_safely(sub_task_id, {
+            "status": "completed",
+            "runs": [{"status": "completed", "result": final_result}] # Overwrite run with final result
+        })
+
         await db.tasks.update_one(
             {"task_id": parent_task_id},
             {"$inc": {"swarm_details.completed_agents": 1}}
         )
         await push_task_list_update(user_id, parent_task_id, "swarm_progress")
-        await add_sub_task_run_update("info", f"Finished work. Result: {str(final_result)[:100]}")
+        await add_sub_task_run_update_safely("info", f"Finished work. Result: {str(final_result)[:100]}")
 
         return final_result
 
     except LLMProviderDownError as e:
         error_str = "Sorry, our AI provider is currently down. Please try again later."
         logger.error(f"LLM provider down in single item worker {worker_id} for task {parent_task_id}: {e}", exc_info=True)
-        await db.tasks.update_one(
-            {"task_id": sub_task_id},
-            {"$set": {"status": "error", "error": error_str, "runs.0.status": "error", "runs.0.error": error_str}}
-        )
+        await update_sub_task_safely(sub_task_id, {
+            "status": "error", "error": error_str, 
+            "runs": [{"status": "error", "error": error_str}]
+        })
         await db.tasks.update_one({"task_id": parent_task_id}, {"$inc": {"swarm_details.completed_agents": 1}})
         await push_task_list_update(user_id, parent_task_id, "swarm_progress")
-        await add_sub_task_run_update("error", error_str)
+        await add_sub_task_run_update_safely("error", error_str)
         return {"error": error_str, "item": item}
     except Exception as e:
         error_str = str(e)
         logger.error(f"Error in single item worker {worker_id} for task {parent_task_id}: {e}", exc_info=True)
-        await db.tasks.update_one(
-            {"task_id": sub_task_id},
-            {"$set": {"status": "error", "error": error_str, "runs.0.status": "error", "runs.0.error": error_str}}
-        )
+        await update_sub_task_safely(sub_task_id, {
+            "status": "error", "error": error_str, 
+            "runs": [{"status": "error", "error": error_str}]
+        })
         await db.tasks.update_one(
             {"task_id": parent_task_id},
             {"$inc": {"swarm_details.completed_agents": 1}} # Still increment, as it's "completed" in a failed state
         )
         await push_task_list_update(user_id, parent_task_id, "swarm_progress")
-        await add_sub_task_run_update("error", f"An error occurred: {error_str}")
+        await add_sub_task_run_update_safely("error", f"An error occurred: {error_str}")
         return {"error": error_str, "item": item}
 
 @celery_app.task(name="aggregate_results_callback")

@@ -18,11 +18,22 @@ async def get_task_state(task_id: str, user_id: str) -> Dict:
 async def update_orchestrator_state(task_id: str, user_id: str, state_updates: Dict):
     db = PlannerMongoManager()
     try:
-        payload = {f"orchestrator_state.{key}": value for key, value in state_updates.items()}
+        task = await db.get_task(task_id, user_id)
+        if not task:
+            logger.error(f"Cannot update orchestrator state: Task {task_id} not found.")
+            return
+
+        orchestrator_state = task.get("orchestrator_state", {})
+        if not isinstance(orchestrator_state, dict):
+            orchestrator_state = {}
+
+        orchestrator_state.update(state_updates)
+
+        update_payload = {"orchestrator_state": orchestrator_state}
 
         # Also update main status if orchestrator state is changing
         if 'current_state' in state_updates:
-            orchestrator_state = state_updates['current_state']
+            new_state = state_updates['current_state']
             status_map = {
                 "COMPLETED": "completed",
                 "FAILED": "error",
@@ -31,85 +42,111 @@ async def update_orchestrator_state(task_id: str, user_id: str, state_updates: D
                 "ACTIVE": "processing",
                 "WAITING": "waiting"
             }
-            if orchestrator_state in status_map:
-                payload['status'] = status_map[orchestrator_state]
+            if new_state in status_map:
+                update_payload['status'] = status_map[new_state]
 
-        # Handle unsetting keys if value is None
-        set_payload = {}
-        unset_payload = {}
-        for key, value in payload.items():
-            if value is None:
-                unset_payload[key] = ""
-            else:
-                set_payload[key] = value
-
-        update_op = {}
-        if set_payload:
-            update_op["$set"] = set_payload
-        if unset_payload:
-            update_op["$unset"] = unset_payload
-
-        if update_op:
-            await db.tasks_collection.update_one(
-                {"task_id": task_id, "user_id": user_id},
-                update_op
-            )
+        await db.update_task_field(task_id, user_id, update_payload)
     finally:
         await db.close()
 
 async def add_execution_log(task_id: str, user_id: str, action: str, details: Dict, reasoning: str):
     db = PlannerMongoManager()
     try:
+        task = await db.get_task(task_id, user_id)
+        if not task:
+            logger.error(f"Cannot add execution log: Task {task_id} not found.")
+            return
+
+        execution_log = task.get("execution_log", [])
+        if not isinstance(execution_log, list):
+            execution_log = []
+
         log_entry = {
             "timestamp": datetime.datetime.now(datetime.timezone.utc),
             "action": action,
             "details": details,
             "agent_reasoning": reasoning
         }
-        await db.tasks_collection.update_one(
-            {"task_id": task_id, "user_id": user_id},
-            {"$push": {"execution_log": log_entry}}
-        )
+        execution_log.append(log_entry)
+        await db.update_task_field(task_id, user_id, {"execution_log": execution_log})
     finally:
         await db.close()
 async def add_step_to_dynamic_plan(task_id: str, user_id: str, new_step: Dict, goal: Optional[str] = None):
     """Appends a new step to the task's dynamic_plan array."""
     db = PlannerMongoManager()
     try:
-        update_payload = {
-            "$push": {"dynamic_plan": new_step}
-        }
-        if goal:
-            update_payload["$set"] = {"orchestrator_state.main_goal": goal}
+        task = await db.get_task(task_id, user_id)
+        if not task:
+            logger.error(f"Cannot add step to plan: Task {task_id} not found.")
+            return
 
-        await db.tasks_collection.update_one(
-            {"task_id": task_id, "user_id": user_id},
-            update_payload
-        )
+        dynamic_plan = task.get("dynamic_plan", [])
+        if not isinstance(dynamic_plan, list):
+            dynamic_plan = []
+        dynamic_plan.append(new_step)
+
+        update_payload = {
+            "dynamic_plan": dynamic_plan
+        }
+
+        if goal:
+            orchestrator_state = task.get("orchestrator_state", {})
+            if not isinstance(orchestrator_state, dict):
+                orchestrator_state = {}
+            orchestrator_state["main_goal"] = goal
+            update_payload["orchestrator_state"] = orchestrator_state
+
+        await db.update_task_field(task_id, user_id, update_payload)
     finally:
         await db.close()
 
 async def update_context_store(task_id: str, user_id: str, key: str, value: Any):
     db = PlannerMongoManager()
     try:
-        await db.update_task_field(task_id, user_id, {f"orchestrator_state.context_store.{key}": value})
+        task = await db.get_task(task_id, user_id)
+        if not task:
+            logger.error(f"Cannot update context store: Task {task_id} not found.")
+            return
+
+        orchestrator_state = task.get("orchestrator_state", {})
+        if not isinstance(orchestrator_state, dict):
+            orchestrator_state = {}
+
+        context_store = orchestrator_state.get("context_store", {})
+        if not isinstance(context_store, dict):
+            context_store = {}
+
+        context_store[key] = value
+        orchestrator_state["context_store"] = context_store
+
+        await db.update_task_field(task_id, user_id, {"orchestrator_state": orchestrator_state})
     finally:
         await db.close()
 
 async def mark_step_as_complete(task_id: str, user_id: str, step_id: str, result: Dict):
     db = PlannerMongoManager()
     try:
-        # This requires finding the step in the array and updating it.
-        # Using positional operator '$' is ideal here.
-        await db.tasks_collection.update_one(
-            {"task_id": task_id, "user_id": user_id, "dynamic_plan.step_id": step_id},
-            {
-                "$set": {
-                    "dynamic_plan.$.status": "completed",
-                    "dynamic_plan.$.result": result,
-                    "dynamic_plan.$.completed_at": datetime.datetime.now(datetime.timezone.utc)
-                }
-            }
-        )
+        task = await db.get_task(task_id, user_id)
+        if not task:
+            logger.error(f"Cannot mark step as complete: Task {task_id} not found.")
+            return
+
+        dynamic_plan = task.get("dynamic_plan", [])
+        if not isinstance(dynamic_plan, list):
+            return
+
+        step_found = False
+        for step in dynamic_plan:
+            if step.get("step_id") == step_id:
+                step["status"] = "completed"
+                step["result"] = result
+                step["completed_at"] = datetime.datetime.now(datetime.timezone.utc)
+                step_found = True
+                break
+        
+        if step_found:
+            await db.update_task_field(task_id, user_id, {"dynamic_plan": dynamic_plan})
+        else:
+            logger.warning(f"Could not find step_id {step_id} in task {task_id} to mark as complete.")
     finally:
         await db.close()

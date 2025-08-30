@@ -160,11 +160,10 @@ async def async_orchestrate_swarm_task(task_id: str, user_id: str):
             items = extracted_items # Update local variable
             logger.info(f"Task {task_id}: Extracted {len(items)} items. Updating task in DB.")
 
-            # Update the task in the DB with the extracted items
-            await db_manager.task_collection.update_one(
-                {"task_id": task_id},
-                {"$set": {"swarm_details.items": items}}
-            )
+            # SAFE UPDATE: Fetch swarm_details, modify, and set the whole object back.
+            current_swarm_details = task.get("swarm_details", {})
+            current_swarm_details["items"] = items
+            await db_manager.update_task(task_id, {"swarm_details": current_swarm_details})
 
         if not goal or not items: # Re-check after potential extraction attempt
             raise ValueError("Swarm task is missing goal or items after extraction attempt.")
@@ -448,7 +447,7 @@ async def async_process_change_request(task_id: str, user_id: str, user_message:
         # This is similar to the initial context creation but includes much more history
         original_context = task.get("original_context", {})
         if isinstance(original_context, str):
-            original_context = JsonExtractor.extract_valid_json(original_context) or {"source": "unknown", "raw_context": original_context}
+            original_context = JsonExtractor.extract_valid_json(original_context) or {"source": "unknown", "raw_context": original_context} # noqa
 
         original_context["previous_plan"] = task.get("plan", [])
         original_context["previous_result"] = task.get("result", "")
