@@ -34,7 +34,7 @@ async def update_plan(ctx: Context, next_step_description: str, reasoning: str, 
 
     await state_manager.add_step_to_dynamic_plan(task_id, user_id, new_step, main_goal_update)
     await state_manager.add_execution_log(task_id, user_id, "plan_step_added", {"step_description": next_step_description}, reasoning)
-    return {"status": "success", "message": "New step added to the plan."}
+    return {"status": "success", "message": "The plan has been updated with the new step. MESSAGE FROM THE USER: YOU HAVE SUCCESSFULLY UPDATED THE PLAN. NOW, YOU MUST EXECUTE THE NEXT STEP YOU JUST ADDED. IF THE NEXT STEP IS A SUB-TASK, EXECUTE THE SUBTASK. IF THE NEXT STEP IS A WAIT, WAIT. IF YOU NEED CLARIFICATION, ASK THE USER."}
 
 async def update_context(ctx: Context, key: str, value: Any, reasoning: str) -> Dict:
     """Store information like email thread IDs, document IDs, etc. in the task's context store. This is crucial information about the current task that will be required for subsequent steps."""
@@ -43,7 +43,7 @@ async def update_context(ctx: Context, key: str, value: Any, reasoning: str) -> 
     task_id = auth.get_task_id_from_context(ctx)
     await state_manager.update_context_store(task_id, user_id, key, value)
     await state_manager.add_execution_log(task_id, user_id, "context_updated", {"key": key}, reasoning)
-    return {"status": "success", "message": f"Context updated for key '{key}'."}
+    return {"status": "success", "message": f"Context updated for key '{key}'. IMPORTANT CONTEXT HAS BEEN STORED. ALWAYS RETRIEVE THIS CONTEXT IN SUBSEQUENT STEPS."}
 
 async def get_context(ctx: Context, key: str = None) -> Dict:
     """Retrieve information like email thread IDs, document IDs, etc. from task's context store. Always use this tool when you start a new cycle to get the latest context."""
@@ -53,15 +53,15 @@ async def get_context(ctx: Context, key: str = None) -> Dict:
     task = await state_manager.get_task_state(task_id, user_id)
     context_store = task.get("orchestrator_state", {}).get("context_store", {})
     if key:
-        return {"status": "success", "result": context_store.get(key)}
-    return {"status": "success", "result": context_store}
+        return {"status": "success", "result": context_store.get(key), "message": f"Retrieved context for key '{key}'. USE THIS CONTEXT FOR ALL RELEVANT SUB-TASKS."}
+    return {"status": "success", "result": context_store, "message": "Retrieved full context store. USE THIS CONTEXT FOR ALL RELEVANT SUB-TASKS."}
 
 async def create_subtask(ctx: Context, step_id: str, subtask_description: str, context: Optional[Dict] = None, reasoning: str = "") -> Dict:
     """
-    Creates and COMPLETELY EXECUTES a sub-task. This is a BLOCKING call.
-    The orchestrator will wait until the sub-task is finished and will receive its final result.
+    Creates and COMPLETELY EXECUTES a sub-task to completion, synchronously.
+    You will receive the final result of the task after completion.
     """
-    subtask_description += "\n\nIMPORTANT: Return your final result as simple text or JSON. DO NOT contact or notify the user directly—your output goes back to the orchestrator."
+    subtask_description += "\n\nIMPORTANT: Return your final result as simple text or JSON. DO NOT try to contact or notify the user directly—your output goes back to an orchestrator agent. NEVER USE PLACEHOLDERS for information about the user. Always retrieve personal details from the user's memory store and if no information is available, perform a generalized action. DO NOT USE placeholders in square brackets like [Your Name]."
     logger.info(f"Executing tool: create_subtask with step_id='{step_id}', subtask_description='{subtask_description}', context='{json.dumps(context, default=str)}', reasoning='{reasoning}'")
     user_id = auth.get_user_id_from_context(ctx)
     task_id = auth.get_task_id_from_context(ctx)
@@ -95,7 +95,7 @@ async def create_subtask(ctx: Context, step_id: str, subtask_description: str, c
         await state_manager.add_execution_log(task_id, user_id, "subtask_created", {"sub_task_id": sub_task_id, "description": subtask_description}, reasoning)
 
         # === BEGIN SYNCHRONOUS EXECUTION ===
-        logger.info(f"Orchestrator is now BLOCKING, awaiting completion of sub-task {sub_task_id}")
+        logger.info(f"Orchestrator is now awaiting completion of sub-task {sub_task_id}")
         await async_refine_and_plan_ai_task(sub_task_id, user_id)
         logger.info(f"Sub-task {sub_task_id} has completed its lifecycle.")
 
@@ -104,10 +104,7 @@ async def create_subtask(ctx: Context, step_id: str, subtask_description: str, c
         if not completed_subtask:
             raise ToolError(f"Could not retrieve completed sub-task {sub_task_id} from database.")
 
-        final_run = completed_subtask.get("runs", [])[-1] if completed_subtask.get("runs") else {}
-        final_result = final_run.get("result", {"summary": "Sub-task finished but produced no result."})
-
-        return {"status": "success", "result": final_result}
+        return {"status": "success", "result": completed_subtask, "message": f"Sub-task {sub_task_id} completed. USE THIS RESULT TO UPDATE THE MAIN TASK'S PLAN AND CONTEXT AS NEEDED. UPDATE THE PLAN WITH THE NEXT STEP THAT MUST BE COMPLETED AND STORE IMPORTANT CONTEXT LIKE THREAD IDS, DOCUMENT IDS, ETC. IN THE CONTEXT STORE."}
 
     except Exception as e:
         logger.error(f"Error during synchronous sub-task execution for parent {task_id}: {e}", exc_info=True)
@@ -171,13 +168,13 @@ async def ask_user_clarification(ctx: Context, question: str, urgency: str = "no
 
         return {
             "status": "success",
-            "message": "Clarification requested from user. Task is suspended. DO NOT CONTINUE OR MAKE FURTHER CALLS NOW. THIS IS THE USER SPEAKING. YOU HAVE TO STOP NOW. DO NOT SEND ANY MORE RESPONSES IN THIS CYCLE."
+            "message": "Clarification requested from user. Task is suspended till the user responds to the question. DO NOT CONTINUE OR MAKE FURTHER CALLS NOW. THIS IS THE USER SPEAKING. YOU HAVE TO STOP NOW. DO NOT SEND ANY MORE RESPONSES IN THIS CYCLE."
         }
     finally:
         await db.close()
 
 async def mark_step_complete(ctx: Context, step_id: str, result: Dict, reasoning: str) -> Dict:
-    """Mark a step as completed and store results"""
+    """Mark a step in the dynamic plan as completed and store results. YOU MUST USE THIS TOOL TO MARK A CERTAIN STEP IN THE PLAN AS COMPLETE. THIS IS IMPERATIVE TO TRACK PROGRESS."""
     logger.info(f"Executing tool: mark_step_complete with step_id='{step_id}', result='{json.dumps(result, default=str)}', reasoning='{reasoning}'")
     user_id = auth.get_user_id_from_context(ctx)
     task_id = auth.get_task_id_from_context(ctx)
@@ -186,7 +183,7 @@ async def mark_step_complete(ctx: Context, step_id: str, result: Dict, reasoning
     return {"status": "success", "message": f"Step {step_id} marked as complete."}
 
 async def evaluate_completion(ctx: Context, reasoning: str) -> Dict:
-    """Evaluate if the main goal has been achieved"""
+    """Evaluate if the main goal has been achieved. CALL THIS TOOL ONLY WHEN YOU BELIEVE THE FINAL GOAL HAS BEEN ACHIEVED. AN AGENT WILL EVALUATE IF THE GOAL IS TRULY COMPLETE OR IF MORE STEPS ARE NEEDED."""
     logger.info(f"Executing tool: evaluate_completion with reasoning='{reasoning}'")
     user_id = auth.get_user_id_from_context(ctx)
     task_id = auth.get_task_id_from_context(ctx)
@@ -220,4 +217,4 @@ async def evaluate_completion(ctx: Context, reasoning: str) -> Dict:
         return {"status": "success", "result": {"is_complete": True}}
     else:
         await state_manager.add_execution_log(task_id, user_id, "completion_evaluation", {"is_complete": False}, reasoning)
-        return {"status": "success", "result": {"is_complete": False}}
+        return {"status": "success", "result": {"is_complete": False}, "message": f"The task is not yet complete because of the following reasoning: {reasoning}. USE THIS INFORMATION TO UPDATE THE PLAN AND PROCEED."}

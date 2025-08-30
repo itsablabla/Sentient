@@ -10,7 +10,7 @@ from json_extractor import JsonExtractor
 from main.llm import run_agent as run_main_agent
 from mcp_hub.orchestrator.prompts import (
     ORCHESTRATOR_SYSTEM_PROMPT, STEP_PLANNING_PROMPT,
-    COMPLETION_EVALUATION_PROMPT, FOLLOW_UP_DECISION_PROMPT
+    FOLLOW_UP_DECISION_PROMPT
 )
 from main.config import INTEGRATIONS_CONFIG
 
