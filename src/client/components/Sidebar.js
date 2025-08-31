@@ -11,7 +11,7 @@ import {
 	IconSearch,
 	IconLayoutSidebarLeftCollapse,
 	IconLayoutSidebarLeftExpand,
-	IconArrowUpCircle,
+	IconBolt,
 	IconDots,
 	IconAdjustments,
 	IconLogout,
@@ -85,8 +85,8 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 					>
 						<header className="text-center mb-4">
 							<h2 className="text-2xl font-bold text-white flex items-center justify-center gap-2">
-								<IconSparkles className="text-brand-orange" />
-								Upgrade to Pro
+								<IconBolt className="text-yellow-400" />
+								Unlock Pro Features
 							</h2>
 							<p className="text-neutral-400 mt-2">
 								Unlock powerful features to conquer your day.
@@ -118,7 +118,7 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 								onClick={handleUpgrade}
 								className="w-full py-3 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
 							>
-								Upgrade to Pro - $9/month
+								Upgrade Now - $9/month
 							</button>
 							<button
 								onClick={onClose}
@@ -288,12 +288,13 @@ const UserProfileSection = ({ isCollapsed, user }) => {
 							</p>
 							<span
 								className={cn(
-									"text-xs",
+									"text-xs flex items-center gap-1",
 									isPro
 										? "text-brand-orange"
 										: "text-neutral-400"
 								)}
 							>
+								{isPro && <IconBolt size={12} />}
 								{planName}
 							</span>
 						</motion.div>
@@ -472,7 +473,6 @@ const HelpMenuModal = ({ onClose, onShowVideo, onShowDemo }) => {
 
 const SidebarContent = ({
 	isCollapsed,
-	onToggle,
 	onNotificationsOpen,
 	onSearchOpen,
 	unreadCount,
@@ -640,7 +640,7 @@ const SidebarContent = ({
 				>
 					<div className="flex items-center gap-3">
 						<div className="bg-neutral-700/80 p-1 rounded-full text-brand-orange">
-							<IconArrowUpCircle size={18} />
+							<IconBolt size={18} />
 						</div>
 						<AnimatePresence>
 							{!isCollapsed && (
@@ -651,7 +651,7 @@ const SidebarContent = ({
 									className="overflow-hidden whitespace-nowrap"
 								>
 									<p className="font-semibold text-sm text-white">
-										Upgrade to Pro
+										Unlock Pro
 									</p>
 									<p className="text-xs text-neutral-400">
 										Unlock all features
@@ -728,7 +728,7 @@ const SidebarContent = ({
 						</button>
 					)}
 
-					{isMobile ? (
+					{isMobile && (
 						<button
 							onClick={onMobileClose}
 							className="flex items-center gap-3 rounded-md p-2 transition-colors duration-200 text-sm text-neutral-400 hover:text-white hover:bg-neutral-800/50"
@@ -737,26 +737,6 @@ const SidebarContent = ({
 							<span className="font-medium whitespace-nowrap">
 								Collapse
 							</span>
-						</button>
-					) : (
-						<button
-							onClick={onToggle}
-							className={cn(
-								"flex items-center gap-3 rounded-md p-2 transition-colors duration-200 text-sm",
-								"text-neutral-400 hover:text-white hover:bg-neutral-800/50",
-								isCollapsed && "justify-center"
-							)}
-						>
-							{isCollapsed ? (
-								<IconLayoutSidebarLeftExpand size={20} />
-							) : (
-								<IconLayoutSidebarLeftCollapse size={20} />
-							)}
-							{!isCollapsed && (
-								<span className="font-medium whitespace-nowrap">
-									Collapse
-								</span>
-							)}
 						</button>
 					)}
 					<button
@@ -817,8 +797,6 @@ const SidebarContent = ({
 }
 
 const Sidebar = ({
-	isCollapsed,
-	onToggle,
 	onNotificationsOpen,
 	onSearchOpen,
 	unreadCount,
@@ -895,14 +873,12 @@ const Sidebar = ({
 			</AnimatePresence>
 
 			{/* Desktop Sidebar */}
-			<motion.div
-				animate={{ width: isCollapsed ? 80 : 260 }}
-				transition={{ type: "spring", stiffness: 300, damping: 30 }}
+			<div
+				style={{ width: 260 }}
 				className="hidden md:flex fixed top-0 left-0 h-screen bg-black flex-col p-3 text-neutral-200 border-r border-neutral-800/50 z-40"
 			>
 				<SidebarContent
-					isCollapsed={isCollapsed}
-					onToggle={onToggle}
+					isCollapsed={false}
 					onNotificationsOpen={onNotificationsOpen}
 					onSearchOpen={onSearchOpen}
 					unreadCount={unreadCount}
@@ -910,7 +886,7 @@ const Sidebar = ({
 					handleInstallClick={handleInstallClick}
 					user={user}
 				/>
-			</motion.div>
+			</div>
 		</>
 	)
 }

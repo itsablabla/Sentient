@@ -46,7 +46,6 @@ export default function LayoutWrapper({ children }) {
 	// ... (keep all your existing state declarations)
 	const [isNotificationsOpen, setNotificationsOpen] = useState(false)
 	const [isSearchOpen, setSearchOpen] = useState(false)
-	const [isSidebarCollapsed, setSidebarCollapsed] = useState(true)
 	const [isMobileNavOpen, setMobileNavOpen] = useState(false)
 	const [unreadCount, setUnreadCount] = useState(0)
 	const [notifRefreshKey, setNotifRefreshKey] = useState(0)
@@ -72,6 +71,55 @@ export default function LayoutWrapper({ children }) {
 				name: user.name,
 				email: user.email
 			})
+
+			// --- NEW: Fetch custom properties and set PostHog groups ---
+			const fetchAndSetUserGroups = async () => {
+				try {
+					// This is a new client-side API route that proxies to the main server
+					const res = await fetch("/api/user/properties")
+					if (!res.ok) {
+						console.error(
+							"Failed to fetch user properties for PostHog, status:",
+							res.status
+						)
+						return // Don't proceed if the call fails
+					}
+
+					const properties = await res.json()
+
+					// Set groups in PostHog
+					// This allows creating cohorts based on group properties
+					posthog.group("plan", properties.plan_type, {
+						name:
+							properties.plan_type.charAt(0).toUpperCase() +
+							properties.plan_type.slice(1)
+					})
+
+					posthog.group(
+						"insider_status",
+						properties.is_insider ? "insider" : "not_insider",
+						{
+							name: properties.is_insider
+								? "Insiders"
+								: "Not Insiders"
+						}
+					)
+
+					// Also set as person properties for easier direct filtering on users
+					posthog.setPersonProperties({
+						plan_type: properties.plan_type,
+						is_insider: properties.is_insider
+					})
+				} catch (error) {
+					console.error(
+						"Error fetching/setting user properties for PostHog:",
+						error
+					)
+				}
+			}
+
+			fetchAndSetUserGroups()
+			// --- END NEW ---
 		}
 	}, [user, posthog])
 
@@ -457,10 +505,6 @@ export default function LayoutWrapper({ children }) {
 			{showNav && (
 				<>
 					<Sidebar
-						isCollapsed={isSidebarCollapsed}
-						onToggle={() =>
-							setSidebarCollapsed(!isSidebarCollapsed)
-						}
 						onNotificationsOpen={handleNotificationsOpen}
 						onSearchOpen={() => setSearchOpen(true)}
 						unreadCount={unreadCount}
@@ -479,8 +523,7 @@ export default function LayoutWrapper({ children }) {
 			<div
 				className={cn(
 					"flex-1 transition-[padding-left] duration-300 ease-in-out",
-					showNav &&
-						(isSidebarCollapsed ? "md:pl-20" : "md:pl-[260px]")
+					showNav && "md:pl-[260px]"
 				)}
 			>
 				{children}

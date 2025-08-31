@@ -9,17 +9,17 @@ from typing import Tuple
 from main.dependencies import auth_helper
 from main.dependencies import mongo_manager, websocket_manager
 from main.auth.utils import PermissionChecker
-from workers.tasks import generate_plan_from_context, execute_task_plan, calculate_next_run, process_task_change_request, refine_task_details, refine_and_plan_ai_task, cud_memory_task, orchestrate_swarm_task, start_long_form_task
+from workers.tasks import generate_plan_from_context, execute_task_plan, calculate_next_run, process_task_change_request, refine_task_details, refine_and_plan_ai_task, cud_memory_task, orchestrate_swarm_task
 
 from .models import AddTaskRequest, UpdateTaskRequest, TaskIdRequest, TaskActionRequest, TaskChatRequest, ProgressUpdateRequest, AnswerClarificationRequest, ClarificationAnswerRequest, LongFormTaskActionRequest
 from main.llm import run_agent
 from main.tasks.models import AddTaskRequest, UpdateTaskRequest, TaskIdRequest, TaskActionRequest, TaskChatRequest, ProgressUpdateRequest
 from main.plans import PLAN_LIMITS
-from workers.tasks import generate_plan_from_context, execute_task_plan, calculate_next_run, refine_and_plan_ai_task
 from main.llm import run_agent, LLMProviderDownError
 from json_extractor import JsonExtractor
 from .prompts import TASK_CREATION_PROMPT
 from workers.long_form_tasks import start_long_form_task, execute_orchestrator_cycle
+from workers.utils.text_utils import clean_llm_output
 
 class GeneratePlanRequest(BaseModel):
     prompt: str
@@ -30,6 +30,15 @@ router = APIRouter(
 )
 
 logger = logging.getLogger(__name__)
+
+async def push_update(user_id: str):
+    """Pushes a task list update notification to the user via WebSocket."""
+    await websocket_manager.send_personal_json_message(
+        {"type": "task_list_updated"},
+        user_id,
+        connection_type="notifications"
+    )
+
 
 @router.post("/generate-plan", status_code=status.HTTP_200_OK)
 async def generate_plan_from_prompt(
@@ -97,102 +106,125 @@ async def add_task(
 ):
     user_id, plan = user_id_and_plan
 
-    if request.task_type == "swarm":
-        # --- Check Usage Limit for Swarm Tasks ---
-        usage = await mongo_manager.get_or_create_daily_usage(user_id)
-        limit = PLAN_LIMITS[plan].get("swarm_tasks_daily", 0)
-        current_count = usage.get("swarm_tasks", 0)
+    if not request.prompt:
+        raise HTTPException(status_code=400, detail="A prompt describing the goal is required.")
 
-        if current_count >= limit:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"You have reached your daily limit of {limit} swarm tasks. Please upgrade or try again tomorrow."
-            )
+    # 1. Use LLM to parse the prompt and determine if it's a simple task or a workflow
+    user_profile = await mongo_manager.get_user_profile(user_id)
+    personal_info = user_profile.get("userData", {}).get("personalInfo", {}) if user_profile else {}
+    user_name = personal_info.get("name", "User")
+    user_timezone_str = personal_info.get("timezone", "UTC")
+    try:
+        user_timezone = ZoneInfo(user_timezone_str)
+    except ZoneInfoNotFoundError:
+        user_timezone = ZoneInfo("UTC")
+    current_time_str = datetime.now(user_timezone).strftime('%Y-%m-%d %H:%M:%S %Z')
 
-        if not request.prompt:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A prompt describing the goal is required for swarm tasks.")
+    system_prompt = TASK_CREATION_PROMPT.format(
+        user_name=user_name,
+        user_timezone=user_timezone_str,
+        current_time=current_time_str
+    )
+    messages = [{'role': 'user', 'content': request.prompt}]
 
+    try:
+        response_str = ""
+        for chunk in run_agent(system_message=system_prompt, function_list=[], messages=messages):
+            if isinstance(chunk, list) and chunk and chunk[-1].get("role") == "assistant":
+                response_str = chunk[-1].get("content", "")
+
+        if not response_str:
+            raise Exception("LLM failed to generate task details.")
+
+        parsed_data = JsonExtractor.extract_valid_json(clean_llm_output(response_str))
+        if not parsed_data or not isinstance(parsed_data, dict):
+            raise Exception(f"LLM returned invalid JSON for task details: {response_str}")
+
+    except Exception as e:
+        logger.error(f"Error parsing task prompt for user {user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to understand the task prompt.")
+
+    # 2. Triage based on the parsed data
+    task_type_from_llm = parsed_data.get("task_type")
+    schedule = parsed_data.get("schedule")
+    schedule_type = schedule.get("type") if schedule else "once"
+    run_at = schedule.get("run_at") if schedule else None
+
+    if task_type_from_llm == "swarm":
+        # This is a swarm task. It should be executed immediately.
+        goal = parsed_data.get('description', request.prompt)
         task_data = {
-            "name": request.prompt, # Use prompt as the initial name
-            "description": f"Swarm task to achieve the goal: {request.prompt}",
+            "name": parsed_data.get("name", request.prompt),
+            "description": goal,
             "task_type": "swarm",
             "swarm_details": {
-                "goal": request.prompt,
-                "items": [],
-                "total_agents": 0,
-                "completed_agents": 0,
-                "progress_updates": [],
-                "aggregated_results": []
-            }
+                "goal": goal,
+                "items": [] # The orchestrator will extract this from the goal
+            },
+            "original_context": {"source": "ui_task_composer", "prompt": request.prompt}
         }
         task_id = await mongo_manager.add_task(user_id, task_data)
         if not task_id:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create swarm task.")
+            raise HTTPException(status_code=500, detail="Failed to create swarm task.")
 
-        await mongo_manager.increment_daily_usage(user_id, "swarm_tasks")
         orchestrate_swarm_task.delay(task_id, user_id)
-        return {"message": "Swarm task initiated! Planning will begin shortly.", "task_id": task_id}
+        await push_update(user_id)
+        return {"message": "Swarm task created. The agents will begin work shortly.", "task_id": task_id}
 
-    elif request.task_type == "long_form":
-        if not request.prompt:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A prompt describing the goal is required for long-form tasks.")
-
+    elif schedule_type in ["recurring", "triggered"]:
+        # This is a recurring or triggered workflow
         task_data = {
-            "name": request.prompt,
-            "description": f"Long-form task to achieve the goal: {request.prompt}",
+            "name": parsed_data.get("name", request.prompt),
+            "description": parsed_data.get("description", request.prompt),
+            "priority": parsed_data.get("priority", 1),
+            "schedule": schedule,
+            "task_type": schedule_type,
+            "original_context": {"source": "ui_workflow_composer", "prompt": request.prompt}
+        }
+        task_id = await mongo_manager.add_task(user_id, task_data)
+        if not task_id:
+            raise HTTPException(status_code=500, detail="Failed to create workflow.")
+
+        generate_plan_from_context.delay(task_id, user_id)
+        await push_update(user_id)
+        return {"message": "Workflow created successfully. It will be planned shortly.", "task_id": task_id}
+
+    elif schedule_type == "once" and run_at is not None:
+        # This is a scheduled one-shot task, create a 'single' task
+        task_data = {
+            "name": parsed_data.get("name", request.prompt),
+            "description": parsed_data.get("description", request.prompt),
+            "priority": parsed_data.get("priority", 1),
+            "schedule": schedule,
+            "task_type": "single",
+            "original_context": {"source": "ui_task_composer", "prompt": request.prompt}
+        }
+        task_id = await mongo_manager.add_task(user_id, task_data)
+        if not task_id:
+            raise HTTPException(status_code=500, detail="Failed to create scheduled task.")
+
+        generate_plan_from_context.delay(task_id, user_id)
+        await push_update(user_id)
+        return {"message": "Scheduled task created successfully. It will be planned shortly.", "task_id": task_id}
+
+    else: # This covers immediate one-shot tasks (run_at is null or no schedule at all)
+        # This is an immediate task, create a long-form task
+        detailed_goal = parsed_data.get('description', request.prompt)
+        task_data = {
+            "name": parsed_data.get("name", request.prompt),
+            "description": detailed_goal,
             "task_type": "long_form",
             "auto_approve_subtasks": request.auto_approve_subtasks,
-            "orchestrator_state": {
-                "main_goal": request.prompt,
-                "current_state": "CREATED",
-                "current_step": 0,
-                "context_store": {},
-                "waiting_config": None,
-            },
-            "dynamic_plan": [],
-            "clarification_requests": [],
-            "execution_log": []
+            "orchestrator_state": {"main_goal": detailed_goal, "current_state": "CREATED"},
+            "original_context": {"source": "ui_task_composer", "prompt": request.prompt}
         }
         task_id = await mongo_manager.add_task(user_id, task_data)
         if not task_id:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create long-form task.")
+            raise HTTPException(status_code=500, detail="Failed to create task.")
+
         start_long_form_task.delay(task_id, user_id)
-        return {"message": "Long-form task initiated! Planning will begin shortly.", "task_id": task_id}
-
-    elif request.task_type == "single":
-        # --- Check Usage Limit for One-Time Tasks ---
-        usage = await mongo_manager.get_or_create_daily_usage(user_id)
-        limit = PLAN_LIMITS[plan].get("one_time_tasks_daily", 0)
-        current_count = usage.get("one_time_tasks", 0)
-
-        if current_count >= limit:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"You have reached your daily limit of {limit} one-time tasks. Please upgrade or try again tomorrow."
-            )
-
-        if not request.prompt:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A prompt is required for single tasks.")
-
-        task_data = {
-            "name": request.prompt, # Use prompt as initial name
-            "description": request.prompt,
-            "schedule": request.schedule, # Pass the entire schedule object
-            "task_type": "single"
-        }
-        task_id = await mongo_manager.add_task(user_id, task_data)
-        if not task_id:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create task.")
-
-        # Increment usage after successful creation
-        await mongo_manager.increment_daily_usage(user_id, "one_time_tasks")
-
-        # The existing worker is perfect for this, as it refines details from a prompt and schedule.
-        refine_and_plan_ai_task.delay(task_id, user_id)
-        return {"message": "Task created! Planning will begin shortly.", "task_id": task_id}
-
-    else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid task_type: {request.task_type}")
+        await push_update(user_id)
+        return {"message": "Task created successfully. The orchestrator will begin planning shortly.", "task_id": task_id}
 
 @router.post("/fetch-tasks")
 async def fetch_tasks(
@@ -232,6 +264,7 @@ async def update_task(
     success = await mongo_manager.update_task(request.taskId, update_data)
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found or no updates applied.")
+    await push_update(user_id)
     return {"message": "Task updated successfully."}
 
 @router.post("/delete-task")
@@ -243,15 +276,19 @@ async def delete_task(
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found.")
 
-    # Always delete the entire task, regardless of its type or number of runs.
-    message = await mongo_manager.delete_task(request.taskId, user_id)
-    if not message:
-        raise HTTPException(status_code=404, detail="Task not found or not deleted.")
+    # delete_task in db manager now handles sub-tasks and returns all deleted IDs.
+    deleted_successfully, all_deleted_ids = await mongo_manager.delete_task(request.taskId, user_id)
+
+    if not deleted_successfully:
+        # This case should ideally not be hit because of the get_task check above, but it's good for robustness.
+        raise HTTPException(status_code=404, detail="Task not found or failed to delete.")
 
     # Also delete any notifications related to the task.
-    await mongo_manager.delete_notifications_for_task(user_id, request.taskId)
+    for deleted_id in all_deleted_ids:
+        await mongo_manager.delete_notifications_for_task(user_id, deleted_id)
 
-    return {"message": message}
+    await push_update(user_id)
+    return {"message": "Task and its sub-tasks were deleted."}
 
 @router.post("/task-action", status_code=status.HTTP_200_OK)
 async def task_action(
@@ -262,6 +299,7 @@ async def task_action(
         message = await mongo_manager.decline_task(request.taskId, user_id)
         if not message:
             raise HTTPException(status_code=400, detail="Failed to decline task.")
+        await push_update(user_id)
         return JSONResponse(content={"message": message})
     elif request.action == "execute":
         # This implies immediate execution
@@ -291,6 +329,7 @@ async def task_action(
         await mongo_manager.update_task(request.taskId, update_payload)
         # Trigger the Celery task with the new run_id
         execute_task_plan.delay(request.taskId, user_id, new_run['run_id'])
+        await push_update(user_id)
         return JSONResponse(content={"message": "Task execution has been initiated."})
     else:
         raise HTTPException(status_code=400, detail="Invalid task action.")
@@ -307,6 +346,7 @@ async def rerun_task(
     # Trigger the planner for the new task
     generate_plan_from_context.delay(new_task_id, user_id)
     logger.info(f"Rerunning task {request.taskId}. New task {new_task_id} created and sent to planner.")
+    await push_update(user_id)
     return {"message": "Task has been duplicated for re-run.", "new_task_id": new_task_id}
 
 @router.post("/approve-task", status_code=status.HTTP_200_OK)
@@ -387,6 +427,7 @@ async def approve_task(
             }
             await mongo_manager.update_task(task_id, update_payload)
 
+            await push_update(user_id)
             execute_task_plan.delay(task_id, user_id, new_run['run_id'])
             return JSONResponse(content={"message": "Task approved and execution has been initiated."})
 
@@ -395,6 +436,7 @@ async def approve_task(
         if not success:
             logger.warning(f"Approve task for {task_id} resulted in 0 modified documents.")
 
+    await push_update(user_id)
     return JSONResponse(content={"message": "Task approved and scheduled."})
 
 @router.post("/task-chat", status_code=status.HTTP_200_OK)
@@ -436,6 +478,7 @@ async def task_chat(
 
     # Re-trigger the planner for the same task
     generate_plan_from_context.delay(task_id, user_id)
+    await push_update(user_id)
     return JSONResponse(content={"message": "Change request received. The task is now being re-planned."})
 
 @router.post("/internal/progress-update", include_in_schema=False)
@@ -507,6 +550,7 @@ async def answer_clarifications(
 
     execute_task_plan.delay(request.task_id, user_id, last_run['run_id'])
 
+    await push_update(user_id)
     return JSONResponse(content={"message": "Answers submitted successfully. The task will now resume."})
 
 @router.post("/{task_id}/clarifications", status_code=status.HTTP_200_OK)
@@ -546,6 +590,7 @@ async def answer_clarification(
     # Trigger the orchestrator to re-evaluate with the new information
     execute_orchestrator_cycle.delay(task_id)
 
+    await push_update(user_id)
     return JSONResponse(content={"message": "Answer received. Resuming task."})
 
 
@@ -563,10 +608,12 @@ async def long_form_task_action(
     action = request.action.lower()
     if action == "pause":
         await mongo_manager.update_task(task_id, {"orchestrator_state.current_state": "PAUSED"})
+        await push_update(user_id)
         return JSONResponse(content={"message": "Task paused."})
     elif action == "resume":
         await mongo_manager.update_task(task_id, {"orchestrator_state.current_state": "ACTIVE"})
         execute_orchestrator_cycle.delay(task_id)
+        await push_update(user_id)
         return JSONResponse(content={"message": "Task resumed."})
     else:
         raise HTTPException(status_code=400, detail="Invalid action. Must be 'pause' or 'resume'.")
