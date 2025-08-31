@@ -4,16 +4,16 @@ import uuid
 import json
 import re
 import datetime
-import os
 import httpx
 from dateutil import rrule
+from dateutil.tz import gettz
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from typing import Dict, Any, Optional, List, Tuple
 from bson import ObjectId
 from celery import group, chord
 from main.analytics import capture_event
 from json_extractor import JsonExtractor
-from workers.utils.api_client import notify_user, push_task_list_update
+from workers.utils.api_client import notify_user, push_task_list_update # noqa: E501
 from workers.utils.text_utils import parse_assistant_response
 from main.plans import PLAN_LIMITS
 from main.config import INTEGRATIONS_CONFIG
@@ -21,7 +21,7 @@ from main.tasks.prompts import TASK_CREATION_PROMPT
 from mcp_hub.memory.utils import initialize_embedding_model, initialize_agents, cud_memory
 from main.llm import run_agent as run_main_agent, LLMProviderDownError
 from main.db import MongoManager
-from workers.celery_app import celery_app
+from workers.celery_app import celery_app # noqa: E501
 from workers.planner.llm import get_planner_agent
 from workers.planner.db import PlannerMongoManager, get_all_mcp_descriptions
 from workers.executor.tasks import async_execute_task_plan, run_single_item_worker, aggregate_results_callback, execute_task_plan
@@ -251,7 +251,7 @@ async def async_orchestrate_swarm_task(task_id: str, user_id: str):
                     "runs": [],
                     "created_at": datetime.datetime.now(datetime.timezone.utc)
                 }
-                await db_manager.task_collection.insert_one(sub_task_data)
+                await db_manager.tasks_collection.insert_one(sub_task_data)
 
                 # Signature for the worker task
                 worker_signature = run_single_item_worker.s(
@@ -903,7 +903,7 @@ async def async_execute_triggered_task(user_id: str, source: str, event_type: st
             "schedule.source": source,
             "schedule.event": event_type
         }
-        triggered_tasks_cursor = db_manager.task_collection.find(query)
+        triggered_tasks_cursor = db_manager.tasks_collection.find(query)
         tasks_to_check = await triggered_tasks_cursor.to_list(length=None)
 
         if not tasks_to_check:
@@ -950,51 +950,49 @@ async def async_execute_triggered_task(user_id: str, source: str, event_type: st
     finally:
         await db_manager.close()
 
-def calculate_next_run(schedule: Dict[str, Any], last_run: Optional[datetime.datetime] = None) -> Tuple[Optional[datetime.datetime], Optional[str]]:
+def calculate_next_run(schedule: Dict[str, Any], last_run: Optional[datetime.datetime] = None) -> Tuple[Optional[datetime.datetime], Optional[str]]: # noqa: E501
     """Calculates the next execution time for a scheduled task in UTC."""
+    if not schedule or schedule.get("type") != "recurring" or not schedule.get("time"):
+        return None, None
+
     now_utc = datetime.datetime.now(datetime.timezone.utc)
     user_timezone_str = schedule.get("timezone", "UTC")
 
     try:
-        user_tz = ZoneInfo(user_timezone_str)
-    except ZoneInfoNotFoundError:
+        user_tz = gettz(user_timezone_str)
+        if user_tz is None: raise ValueError(f"Unknown timezone: {user_timezone_str}")
+    except Exception:
         logger.warning(f"Invalid timezone '{user_timezone_str}'. Defaulting to UTC.")
         user_timezone_str = "UTC"
-        user_tz = ZoneInfo("UTC")
+        user_tz = datetime.timezone.utc
 
     time_str = schedule.get("time", "09:00")
     if not isinstance(time_str, str) or ":" not in time_str:
-        logger.warning(f"Invalid or missing 'time' in recurring schedule: {schedule}. Defaulting to 09:00.")
         time_str = "09:00"
 
     # The reference time for 'after' should be in the user's timezone to handle day boundaries correctly
     start_time_user_tz = (last_run or now_utc).astimezone(user_tz)
 
-    try:
-        frequency = schedule.get("frequency")
-        hour, minute = map(int, time_str.split(':'))
+    hour, minute = map(int, time_str.split(':'))
+    dtstart_user_tz = start_time_user_tz.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
-        # Create the start datetime in the user's timezone
-        dtstart_user_tz = start_time_user_tz.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    rule = None
+    frequency = schedule.get("frequency")
 
-        rule = None
-        if frequency == 'daily':
-            rule = rrule.rrule(rrule.DAILY, dtstart=dtstart_user_tz, until=start_time_user_tz + datetime.timedelta(days=365))
-        elif frequency == 'weekly':
-            days = schedule.get("days", [])
-            if not days: return None, user_timezone_str
-            weekday_map = {"Sunday": rrule.SU, "Monday": rrule.MO, "Tuesday": rrule.TU, "Wednesday": rrule.WE, "Thursday": rrule.TH, "Friday": rrule.FR, "Saturday": rrule.SA}
-            byweekday = [weekday_map[day] for day in days if day in weekday_map]
-            if not byweekday: return None, user_timezone_str
-            rule = rrule.rrule(rrule.WEEKLY, dtstart=dtstart_user_tz, byweekday=byweekday, until=start_time_user_tz + datetime.timedelta(days=365))
+    if frequency == 'daily':
+        rule = rrule.rrule(rrule.DAILY, dtstart=dtstart_user_tz)
+    elif frequency == 'weekly':
+        days = schedule.get("days", [])
+        if not days: return None, user_timezone_str
+        weekday_map = {"Monday": rrule.MO, "Tuesday": rrule.TU, "Wednesday": rrule.WE, "Thursday": rrule.TH, "Friday": rrule.FR, "Saturday": rrule.SA, "Sunday": rrule.SU} # noqa: E501
+        byweekday = [weekday_map[day] for day in days if day in weekday_map]
+        if not byweekday: return None, user_timezone_str
+        rule = rrule.rrule(rrule.WEEKLY, dtstart=dtstart_user_tz, byweekday=byweekday)
 
-        if rule:
-            next_run_user_tz = rule.after(start_time_user_tz)
-            if next_run_user_tz:
-                # Convert the result back to UTC for storage
-                return next_run_user_tz.astimezone(datetime.timezone.utc), user_timezone_str
-    except Exception as e:
-        logger.error(f"Error calculating next run time for schedule {schedule}: {e}")
+    if rule:
+        next_run_user_tz = rule.after(start_time_user_tz, inc=True)
+        if next_run_user_tz:
+            return next_run_user_tz.astimezone(datetime.timezone.utc), user_timezone_str
     return None, user_timezone_str
 
 @celery_app.task(name="run_due_tasks")
@@ -1005,11 +1003,12 @@ def run_due_tasks():
 
 
 async def async_run_due_tasks():
-    db_manager = PlannerMongoManager()
+    db_manager = MongoManager()
     try:
         now = datetime.datetime.now(datetime.timezone.utc)
+        print("Current time", now)
         # Fetch tasks that are due and are either 'active' (recurring) or 'pending' (scheduled-once)
-        query = {
+        query = { # noqa: E501
             "status": {"$in": ["active", "pending"]},
             "enabled": True,
             "next_execution_at": {"$lte": now}

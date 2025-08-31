@@ -26,7 +26,7 @@ USER_PROFILES_COLLECTION = "user_profiles"
 NOTIFICATIONS_COLLECTION = "notifications"
 DAILY_USAGE_COLLECTION = "daily_usage"
 PROCESSED_ITEMS_COLLECTION = "processed_items_log"
-TASK_COLLECTION = "tasks"
+tasks_collection = "tasks"
 MESSAGES_COLLECTION = "messages"
 
 SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
@@ -42,7 +42,7 @@ class MongoManager:
         self.notifications_collection = self.db[NOTIFICATIONS_COLLECTION]
         self.daily_usage_collection = self.db[DAILY_USAGE_COLLECTION]
         self.processed_items_collection = self.db[PROCESSED_ITEMS_COLLECTION]
-        self.task_collection = self.db[TASK_COLLECTION]
+        self.tasks_collection = self.db[tasks_collection]
         self.messages_collection = self.db[MESSAGES_COLLECTION]
 
         print(f"[{datetime.datetime.now()}] [MainServer_MongoManager] Initialized. Database: {MONGO_DB_NAME}")
@@ -70,7 +70,7 @@ class MongoManager:
                 IndexModel([("user_id", ASCENDING), ("service_name", ASCENDING), ("item_id", ASCENDING)], unique=True, name="processed_item_unique_idx_main"),
                 IndexModel([("processing_timestamp", DESCENDING)], name="processed_timestamp_idx_main", expireAfterSeconds=2592000) # 30 days
             ],
-            self.task_collection: [
+            self.tasks_collection: [
                 IndexModel([("user_id", ASCENDING), ("created_at", DESCENDING)], name="task_user_created_idx"),
                 IndexModel([("user_id", ASCENDING), ("status", ASCENDING), ("priority", ASCENDING)], name="task_user_status_priority_idx"),
                 IndexModel([("status", ASCENDING), ("agent_id", ASCENDING)], name="task_status_agent_idx", sparse=True),
@@ -302,19 +302,19 @@ class MongoManager:
 
         encrypt_doc(task_doc, SENSITIVE_TASK_FIELDS)
 
-        await self.task_collection.insert_one(task_doc) # noqa: E501
+        await self.tasks_collection.insert_one(task_doc) # noqa: E501
         logger.info(f"Created new task {task_id} (type: {task_doc['task_type']}) for user {user_id} with status 'planning'.")
         return task_id
 
     async def get_task(self, task_id: str, user_id: str) -> Optional[Dict]:
         """Fetches a single task by its ID, ensuring it belongs to the user."""
-        doc = await self.task_collection.find_one({"task_id": task_id, "user_id": user_id})
+        doc = await self.tasks_collection.find_one({"task_id": task_id, "user_id": user_id})
         decrypt_doc(doc, SENSITIVE_TASK_FIELDS)
         return doc
 
     async def get_all_tasks_for_user(self, user_id: str) -> List[Dict]:
         """Fetches all tasks for a given user."""
-        cursor = self.task_collection.find({"user_id": user_id}).sort("created_at", -1) # noqa: E501
+        cursor = self.tasks_collection.find({"user_id": user_id}).sort("created_at", -1) # noqa: E501
         docs = await cursor.to_list(length=None)
         _decrypt_docs(docs, SENSITIVE_TASK_FIELDS)
         return docs
@@ -323,7 +323,7 @@ class MongoManager:
         """Updates an existing task document."""
         updates["updated_at"] = datetime.datetime.now(datetime.timezone.utc)
         encrypt_doc(updates, SENSITIVE_TASK_FIELDS)
-        result = await self.task_collection.update_one(
+        result = await self.tasks_collection.update_one(
             {"task_id": task_id},
             {"$set": updates}
         )
@@ -363,16 +363,16 @@ class MongoManager:
             "user_id": user_id,
             "original_context.parent_task_id": task_id
         }
-        sub_tasks_to_delete = await self.task_collection.find(sub_task_query, {"task_id": 1}).to_list(length=None)
+        sub_tasks_to_delete = await self.tasks_collection.find(sub_task_query, {"task_id": 1}).to_list(length=None)
         sub_task_ids = [st["task_id"] for st in sub_tasks_to_delete]
 
         # 2. Delete sub-tasks if any exist
         if sub_task_ids:
-            delete_subtasks_result = await self.task_collection.delete_many(sub_task_query)
+            delete_subtasks_result = await self.tasks_collection.delete_many(sub_task_query)
             logger.info(f"Deleted {delete_subtasks_result.deleted_count} sub-tasks for parent task {task_id}.")
 
         # 3. Delete the parent task
-        delete_parent_result = await self.task_collection.delete_one({"task_id": task_id, "user_id": user_id})
+        delete_parent_result = await self.tasks_collection.delete_one({"task_id": task_id, "user_id": user_id})
         parent_deleted = delete_parent_result.deleted_count > 0
 
         if not parent_deleted and not sub_task_ids:
@@ -396,7 +396,7 @@ class MongoManager:
         if not user_id or not tool_name:
             return 0
         query = {"user_id": user_id, "runs.plan.tool": tool_name}
-        result = await self.task_collection.delete_many(query)
+        result = await self.tasks_collection.delete_many(query)
         logger.info(f"Deleted {result.deleted_count} tasks for user {user_id} using tool '{tool_name}'.")
         return result.deleted_count
 
@@ -449,7 +449,7 @@ class MongoManager:
         new_task_doc["next_execution_at"] = None
 
         encrypt_doc(new_task_doc, SENSITIVE_TASK_FIELDS)
-        await self.task_collection.insert_one(new_task_doc)
+        await self.tasks_collection.insert_one(new_task_doc)
         return new_task_id
 
     # --- Message Methods ---

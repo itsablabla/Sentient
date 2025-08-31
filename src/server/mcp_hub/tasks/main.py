@@ -200,7 +200,7 @@ async def search_tasks(
                 {"created_at": date_filter, "next_execution_at": None}
             ]
 
-        cursor = mongo_manager.task_collection.find(mongo_query).sort([("priority", 1), ("created_at", -1)]).limit(20)
+        cursor = mongo_manager.tasks_collection.find(mongo_query).sort([("priority", 1), ("created_at", -1)]).limit(20)
         tasks = await cursor.to_list(length=20)
 
         return {"status": "success", "result": {"tasks": tasks}}

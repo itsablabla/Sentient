@@ -245,12 +245,29 @@ async def update_task(
     update_data = request.dict(exclude_unset=True)
     update_data.pop("taskId", None)
 
-    # If the schedule is being updated, inject the user's timezone for recurring tasks.
+    # If the schedule is being updated, recalculate next_execution_at
     if 'schedule' in update_data and update_data['schedule']:
-        if update_data['schedule'].get('type') == 'recurring':
-            user_profile = await mongo_manager.get_user_profile(user_id)
-            user_timezone_str = user_profile.get("userData", {}).get("personalInfo", {}).get("timezone", "UTC")
-            update_data['schedule']['timezone'] = user_timezone_str
+        schedule_data = update_data['schedule']
+        user_profile = await mongo_manager.get_user_profile(user_id)
+        user_timezone_str = user_profile.get("userData", {}).get("personalInfo", {}).get("timezone", "UTC")
+        schedule_data['timezone'] = user_timezone_str # Inject timezone for calculations
+
+        if schedule_data.get('type') == 'recurring':
+            next_run, _ = calculate_next_run(schedule_data)
+            update_data['next_execution_at'] = next_run
+        elif schedule_data.get('type') == 'once' and schedule_data.get('run_at'):
+            run_at_time_str = schedule_data.get('run_at')
+            if isinstance(run_at_time_str, str):
+                if len(run_at_time_str) == 16: run_at_time_str += ":00"
+                try:
+                    user_tz = ZoneInfo(user_timezone_str)
+                except ZoneInfoNotFoundError:
+                    user_tz = ZoneInfo("UTC")
+                naive_run_at_time = datetime.fromisoformat(run_at_time_str)
+                aware_run_at_time = naive_run_at_time.replace(tzinfo=user_tz)
+                update_data['next_execution_at'] = aware_run_at_time.astimezone(timezone.utc)
+        else: # Covers triggered tasks or immediate one-off tasks
+            update_data['next_execution_at'] = None
 
     # If assignee is changed to 'ai' and task is in a non-planned state, trigger planning
     if 'assignee' in update_data and update_data['assignee'] == 'ai':
