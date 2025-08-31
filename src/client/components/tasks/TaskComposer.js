@@ -261,7 +261,9 @@ const TaskComposer = ({
 								onClick={handleCreateTask}
 								className="py-2 px-4 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors text-sm"
 							>
-								Create Workflow
+								{view === "workflows"
+									? "Create Workflow"
+									: "Create Task"}
 							</button>
 						</div>
 
@@ -385,4 +387,3 @@ const TaskComposer = ({
 }
 
 export default TaskComposer
-

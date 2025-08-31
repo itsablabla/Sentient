@@ -295,7 +295,9 @@ function TasksPageContent() {
 	}
 
 	const handleCreateTask = async (payload) => {
-		const toastId = toast.loading("Creating task...")
+		const toastId = toast.loading(
+			view === "workflows" ? "Creating workflow..." : "Creating task..."
+		)
 		try {
 			const response = await fetch("/api/tasks/add", {
 				method: "POST",
@@ -310,9 +312,16 @@ function TasksPageContent() {
 			}
 			const data = await response.json()
 
-			toast.success(data.message || "Task created!", { id: toastId })
+			toast.success(
+				data.message ||
+					(view === "workflows"
+						? "Workflow created!"
+						: "Task created!"),
+				{ id: toastId }
+			)
 			await fetchTasks()
-			setView("tasks")
+			// The view is already correct, so no need to set it again.
+			// This fixes the issue of being switched to 'tasks' after creating a workflow.
 		} catch (error) {
 			if (error.status === 429) {
 				toast.error(
@@ -536,10 +545,18 @@ function TasksPageContent() {
 								<button
 									onClick={() => setIsComposerOpen(true)}
 									className="flex items-center gap-2 rounded-xl bg-brand-orange px-6 py-3 font-semibold text-brand-black shadow-2xl transition-all duration-300 hover:scale-105 hover:bg-brand-orange/90"
-									aria-label="Create new task"
+									aria-label={
+										view === "workflows"
+											? "Create new workflow"
+											: "Create new task"
+									}
 								>
 									<IconPlus size={20} />
-									<span>Create Task</span>
+									<span>
+										{view === "workflows"
+											? "Create Workflow"
+											: "Create Task"}
+									</span>
 								</button>
 							</motion.div>
 						)}
