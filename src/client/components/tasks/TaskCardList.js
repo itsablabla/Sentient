@@ -69,9 +69,9 @@ const SubTaskItem = ({ task, onSelectTask }) => {
 				e.stopPropagation()
 				onSelectTask(task)
 			}}
-			className="flex items-center justify-between p-2 mx-2 rounded-md hover:bg-neutral-800 cursor-pointer transition-colors group"
+			className="flex items-center justify-between p-2 md:mx-2 rounded-md hover:bg-neutral-800 cursor-pointer transition-colors group"
 		>
-			<div className="flex items-center gap-2 overflow-hidden">
+			<div className="flex flex-1 items-center gap-2 min-w-0">
 				<IconSubtask
 					size={14}
 					className="text-neutral-500 group-hover:text-neutral-300 flex-shrink-0"
@@ -82,7 +82,7 @@ const SubTaskItem = ({ task, onSelectTask }) => {
 			</div>
 			<div
 				className={cn(
-					"px-1.5 py-0.5 rounded-full text-[10px] font-medium flex items-center gap-1 flex-shrink-0",
+					"ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-medium flex items-center gap-1 flex-shrink-0",
 					statusInfo.bgColor,
 					statusInfo.textColor
 				)}
@@ -141,8 +141,9 @@ const TaskCardList = ({ task, onSelectTask }) => {
 				onClick={() => onSelectTask(task)}
 				className="p-4 cursor-pointer"
 			>
-				<div className="flex bg-transparent p-1 transition-all justify-between items-start gap-4">
-					<p className="font-sans font-semibold text-brand-white flex-1 text-sm line-clamp-2 flex items-center gap-2">
+				<div className="flex bg-transparent p-1 transition-all justify-between items-start gap-2 sm:gap-4">
+					{/* The main task title container. flex-1 and min-w-0 are essential here too. */}
+					<p className="font-sans font-semibold text-brand-white flex-1 text-sm line-clamp-2 flex items-center gap-2 min-w-0">
 						{task.task_type === "swarm" && (
 							<span
 								data-tooltip-id="tasks-tooltip"
@@ -167,13 +168,16 @@ const TaskCardList = ({ task, onSelectTask }) => {
 						)}
 						{getDisplayName(task)}
 					</p>
-					<StatusBadge
-						status={task.status}
-						taskType={task.task_type}
-						orchestratorState={
-							task.orchestrator_state?.current_state
-						}
-					/>
+					{/* Add ml-2 here to ensure a gap and prevent the badge from being squished */}
+					<div className="flex-shrink-0 ml-2">
+						<StatusBadge
+							status={task.status}
+							taskType={task.task_type}
+							orchestratorState={
+								task.orchestrator_state?.current_state
+							}
+						/>
+					</div>
 				</div>
 				<div className="flex items-center justify-between mt-3 pt-3 border-t border-neutral-800 text-xs text-neutral-400 font-mono">
 					{dateText ? <span>{dateText}</span> : <span />}
@@ -183,14 +187,14 @@ const TaskCardList = ({ task, onSelectTask }) => {
 								e.stopPropagation()
 								setIsExpanded(!isExpanded)
 							}}
-							className="flex items-center gap-1 text-xs text-neutral-500 hover:text-white z-10 relative"
+							className="flex items-center gap-1 text-xs text-neutral-500 hover:text-white z-10 relative flex-shrink-0"
 						>
 							{isExpanded ? (
 								<IconChevronUp size={14} />
 							) : (
 								<IconChevronDown size={14} />
 							)}
-							<span>
+							<span className="whitespace-nowrap">
 								{subTasks.length} Sub-task
 								{subTasks.length > 1 ? "s" : ""}
 							</span>

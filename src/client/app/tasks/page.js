@@ -609,7 +609,7 @@ function TasksPageContent() {
 					<InteractiveNetworkBackground />
 				</div>
 				{/* Main Content Panel */}
-				<main className="flex-1 flex flex-col overflow-hidden relative md:pl-6">
+				<main className="flex-1 flex flex-col overflow-hidden relative md:pl-6 min-w-0">
 					<div className="absolute -top-[250px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-brand-orange/10 rounded-full blur-3xl -z-10" />
 					<header className="p-6 pt-20 md:pt-6 flex-shrink-0 flex items-center justify-between bg-transparent">
 						<h1 className="text-3xl font-bold text-white">Tasks</h1>
@@ -619,7 +619,7 @@ function TasksPageContent() {
 					</header>
 
 					<div
-						className="flex-1 overflow-y-auto custom-scrollbar px-4 md:px-6 pb-24"
+						className="flex-1 overflow-y-auto custom-scrollbar px-2 md:px-6 pb-24"
 						style={{
 							display: isMobile && isModalOpen ? "none" : "block"
 						}}

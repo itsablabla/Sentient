@@ -652,7 +652,7 @@ const IntegrationHeader = ({
 	onCategoryChange
 }) => {
 	return (
-		<div className="mb-8 md:sticky md:top-0 bg-dark-surface/80 backdrop-blur-sm py-4 z-10">
+		<div className="xs:mb-4 md:mb-8 mt-1 md:sticky md:top-0 bg-dark-surface/80 backdrop-blur-sm md:py-4 z-10">
 			{/* Redesigned Search Bar */}
 			<div className="relative">
 				<IconSearch
@@ -1533,19 +1533,15 @@ const IntegrationsPage = () => {
 					<InteractiveNetworkBackground />
 				</div>
 				<div className="absolute -top-[250px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-brand-orange/10 rounded-full blur-3xl -z-10" />
-				<header className="flex items-center justify-between p-4 sm:p-6 md:px-8 md:py-6 bg-transparent border-b border-[var(--color-primary-surface)] shrink-0">
+				<header className="flex items-center justify-between p-4 sm:p-6 md:px-8 md:py-6 bg-transparent shrink-0">
 					<div>
 						<h1 className="text-3xl lg:text-4xl font-bold text-white flex items-center gap-3">
 							<IconPlugConnected />
 							Integrations
 						</h1>
-						<p className="text-neutral-400 mt-1">
-							Connect your digital life to unlock Sentient's full
-							potential.
-						</p>
 					</div>
 				</header>
-				<main className="flex-1 overflow-y-auto p-4 sm:p-6 md:px-8 custom-scrollbar">
+				<main className="flex-1 overflow-y-auto px-4 pb-4 sm:p-6 md:px-8 custom-scrollbar">
 					{loading ? (
 						<div className="flex justify-center items-center h-full">
 							<IconLoader className="w-12 h-12 animate-spin text-brand-orange" />

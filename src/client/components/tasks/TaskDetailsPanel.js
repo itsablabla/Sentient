@@ -371,7 +371,7 @@ const TaskDetailsPanel = ({
 										</ActionButton>
 									</div>
 									{missingTools.length > 0 && (
-										<div className="text-xs text-red-400 flex flex-col items-end gap-1 text-right">
+										<div className="text-xs text-red-400 flex flex-col items-end gap-1 text-right flex-shrink min-w-0">
 											<span>
 												Connect tools to approve:
 											</span>

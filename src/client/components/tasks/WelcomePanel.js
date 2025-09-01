@@ -122,7 +122,7 @@ const WelcomePanel = ({ view, onExampleClick, onClose }) => {
 	const examples = exampleWorkflows.filter((ex) => ex.view === view)
 
 	return (
-		<div className="p-4 md:p-6 h-full flex flex-col">
+		<div className="md:p-6 h-full flex flex-col">
 			<header className="flex items-start justify-between text-center mb-6 md:mb-8 flex-shrink-0">
 				<div className="flex-1 flex flex-col items-center">
 					<IconSparkles
@@ -136,15 +136,8 @@ const WelcomePanel = ({ view, onExampleClick, onClose }) => {
 						{currentContent.description}
 					</p>
 				</div>
-				{/* Mobile-only close button */}
-				<button
-					onClick={onClose}
-					className="p-2 text-neutral-400 hover:text-white md:hidden -mr-2 -mt-2"
-				>
-					<IconX size={20} />
-				</button>
 			</header>
-			<div className="space-y-4 overflow-y-auto custom-scrollbar flex-1 px-4">
+			<div className="space-y-4 overflow-y-auto custom-scrollbar flex-1 px-2 md:px-4">
 				<h3 className="font-semibold text-neutral-300 px-2">
 					Examples
 				</h3>

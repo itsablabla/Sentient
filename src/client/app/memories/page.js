@@ -559,6 +559,66 @@ const MemoryGraph = ({ data, onSelectNode, onClearSelection }) => {
 	)
 }
 
+// --- Tab Component for View Switcher (from tasks page) ---
+const buttonVariants = {
+	initial: {
+		gap: 0,
+		paddingLeft: ".5rem",
+		paddingRight: ".5rem"
+	},
+	animate: (selected) => ({
+		gap: selected ? ".5rem" : 0,
+		paddingLeft: selected ? "1rem" : ".5rem",
+		paddingRight: selected ? "1rem" : ".5rem"
+	})
+}
+
+const spanVariants = {
+	initial: { width: 0, opacity: 0 },
+	animate: { width: "auto", opacity: 1 },
+	exit: { width: 0, opacity: 0 }
+}
+
+const transition = { delay: 0.1, type: "spring", bounce: 0, duration: 0.35 }
+
+const Tab = ({ text, selected, setSelected, value, children, ...props }) => {
+	return (
+		<motion.button
+			variants={buttonVariants}
+			initial="initial"
+			animate="animate"
+			{...props}
+			custom={selected}
+			onClick={() => setSelected(value)}
+			transition={transition}
+			className={`${
+				selected ? "bg-white/10 text-white " : " hover:text-white"
+			} relative flex items-center rounded-full px-4 py-2 text-sm font-medium text-neutral-400 transition-colors duration-300`}
+		>
+			{children}
+			<AnimatePresence>
+				{selected && (
+					<motion.span
+						variants={spanVariants}
+						initial="initial"
+						animate="animate"
+						exit="exit"
+						transition={transition}
+						className="overflow-hidden"
+					>
+						{text}
+					</motion.span>
+				)}
+			</AnimatePresence>
+		</motion.button>
+	)
+}
+
+const memoryTabs = [
+	{ title: "Graph", value: "graph", icon: <IconShare3 size={16} /> },
+	{ title: "List", value: "list", icon: <IconLayoutGrid size={16} /> }
+]
+
 export default function MemoriesPage() {
 	const [view, setView] = useState("graph")
 	const [memories, setMemories] = useState([])
@@ -724,29 +784,18 @@ export default function MemoriesPage() {
 	}
 
 	const ViewSwitcher = () => (
-		<div className="flex items-center gap-2 p-1 bg-neutral-800/50 rounded-full">
-			<button
-				onClick={() => setView("graph")}
-				className={cn(
-					"px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2",
-					view === "graph"
-						? "bg-white text-black"
-						: "text-neutral-400 hover:text-white"
-				)}
-			>
-				<IconShare3 size={16} /> Graph
-			</button>
-			<button
-				onClick={() => setView("list")}
-				className={cn(
-					"px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2",
-					view === "list"
-						? "bg-white text-black"
-						: "text-neutral-400 hover:text-white"
-				)}
-			>
-				<IconLayoutGrid size={16} /> List
-			</button>
+		<div className="flex flex-wrap items-center gap-2">
+			{memoryTabs.map((tab) => (
+				<Tab
+					key={tab.value}
+					text={tab.title}
+					selected={view === tab.value}
+					setSelected={setView}
+					value={tab.value}
+				>
+					{tab.icon}
+				</Tab>
+			))}
 		</div>
 	)
 
@@ -822,36 +871,30 @@ export default function MemoriesPage() {
 				</div>
 				<div className="absolute -top-[250px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-brand-orange/10 rounded-full blur-3xl -z-10" />
 
-				<header className="flex flex-col md:flex-row md:items-center justify-between p-4 pt-20 md:pt-4 sm:p-6 bg-transparent shrink-0 z-10 border-b border-neutral-800/80">
-					<div className="flex-1">
-						<h1 className="text-3xl lg:text-4xl font-bold text-white flex items-center gap-3">
-							Memories
-						</h1>
-						<p className="text-neutral-400 mt-1">
-							A collection of facts and information I've learned
-							about you.
-						</p>
-					</div>
-					<div className="flex items-center gap-4 mt-4 md:mt-0">
+				<header className="flex flex-wrap items-center justify-between gap-4 p-6 pt-20 md:pt-6 bg-transparent shrink-0 z-10 border-b border-neutral-800/80">
+					<h1 className="text-2xl md:text-3xl font-bold text-white">
+						Memories
+					</h1>
+					<div className="flex items-center gap-2 sm:gap-4">
 						{!isLoading && (
-							<div className="text-center p-2 rounded-lg bg-neutral-900/30">
-								<p className="text-3xl font-bold text-brand-orange">
+							<div className="text-center">
+								<p className="text-xl sm:text-2xl font-bold text-brand-orange">
 									{memories.length}
 								</p>
-								<p className="text-xs text-neutral-400">
-									Memories Saved
+								<p className="text-[10px] sm:text-xs text-neutral-400 -mt-1">
+									Memories
 								</p>
 							</div>
 						)}
-						<div className="w-full md:w-auto flex justify-center items-center gap-2">
-							<ViewSwitcher />
-							<button
-								onClick={() => setIsInfoPanelOpen(true)}
-								className="p-2 rounded-full bg-neutral-800/50 hover:bg-neutral-700/80 text-white"
-							>
-								<IconInfoCircle size={20} />
-							</button>
-						</div>
+						<div className="w-px h-8 bg-neutral-700 hidden sm:block"></div>
+						<ViewSwitcher />
+						<button
+							onClick={() => setIsInfoPanelOpen(true)}
+							className="p-2 rounded-full bg-neutral-800/50 hover:bg-neutral-700/80 text-white"
+							aria-label="About memories"
+						>
+							<IconInfoCircle size={20} />
+						</button>
 					</div>
 				</header>
 				<main className="flex-1 relative overflow-hidden">

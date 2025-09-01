@@ -181,7 +181,7 @@ const TaskComposer = ({
 			exit={{ opacity: 0, y: 100, scale: 0.9 }}
 			transition={{ type: "spring", stiffness: 300, damping: 30 }}
 			data-tour-id="task-composer"
-			className="absolute bottom-8 w-[90vw] max-w-2xl left-1/2 -translate-x-1/2 bg-neutral-900/50 backdrop-blur-lg border border-neutral-700 rounded-2xl shadow-2xl z-50"
+			className="absolute bottom-8 w-[90vw] max-w-3xl left-1/2 -translate-x-1/2 bg-neutral-900/50 backdrop-blur-lg border border-neutral-700 rounded-2xl shadow-2xl z-50"
 		>
 			<div className="relative p-4">
 				{view === "tasks" ? (
@@ -199,8 +199,7 @@ const TaskComposer = ({
 											handleCreateTask()
 										}
 									}}
-									className="w-full p-3 bg-transparent border border-neutral-700 rounded-lg focus:ring-2 focus:ring-brand-orange resize-none custom-scrollbar relative z-10"
-									rows={1}
+									className="w-full p-3 bg-transparent border border-neutral-700 rounded-lg focus:ring-2 focus:ring-brand-orange resize-none custom-scrollbar relative z-10 h-20 sm:h-12"
 									style={{ maxHeight: "150px" }}
 								/>
 								{!goalInput && (
@@ -241,7 +240,7 @@ const TaskComposer = ({
 					</div>
 				) : (
 					<div className="space-y-3">
-						<div className="flex items-center justify-between">
+						<div className="flex items-center">
 							<div className="flex items-center gap-1 bg-neutral-800 p-1 rounded-lg">
 								{workflowTabs.map((tab) => (
 									<button
@@ -259,15 +258,6 @@ const TaskComposer = ({
 									</button>
 								))}
 							</div>
-							<button
-								onClick={handleCreateTask}
-								data-tour-id="task-composer-create-button"
-								className="py-2 px-4 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors text-sm"
-							>
-								{view === "workflows"
-									? "Create Workflow"
-									: "Create Task"}
-							</button>
 						</div>
 
 						<AnimatePresence mode="wait">
@@ -382,6 +372,17 @@ const TaskComposer = ({
 								/>
 							</motion.div>
 						</AnimatePresence>
+						<div className="flex justify-end pt-2">
+							<button
+								onClick={handleCreateTask}
+								data-tour-id="task-composer-create-button"
+								className="py-2 px-4 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors text-sm"
+							>
+								{view === "workflows"
+									? "Create Workflow"
+									: "Create Task"}
+							</button>
+						</div>
 					</div>
 				)}
 			</div>

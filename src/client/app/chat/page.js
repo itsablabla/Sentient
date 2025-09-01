@@ -14,7 +14,7 @@ import {
 	IconDotsVertical,
 	IconPhone,
 	IconPhoneOff,
-	IconWaveSine,
+	IconHeadphonesFilled,
 	IconMicrophone,
 	IconMicrophoneOff,
 	IconMessageOff,
@@ -1333,22 +1333,34 @@ export default function ChatPage() {
 					initial={{ opacity: 0, y: 10 }}
 					animate={{ opacity: 1, y: 0 }}
 					exit={{ opacity: 0, y: 10 }}
-					className="bg-neutral-800/60 p-3 rounded-t-lg border-b border-neutral-700/50 flex justify-between items-center"
+					className="bg-neutral-800/60 p-3 rounded-t-lg border-b border-neutral-700/50 flex justify-between items-center gap-4"
 				>
-					<div>
+					<div className="min-w-0 flex-1">
 						<p className="text-xs text-neutral-400 flex items-center gap-1.5">
 							<IconArrowBackUp size={14} /> Replying to{" "}
 							{replyingTo.role === "user"
 								? "yourself"
 								: "the assistant"}
 						</p>
-						<p className="text-sm text-neutral-200 mt-1 truncate">
-							{replyingTo.content.replace(/<[^>]+>/g, "").trim()}
+						<p
+							className="text-sm text-neutral-200 mt-1 truncate max-w-[320px] sm:max-w-[480px] md:max-w-[600px] overflow-hidden"
+							title={replyingTo.content
+								.replace(/<[^>]+>/g, "")
+								.trim()}
+						>
+							{(() => {
+								const clean = replyingTo.content
+									.replace(/<[^>]+>/g, "")
+									.trim()
+								return clean.length > 120
+									? clean.slice(0, 120) + "…"
+									: clean
+							})()}
 						</p>
 					</div>
 					<button
 						onClick={() => setReplyingTo(null)}
-						className="p-1.5 rounded-full text-neutral-400 hover:bg-neutral-700 hover:text-white"
+						className="p-1.5 rounded-full text-neutral-400 hover:bg-neutral-700 hover:text-white flex-shrink-0"
 					>
 						<IconX size={16} />
 					</button>
@@ -1397,7 +1409,7 @@ export default function ChatPage() {
 			data-tour-id="chat-input-area"
 			className="relative bg-neutral-800/60 backdrop-blur-sm border border-neutral-700/50 rounded-2xl"
 		>
-			<div className="relative p-4 flex items-start gap-4">
+			<div className="relative p-3 md:p-4 flex items-start gap-3 md:gap-4">
 				<textarea
 					ref={textareaRef}
 					value={input}
@@ -1416,8 +1428,8 @@ export default function ChatPage() {
 					style={{ maxHeight: "200px" }}
 				/>
 				{!input && !uploadedFilename && (
-					<div className="absolute top-1/2 left-4 right-4 -translate-y-1/2 text-neutral-500 pointer-events-none z-0 overflow-hidden">
-						<TextLoop className="text-base ml-5 whitespace-normal md:whitespace-nowrap">
+					<div className="absolute top-1/2 left-3 right-3 md:left-4 md:right-4 -translate-y-1/2 text-neutral-500 pointer-events-none z-0 overflow-hidden">
+						<TextLoop className="text-base ml-4 md:ml-5 whitespace-nowrap">
 							<span>Ask anything...</span>
 							<span>Summarize my unread emails from today</span>
 							<span>
@@ -1428,7 +1440,7 @@ export default function ChatPage() {
 					</div>
 				)}
 			</div>
-			<div className="flex justify-between items-center px-3 pb-3">
+			<div className="flex justify-between items-center px-2 pb-2 md:px-3 md:pb-3">
 				<div className="flex items-center gap-1">
 					<input
 						type="file"
@@ -1479,7 +1491,7 @@ export default function ChatPage() {
 								: "Voice Mode (Pro Feature)"
 						}
 					>
-						<IconWaveSine size={18} />
+						<IconHeadphonesFilled size={18} />
 					</button>
 					{thinking ? (
 						<button
@@ -1754,7 +1766,7 @@ export default function ChatPage() {
 
 				<main
 					ref={scrollContainerRef}
-					className="flex-1 overflow-y-auto px-4 pb-4 md:p-6 flex flex-col custom-scrollbar"
+					className="flex-1 overflow-y-auto sm:p-0 md:px-4 pb-4 md:p-6 flex flex-col custom-scrollbar"
 				>
 					{isLoading ? (
 						<div className="flex-1 flex justify-center items-center">
@@ -1947,7 +1959,7 @@ export default function ChatPage() {
 							</div>
 						</div>
 					) : (
-						<div className="w-full max-w-4xl mx-auto flex flex-col gap-3 md:gap-4 flex-1">
+						<div className="w-full max-w-4xl px-2 mx-auto flex flex-col gap-3 md:gap-4 flex-1">
 							{isLoadingOlder && (
 								<div className="flex justify-center py-4">
 									<IconLoader className="animate-spin text-neutral-500" />
@@ -2004,7 +2016,7 @@ export default function ChatPage() {
 					)}
 				</main>
 				{!isLoading && !isVoiceMode && displayedMessages.length > 0 && (
-					<div className="flex-shrink-0 px-4 pt-2 pb-4 sm:px-6 sm:pb-6 bg-transparent">
+					<div className="flex-shrink-0 px-2 pt-2 pb-4 sm:px-6 sm:pb-6 bg-transparent">
 						<div className="relative w-full max-w-4xl mx-auto">
 							{uploadedFilename
 								? renderUploadedFilePreview()
