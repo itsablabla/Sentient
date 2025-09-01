@@ -211,7 +211,7 @@ export default function ChatPage() {
 	const searchParams = useSearchParams()
 	const router = useRouter()
 	const { isPro } = usePlan()
-	const { startTour, chatActionsRef } = useTour()
+	const tour = useTour()
 
 	// --- File Upload State ---
 	const [selectedFile, setSelectedFile] = useState(null)
@@ -301,11 +301,11 @@ export default function ChatPage() {
 	}, [fetchInitialMessages, fetchUserDetails])
 
 	useEffect(() => {
-		if (searchParams.get("show_demo") === "true") {
-			startTour()
+		if (searchParams.get("show_demo") === "true" && tour) {
+			tour.startTour()
 			router.replace("/chat", { scroll: false }) // Keep this to clean URL
 		}
-	}, [searchParams, router, startTour])
+	}, [searchParams, router, tour])
 
 	useEffect(() => {
 		const messageId = searchParams.get("messageId")
@@ -372,6 +372,79 @@ export default function ChatPage() {
 		if (textareaRef.current) textareaRef.current.style.height = "auto"
 
 		try {
+			if (tour?.tourState.isActive && tour.tourState.step === 1) {
+				// --- TOUR SIMULATION ---
+				const subStep = tour.tourState.subStep
+				tour.setHighlightPaused(true) // Pause highlight as soon as message is sent
+				setThinking(true)
+
+				if (subStep === 0) {
+					// First message: "Hi Sentient!"
+					setTimeout(() => {
+						const fakeResponse = {
+							id: `assistant-${Date.now()}`,
+							role: "assistant",
+							content: "Hey there, I'm ready to help.",
+							timestamp: new Date().toISOString()
+						}
+						setDisplayedMessages((prev) => [...prev, fakeResponse])
+						setThinking(false)
+						setTimeout(() => {
+							tour.setHighlightPaused(false) // Resume highlight for next instruction
+							tour.nextSubStep()
+						}, 2000) // 2 second delay to read the message
+					}, 1500) // Delay for assistant to "think"
+				} else if (subStep === 1) {
+					// Second message: "Send an email..."
+					setStatusText("Analyzing request...")
+					setTimeout(() => {
+						setStatusText("Using tool: gmail")
+					}, 1000)
+
+					setTimeout(() => {
+						const fakeResponse = {
+							id: `assistant-${Date.now()}`,
+							role: "assistant",
+							content:
+								"Cool, I've sent that email. Is there anything else you want to do?",
+							timestamp: new Date().toISOString(),
+							tools: ["gmail"]
+						}
+						setDisplayedMessages((prev) => [...prev, fakeResponse])
+						setThinking(false)
+						setStatusText("")
+						setTimeout(() => {
+							tour.setHighlightPaused(false) // Resume highlight for next instruction
+							tour.nextSubStep()
+						}, 2000)
+					}, 2500) // Delay for assistant to "work"
+				} else if (subStep === 2) {
+					// Third message: "Create workflow..."
+					setStatusText("Analyzing request...")
+					setTimeout(() => {
+						setStatusText("Using tool: tasks")
+					}, 1000)
+					setTimeout(() => {
+						const fakeResponse = {
+							id: `assistant-${Date.now()}`,
+							role: "assistant",
+							content: "Cool, I've created the workflow.",
+							timestamp: new Date().toISOString(),
+							tools: ["tasks"]
+						}
+						setDisplayedMessages((prev) => [...prev, fakeResponse])
+						setThinking(false)
+						setStatusText("")
+						// This is the last chat step, move to the next main step.
+						setTimeout(() => {
+							// No need to resume highlight, as the next step will have a new target.
+							tour.nextStep()
+						}, 2000)
+					}, 2500)
+				}
+				return // End simulation here
+			}
+
 			const response = await fetch("/api/chat/message", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -519,20 +592,20 @@ export default function ChatPage() {
 
 	// Attach chat functions to the tour context's ref
 	useEffect(() => {
-		if (chatActionsRef) {
+		if (tour?.chatActionsRef) {
 			// Attach the functions the tour needs to the ref
-			chatActionsRef.current = {
+			tour.chatActionsRef.current = {
 				setInput: setInput,
 				sendMessage: sendMessage
 			}
 		}
 		// Cleanup function to nullify the ref when the component unmounts
 		return () => {
-			if (chatActionsRef) {
-				chatActionsRef.current = null
+			if (tour?.chatActionsRef) {
+				tour.chatActionsRef.current = null
 			}
 		}
-	}, [chatActionsRef, sendMessage]) // setInput is stable, but sendMessage is wrapped in useCallback
+	}, [tour, sendMessage]) // setInput is stable, but sendMessage is wrapped in useCallback
 
 	const fetchIntegrations = useCallback(async () => {
 		try {
@@ -1316,7 +1389,10 @@ export default function ChatPage() {
 	)
 
 	const renderInputArea = () => (
-		<div className="relative bg-neutral-800/60 backdrop-blur-sm border border-neutral-700/50 rounded-2xl">
+		<div
+			data-tour-id="chat-input-area"
+			className="relative bg-neutral-800/60 backdrop-blur-sm border border-neutral-700/50 rounded-2xl"
+		>
 			<div className="relative p-4 flex items-start gap-4">
 				<textarea
 					ref={textareaRef}

@@ -146,46 +146,139 @@ function TasksPageContent() {
 	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
 	const [isComposerOpen, setIsComposerOpen] = useState(false)
 	const [composerInitialData, setComposerInitialData] = useState(null)
-    const { isPro } = usePlan()
-    const tour = useTour()
-    const { tourState, setTourState } = tour
+	const { isPro } = usePlan()
+	const tour = useTour()
+	const { tourState, setTourState } = tour
 
-    const demoTask = useMemo(() => {
-        if (!tourState.isActive || tourState.step < 4 || tourState.step > 4) return null;
+	const demoWorkflow = useMemo(() => {
+		if (!tourState.isActive || tourState.step < 6) return null
 
-        const statuses = ["planning", "processing", "waiting", "completed"];
-        const currentStatus = statuses[tourState.subStep] || "planning";
+		return {
+			task_id: "demo-workflow-123",
+			name: "Daily Email Briefing",
+			description:
+				"A simulated workflow to summarize unread emails daily.",
+			status: "active",
+			task_type: "recurring",
+			isDemoWorkflow: true,
+			created_at: new Date().toISOString()
+		}
+	}, [tourState.isActive, tourState.step])
 
-        return {
-            task_id: "demo-task-123",
-            name: "Onboard New Client 'Innovate Inc.'",
-            description: "A simulated task to demonstrate the lifecycle of an automated project.",
-            status: currentStatus,
-            task_type: "long_form",
-            isDemo: true,
-            created_at: new Date().toISOString(),
-            runs: [{
-                run_id: "demo-run-1",
-                status: currentStatus,
-                progress_updates: [
-                    { message: { type: 'info', content: 'Simulated execution log...' }, timestamp: new Date().toISOString() },
-                    ...(tourState.subStep > 0 ? [{ message: { type: 'tool_call', tool_name: 'gmail', parameters: { to: 'client@innovate.inc' } }, timestamp: new Date().toISOString() }] : []),
-                    ...(tourState.subStep > 1 ? [{ message: { type: 'tool_result', tool_name: 'gmail', result: { status: 'success', message: 'Welcome email sent.' } }, timestamp: new Date().toISOString() }] : []),
-					...(tourState.subStep > 2 ? [{ message: { type: 'info', content: 'Waiting for client to reply to meeting request...' }, timestamp: new Date().toISOString() }] : []),
-                    ...(tourState.subStep > 3 ? [{ message: { type: 'info', content: 'Client replied. Meeting booked. Summary generated.' }, timestamp: new Date().toISOString() }] : []),
-                ]
-            }]
-        };
-    }, [tourState.isActive, tourState.step, tourState.subStep]);
+	const demoTask = useMemo(() => {
+		if (!tourState.isActive || tourState.step < 5) return null
+
+		const subStep = tourState.subStep
+		let status = "planning"
+		let subTasks = []
+
+		const baseSubTasks = [
+			{
+				task_id: "demo-sub-1",
+				name: "Email Kabeer to ask for availability",
+				status: "completed"
+			},
+			{
+				task_id: "demo-sub-2",
+				name: "Check email thread for reply from Kabeer",
+				status: "completed"
+			},
+			{
+				task_id: "demo-sub-3",
+				name: "Schedule calendar event for Monday 5 PM with Kabeer",
+				status: "completed"
+			}
+		]
+
+		if (subStep === 1) {
+			status = "processing"
+			subTasks = [baseSubTasks[0]]
+		} else if (subStep === 2) {
+			status = "waiting"
+			subTasks = [baseSubTasks[0]]
+		} else if (subStep === 3) {
+			status = "processing"
+			subTasks = [baseSubTasks[0], baseSubTasks[1]]
+		} else if (subStep === 4) {
+			status = "processing"
+			subTasks = [baseSubTasks[0], baseSubTasks[1], baseSubTasks[2]]
+		} else if (subStep >= 5) {
+			status = "completed"
+			subTasks = baseSubTasks
+		}
+
+		return {
+			task_id: "demo-task-123",
+			name: "Coordinate with Kabeer to set up a meeting next week.",
+			description:
+				"A simulated task to demonstrate the lifecycle of an automated project.",
+			status: status,
+			task_type: "long_form",
+			isDemoTask: true,
+			created_at: new Date().toISOString(),
+			subTasks: subTasks,
+			runs: [
+				{
+					run_id: "demo-run-1",
+					status: status,
+					progress_updates: [
+						{
+							message: {
+								type: "info",
+								content: `Simulating step: ${status}`
+							},
+							timestamp: new Date().toISOString()
+						}
+					]
+				}
+			]
+		}
+	}, [tourState.isActive, tourState.step, tourState.subStep])
 
 	const handleClosePanel = useCallback(() => {
-        if (tourState.isActive && tourState.step === 4) {
-            // Don't close panel during tour simulation
-        } else {
-            router.push("/tasks", { scroll: false }) // Clear URL param
-        }
+		if (tourState.isActive && tourState.step >= 3) {
+			// Don't close panel during tour simulation
+		} else {
+			router.push("/tasks", { scroll: false }) // Clear URL param
+		}
 		setIsModalOpen(false)
-	}, [router])
+	}, [router, tourState])
+
+	// Effect to sync UI state with the tour state
+	useEffect(() => {
+		if (tourState.isActive) {
+			if (tourState.step === 3) {
+				// This is the "Create Task" button step.
+				if (isComposerOpen) {
+					// If user clicks the button, composer opens, and we advance.
+					tour.nextStep()
+				} else {
+					// Otherwise, ensure composer is closed.
+					setIsComposerOpen(false)
+				}
+			} else if (tourState.step === 4) {
+				// This is the composer step. If it's not open or doesn't have the
+				// initial data yet, set it up. This prevents re-render loops.
+				if (!isComposerOpen || !composerInitialData) {
+					setIsComposerOpen(true)
+					setComposerInitialData({
+						prompt: "Coordinate with Kabeer to set up a meeting next week."
+					})
+				}
+			}
+			// For subsequent steps, ensure composer is closed.
+			else if (tourState.step > 4 && isComposerOpen) {
+				setIsComposerOpen(false)
+			}
+		}
+	}, [
+		tourState.isActive,
+		tourState.step,
+		isComposerOpen,
+		tour,
+		setComposerInitialData,
+		setIsComposerOpen
+	])
 
 	useEffect(() => {
 		const checkMobile = () => window.innerWidth < 768
@@ -208,42 +301,50 @@ function TasksPageContent() {
 	}, [isMobile, selectedTaskId])
 
 	useEffect(() => {
-		// Wait until tasks are loaded before trying to find a selected task.
-		// This prevents clearing the URL prematurely on page load.
-		if (!isLoading) {
-			const taskId = searchParams.get("taskId")
-            if (tourState.isActive && tourState.step === 4) {
-                if (isMobile) setIsModalOpen(true);
-                // Keep the panel open for the demo task
-            }
-			else if (taskId) {
-				const task = allTasks.find((t) => t.task_id === taskId)
-				if (task) {
-					// Task exists, open the modal on mobile.
-					if (isMobile) setIsModalOpen(true)
-				} else {
-					// A taskId is in the URL, but no matching task was found.
-					// This happens with invalid links or after a task is deleted.
-					// Clean up the state by closing the panel and clearing the URL.
-					handleClosePanel()
-				}
-			} else {
-				// No taskId in the URL, so ensure the modal is closed.
-				setIsModalOpen(false)
-			}
+		// Wait until tasks are loaded before trying to find a selected task, unless it's the tour.
+		if (isLoading && !(tourState.isActive && tourState.step >= 3)) {
+			return
 		}
-	}, [searchParams, allTasks, isMobile, isLoading, handleClosePanel, tourState])
 
-    const tasksWithDemo = useMemo(() => {
-        if (demoTask) {
-            return [demoTask, ...allTasks];
-        }
-        return allTasks;
-    }, [allTasks, demoTask]);
+		const taskId = searchParams.get("taskId")
 
-    const selectedTaskOrDemo = useMemo(() => {
-        return demoTask || selectedTask;
-    }, [demoTask, selectedTask]);
+		if (tourState.isActive && tourState.step >= 3) {
+			if (isMobile) setIsModalOpen(true)
+			// Keep the panel open for the demo task
+		} else if (taskId) {
+			const task = allTasks.find((t) => t.task_id === taskId)
+			if (task) {
+				// Task exists, open the modal on mobile.
+				if (isMobile) setIsModalOpen(true)
+			} else {
+				// A taskId is in the URL, but no matching task was found.
+				// This happens with invalid links or after a task is deleted.
+				// Clean up the state by closing the panel and clearing the URL.
+				handleClosePanel()
+			}
+		} else {
+			// No taskId in the URL, so ensure the modal is closed.
+			setIsModalOpen(false)
+		}
+	}, [
+		searchParams,
+		allTasks,
+		isMobile,
+		isLoading,
+		handleClosePanel,
+		tourState
+	])
+
+	const tasksWithDemo = useMemo(() => {
+		// Filter(Boolean) removes null/undefined demo tasks
+		return [demoTask, demoWorkflow, ...allTasks].filter(Boolean)
+	}, [allTasks, demoTask, demoWorkflow])
+
+	const selectedTaskOrDemo = useMemo(() => {
+		// During the tour, always show the demo task in the panel
+		if (tourState.isActive && tourState.step >= 5) return demoTask
+		return demoTask || selectedTask
+	}, [demoTask, selectedTask])
 
 	const fetchTasks = useCallback(async () => {
 		setIsLoading(true)
@@ -530,7 +631,7 @@ function TasksPageContent() {
 						className="flex-1 overflow-y-auto custom-scrollbar px-4 md:px-6 pb-24"
 						key="list-view-container"
 					>
-						{isLoading ? (
+						{isLoading && !demoTask ? (
 							<div className="flex justify-center items-center h-full">
 								<IconLoader className="w-8 h-8 animate-spin text-sentient-blue" />
 							</div>
@@ -563,6 +664,16 @@ function TasksPageContent() {
 							<TaskComposer
 								view={view}
 								onTaskCreated={(payload) => {
+									if (
+										tourState.isActive &&
+										tourState.step === 4
+									) {
+										setIsComposerOpen(false)
+										setComposerInitialData(null)
+										tour.nextStep() // Advance the tour
+										return
+									}
+									// Otherwise, proceed with normal task creation.
 									handleCreateTask(payload)
 									setIsComposerOpen(false)
 									setComposerInitialData(null)
@@ -570,6 +681,13 @@ function TasksPageContent() {
 								isPro={isPro}
 								onUpgradeClick={() => setUpgradeModalOpen(true)}
 								onClose={() => {
+									if (
+										tourState.isActive &&
+										tourState.step === 4
+									) {
+										// If user closes manually, also advance the tour.
+										tour.nextStep()
+									}
 									setIsComposerOpen(false)
 									setComposerInitialData(null)
 								}}
@@ -651,7 +769,8 @@ function TasksPageContent() {
 							}}
 							className="absolute inset-0"
 						>
-							{selectedTaskOrDemo && renderTaskDetails(selectedTaskOrDemo)}
+							{selectedTaskOrDemo &&
+								renderTaskDetails(selectedTaskOrDemo)}
 						</motion.div>
 					</motion.div>
 				)}

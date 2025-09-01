@@ -499,9 +499,9 @@ const SidebarContent = ({
 	// CHANGED: Use the environment variable for the namespace
 	const { isPro } = usePlan()
 
-	const handleReplayTaskDemo = () => {
+	const handleStartDemo = () => {
 		setHelpMenuOpen(false)
-		tour.startTaskDemo()
+		tour.startTour()
 	}
 
 	const handleShowVideo = () => {
@@ -517,11 +517,16 @@ const SidebarContent = ({
 			icon: <IconChecklist size={20} />,
 			tourId: "sidebar-tasks-icon"
 		},
-		{ title: "Memories", href: "/memories", icon: <IconBrain size={20} /> },
+		{
+			title: "Memories",
+			href: "/memories",
+			icon: <IconBrain size={20} />,
+		},
 		{
 			title: "Integrations",
 			href: "/integrations",
-			icon: <IconPlugConnected size={20} />
+			icon: <IconPlugConnected size={20} />,
+			tourId: "sidebar-integrations-icon",
 		},
 		{
 			title: "Settings",
@@ -561,7 +566,7 @@ const SidebarContent = ({
 				{isHelpMenuOpen && (
 					<HelpMenuModal
 						onClose={() => setHelpMenuOpen(false)}
-						onShowDemo={handleReplayTaskDemo}
+						onShowDemo={handleStartDemo}
 						onShowVideo={handleShowVideo}
 					/>
 				)}
@@ -677,6 +682,7 @@ const SidebarContent = ({
 						<Link
 							href={link.href}
 							key={link.title}
+							data-tour-id={link.tourId}
 							onClick={isMobile ? onMobileClose : undefined}
 							className={cn(
 								"flex items-center gap-3 rounded-md p-2 transition-colors duration-200 text-sm",

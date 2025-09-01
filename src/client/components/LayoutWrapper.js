@@ -1,10 +1,10 @@
 // src/client/components/LayoutWrapper.js
 "use client"
-import React, {
+import React, { // eslint-disable-line
 	useState,
 	useEffect,
-    useCallback,
-    useMemo,
+	useCallback,
+	useMemo,
 	useRef,
 	createContext,
 	useContext
@@ -23,7 +23,7 @@ import { useUser } from "@auth0/nextjs-auth0"
 import { usePostHog } from "posthog-js/react"
 import { motion } from "framer-motion"
 
-// ... (keep the rest of your imports and context creation)
+// --- Context Creation ---
 export const PlanContext = createContext({
 	plan: "free",
 	isPro: false,
@@ -33,27 +33,16 @@ export const TourContext = createContext(null)
 export const useTour = () => useContext(TourContext)
 import { subscribeUser } from "@app/actions"
 
-// ... (keep your urlBase64ToUint8Array function)
-function urlBase64ToUint8Array(base64String) {
-	const padding = "=".repeat((4 - (base64String.length % 4)) % 4)
-	const base64 = (base64String + padding)
-		.replace(/-/g, "+")
-		.replace(/_/g, "/")
-	const rawData = atob(base64)
-	const outputArray = new Uint8Array(rawData.length)
-	for (let i = 0; i < rawData.length; ++i) {
-		outputArray[i] = rawData.charCodeAt(i)
-	}
-	return outputArray
-}
-
-const GuidedTour = () => {
+// --- Guided Tour Component ---
+const GuidedTour = ({ tourSteps, chatSubSteps, taskSubSteps }) => {
 	const tour = useTour()
 	const { tourState, nextStep, skipTour, finishTour } = tour
 	const router = useRouter()
 	const pathname = usePathname()
+	const tourRef = useRef(tour) // Ref to hold the latest tour object
 	const searchParams = useSearchParams()
 	const [targetRect, setTargetRect] = useState(null)
+	const [targetElement, setTargetElement] = useState(null)
 	const [tooltipContent, setTooltipContent] = useState({
 		title: "",
 		body: "",
@@ -66,104 +55,59 @@ const GuidedTour = () => {
 	})
 	const [isWaiting, setIsWaiting] = useState(false)
 
-	const tourSteps = [
-		// Step 0: Welcome Mat (Modal)
-		{
-			type: "modal",
-			title: "Welcome to Sentient! Let's see your AI in action.",
-			body: "This quick, interactive tour will show you how I handle everything from simple commands to complex projects. You'll get to see the full lifecycle of an automated task.",
-			buttons: [
-				{
-					label: "Start Tour",
-					onClick: () => nextStep(),
-					primary: true
-				},
-				{ label: "Skip for now", onClick: skipTour }
-			]
-		},
-		// Step 1: Connect Gmail
-		{
-			type: "tooltip",
-			path: "/integrations",
-			selector: "[data-tour-id='gmail-card']",
-			title: "Step 1/8: Connect an App",
-			body: "Let's connect Gmail. We'll use it for a safe, simple task—sending an email to our own team address. I won't touch any of your other emails.",
-			instruction: "Click Connect to get started.",
-			wait_for: "integration_success"
-		},
-		// Step 2: Send Chat Message
-		{
-			type: "tooltip",
-			path: "/chat",
-			selector: "textarea",
-			title: "Step 2/8: Give a Command",
-			body: "For quick actions, you can tell me what to do. I'll handle it and reply here. After you send the message, click Next.",
-			instruction: "Let's send a test email. Type this and press Enter:",
-			prefill:
-				"Send a 'Hello World' email to existence.sentient@gmail.com"
-		},
-		// Step 3: Go to Tasks Page
-		{
-			type: "tooltip",
-			path: "/chat",
-			selector: "[data-tour-id='sidebar-tasks-icon']",
-			title: "Step 3/8: Delegating Complex Work",
-			body: "That was a simple task. For bigger goals with multiple steps, I create a project on the Tasks page that you can track. Let's see a simulation of how that works.",
-			instruction: "Click the Tasks icon to continue."
-		},
-		// Step 4: Task Simulation
-		{
-			type: "tooltip",
-			path: "/tasks",
-			selector: "[data-tour-id='demo-task-card']",
-			title: "Step 4/8: The Lifecycle of a Task",
-			body: "Here's a sample project. Right now, it's in the 'Planning' stage. I'm breaking down the goal into a series of steps.",
-			instruction: "Click 'Simulate Next Step' to see what happens next.",
-			custom_button: "Simulate Next Step"
-		},
-		// Step 5: Workflows Tab
-		{
-			type: "tooltip",
-			path: "/tasks",
-			selector: "[data-tour-id='workflows-tab']",
-			title: "Step 5/8: Automate Your Routines",
-			body: "What we just saw was a one-time project. For tasks that repeat (e.g., 'send a weekly report') or are triggered by events (e.g., 'on every new email from my boss...'), you can create a Workflow.",
-			instruction:
-				"You can create these from chat or build them manually here. Let's move on."
-		},
-		// Step 6: Create Task Button
-		{
-			type: "tooltip",
-			path: "/tasks",
-			selector: "[data-tour-id='create-task-button']",
-			title: "Step 6/8: Full Control",
-			body: "For more control, you can create any task or workflow yourself using the Task Composer. You don't need to create one now.",
-			instruction: "Let's check out the settings page."
-		},
-		// Step 7: Settings Page
-		{
-			type: "tooltip",
-			path: "/settings",
-			selector: "[data-tour-id='notifications-section']",
-			title: "Step 7/8: Stay in the Loop",
-			body: "This is the Settings page. Here you can manage your profile, integrations, and—most importantly—how you get notified about task updates like the one we just simulated.",
-			instruction: "Let's finish up."
-		},
-		// Step 8: Tour Complete (Modal)
-		{
-			type: "modal",
-			title: "You're Ready to Go!",
-			body: "You've now seen how Sentient can handle immediate commands, orchestrate complex projects, and automate your work with workflows. You can replay the task simulation anytime from the Help menu.",
-			buttons: [
-				{ label: "Finish Tour", onClick: finishTour, primary: true }
-			]
+	// Keep a ref to the tour object to avoid stale closures in useEffect
+	useEffect(() => {
+		tourRef.current = tour
+	}, [tour])
+
+	const { positionStyle, isPositionedBelow } = useMemo(() => {
+		if (!targetRect) return { positionStyle: {}, isPositionedBelow: true }
+
+		const { innerWidth, innerHeight } = window
+		const margin = 10
+		const tooltipWidth = 320 // from maxWidth
+		const tooltipHeightEstimate = 180 // A reasonable estimate for the tooltip height
+
+		// --- Vertical Positioning ---
+		const spaceBelow = innerHeight - targetRect.bottom
+		const spaceAbove = targetRect.top
+		// Prefer positioning below unless there's not enough space, or there's significantly more space above.
+		const positionBelow =
+			spaceBelow > tooltipHeightEstimate || spaceAbove < spaceBelow
+
+		const top = positionBelow ? targetRect.bottom + margin : "auto"
+		const bottom = positionBelow
+			? "auto"
+			: innerHeight - targetRect.top + margin
+
+		// --- Horizontal Positioning ---
+		// Start by centering the tooltip with the target
+		let left = targetRect.left + targetRect.width / 2 - tooltipWidth / 2
+
+		// Clamp to viewport edges to prevent horizontal overflow
+		if (left < margin) {
+			left = margin
 		}
-	]
+		if (left + tooltipWidth > innerWidth - margin) {
+			left = innerWidth - tooltipWidth - margin
+		}
+
+		return {
+			positionStyle: {
+				top,
+				bottom,
+				left,
+				maxWidth: tooltipWidth,
+				width: tooltipWidth
+			},
+			isPositionedBelow: positionBelow
+		}
+	}, [targetRect])
 
 	useEffect(() => {
-		if (!tourState.isActive) {
+		if (!tourState.isActive || tourState.isHighlightPaused) {
 			setTargetRect(null)
-			setIsWaiting(false)
+			setTargetElement(null)
 			return
 		}
 
@@ -173,14 +117,22 @@ const GuidedTour = () => {
 			return
 		}
 
-		// Handle navigation
-		if (currentStepConfig.path && pathname !== currentStepConfig.path) {
-			router.push(currentStepConfig.path)
-			// We wait for the new page to render the target element.
-			// A timeout is a simple way to handle this.
-			setTimeout(() => tour.setTourState((s) => ({ ...s })), 200) // Force re-render
+		// --- REVISED CRITICAL FIX: Synchronize tour with navigation ---
+		// 1. If the step has a navigation action and the user has completed it (by changing the URL),
+		// then we can safely advance to the next step. This must be checked FIRST.
+		const { action } = currentStepConfig
+		if (action?.type === "navigate" && pathname === action.targetPath) {
+			nextStep()
 			return
 		}
+
+		// 2. If the action wasn't completed, check if we are on the correct page for the current step.
+		// If not, navigate to it.
+		if (currentStepConfig.path && pathname !== currentStepConfig.path) {
+			router.push(currentStepConfig.path)
+			return
+		}
+		// --- END CRITICAL FIX ---
 
 		// Handle waiting conditions
 		const waitCondition = currentStepConfig.wait_for
@@ -200,41 +152,111 @@ const GuidedTour = () => {
 
 		if (currentStepConfig.type === "modal") {
 			setModalContent(currentStepConfig)
+			setTargetElement(null)
 			setTargetRect(null)
 		} else if (currentStepConfig.type === "tooltip") {
 			setTooltipContent(currentStepConfig)
-			const target = document.querySelector(currentStepConfig.selector)
-			if (target) {
-				setTargetRect(target.getBoundingClientRect())
-				target.scrollIntoView({
-					behavior: "smooth",
-					block: "center",
-					inline: "center"
-				})
-			} else {
-				setTargetRect(null)
+			setTargetElement(null)
+			setTargetRect(null) // Reset rect before finding new one
+
+			const findAndSetTarget = (retries = 5, delay = 200) => {
+				// Stop if tour is no longer active
+				if (!tourState.isActive) return
+
+				const target = document.querySelector(
+					currentStepConfig.selector
+				)
+				if (target) {
+					target.scrollIntoView({
+						behavior: "auto",
+						block: "center",
+						inline: "center"
+					})
+					requestAnimationFrame(() => {
+						setTargetElement(target)
+						setTargetRect(target.getBoundingClientRect())
+					})
+				} else if (retries > 0) {
+					setTimeout(
+						() => findAndSetTarget(retries - 1, delay),
+						delay
+					)
+				} else {
+					console.warn(
+						`Tour step ${tourState.step}: Target element "${currentStepConfig.selector}" not found on page "${pathname}".`
+					)
+					setTargetElement(null)
+				}
 			}
+			const initialDelay = currentStepConfig.initialDelay || 100
+			setTimeout(findAndSetTarget, initialDelay)
 		}
 
 		// Handle special actions for steps
-		if (
-			tourState.step === 2 &&
-			currentStepConfig.prefill &&
-			tour.chatActionsRef.current
-		) {
-			tour.chatActionsRef.current?.setInput(currentStepConfig.prefill)
+		if (tourState.step === 1 && !tourState.isHighlightPaused) {
+			const subStepConfig = chatSubSteps[tourState.subStep]
+			if (subStepConfig && tour.chatActionsRef.current) {
+				tour.chatActionsRef.current.setInput(subStepConfig.prefill)
+				// Update tooltip content dynamically for chat steps
+				setTooltipContent((prev) => ({
+					...prev,
+					instruction:
+						subStepConfig.instruction ||
+						"Now, let's create a workflow. Click send."
+				}))
+			}
+		} else if (tourState.step === 5 && !tourState.isHighlightPaused) {
+			const subStepConfig = taskSubSteps[tourState.subStep]
+			if (subStepConfig) {
+				setTooltipContent({
+					...currentStepConfig,
+					...subStepConfig,
+					custom_button: subStepConfig.button
+				})
+			}
+		} else if (tourState.step === 4 && !tourState.isHighlightPaused) {
+			// Special handling for composer step
+			setTooltipContent({
+				...currentStepConfig,
+				title: "Step 4/7: Describe Your Goal",
+				body: "I've pre-filled the composer with a goal. I will analyze this and create a plan to achieve it.",
+				instruction: "Click 'Create Task' to see me get to work.",
+				selector: "[data-tour-id='task-composer-create-button']",
+				// This step doesn't have a next button, it waits for the composer to close
+				// which is handled by the useEffect in tasks/page.js triggering nextStep
+				isWaitingForAction: true
+			})
 		}
 	}, [
-		tourState.step,
 		tourState.isActive,
+		tourState.step,
+		tourState.subStep,
+		tourState.isHighlightPaused,
 		pathname,
 		router,
 		finishTour,
-		tour.chatActionsRef,
+		tour.chatActionsRef, // It's a ref, but ESLint might want it.
 		tour.setTourState,
 		searchParams,
 		nextStep
+		// Note: `tour` object itself is not a dependency as it causes loops.
+		// We depend on its granular state properties instead.
 	])
+
+	useEffect(() => {
+		if (targetElement) {
+			const originalPosition = targetElement.style.position
+			const originalZIndex = targetElement.style.zIndex
+
+			targetElement.style.position = "relative"
+			targetElement.style.zIndex = "1001"
+
+			return () => {
+				targetElement.style.position = originalPosition
+				targetElement.style.zIndex = originalZIndex
+			}
+		}
+	}, [targetElement])
 
 	if (!tourState.isActive) return null
 
@@ -249,6 +271,7 @@ const GuidedTour = () => {
 					animate={{ opacity: 1, scale: 1 }}
 					exit={{ opacity: 0, scale: 0.9 }}
 					className="bg-neutral-900/90 backdrop-blur-xl p-6 rounded-2xl shadow-2xl w-full max-w-md border border-neutral-700 flex flex-col text-center"
+					style={{ pointerEvents: "auto" }}
 				>
 					<h2 className="text-xl font-bold text-white mb-2">
 						{modalContent.title}
@@ -279,14 +302,22 @@ const GuidedTour = () => {
 				<motion.div
 					initial={{ opacity: 0, y: 10 }}
 					animate={{ opacity: 1, y: 0 }}
-					style={{
-						position: "absolute",
-						top: targetRect.bottom + 10,
-						left: targetRect.left,
-						maxWidth: 300
-					}}
-					className="bg-neutral-900/90 backdrop-blur-xl p-4 rounded-lg shadow-2xl w-full border border-neutral-700 z-10"
+					style={{ position: "fixed", ...positionStyle }}
+					className="bg-neutral-900/90 backdrop-blur-xl p-4 rounded-lg shadow-2xl w-full border border-neutral-700 z-10 pointer-events-auto"
 				>
+					<div
+						className={cn(
+							"absolute w-3 h-3 bg-neutral-900/90 transform rotate-45 z-[-1]",
+							isPositionedBelow ? "-top-1.5" : "-bottom-1.5"
+						)}
+						style={{
+							left:
+								targetRect.left -
+								(positionStyle.left ?? 0) +
+								targetRect.width / 2 -
+								6 // half of width to center arrow
+						}}
+					/>
 					<h3 className="font-bold text-white mb-1">
 						{tooltipContent.title}
 					</h3>
@@ -306,20 +337,23 @@ const GuidedTour = () => {
 						>
 							Skip
 						</button>
-						{!isWaiting && !currentStepConfig.custom_button && (
-							<button
-								onClick={nextStep}
-								className="py-1 px-3 text-sm rounded-md bg-brand-orange text-brand-black font-semibold"
-							>
-								Next
-							</button>
-						)}
-						{currentStepConfig.custom_button && (
+						{!isWaiting &&
+							!tooltipContent.custom_button && // prettier-ignore
+							!currentStepConfig.isWaitingForAction &&
+							!currentStepConfig.action && (
+								<button
+									onClick={nextStep}
+									className="py-1 px-3 text-sm rounded-md bg-brand-orange text-brand-black font-semibold"
+								>
+									Next
+								</button>
+							)}
+						{tooltipContent.custom_button && (
 							<button
 								onClick={() => tour.handleCustomAction()}
 								className="py-1 px-3 text-sm rounded-md bg-brand-orange text-brand-black font-semibold"
 							>
-								{currentStepConfig.custom_button}
+								{tooltipContent.custom_button}
 							</button>
 						)}
 					</div>
@@ -336,7 +370,14 @@ const GuidedTour = () => {
 					initial={{ opacity: 0 }}
 					animate={{ opacity: 1 }}
 					exit={{ opacity: 0 }}
-					className="absolute inset-0 bg-black/60 flex items-center justify-center pointer-events-auto"
+					className={cn(
+						"absolute inset-0 pointer-events-none",
+						(currentStepConfig.type === "modal" ||
+							!tourState.isHighlightPaused) &&
+							"bg-black/50",
+						currentStepConfig.type === "modal" &&
+							"flex items-center justify-center"
+					)}
 				>
 					{renderContent()}
 				</motion.div>
@@ -357,7 +398,22 @@ const GuidedTour = () => {
 	)
 }
 
+function urlBase64ToUint8Array(base64String) {
+	const padding = "=".repeat((4 - (base64String.length % 4)) % 4)
+	const base64 = (base64String + padding)
+		.replace(/-/g, "+")
+		.replace(/_/g, "/")
+	const rawData = atob(base64)
+	const outputArray = new Uint8Array(rawData.length)
+	for (let i = 0; i < rawData.length; ++i) {
+		outputArray[i] = rawData.charCodeAt(i)
+	}
+	return outputArray
+}
+
 export default function LayoutWrapper({ children }) {
+	// --- Tour Configuration ---
+
 	// ... (keep all your existing state declarations)
 	const [isNotificationsOpen, setNotificationsOpen] = useState(false)
 	const [isSearchOpen, setSearchOpen] = useState(false)
@@ -371,48 +427,272 @@ export default function LayoutWrapper({ children }) {
 	const searchParams = useSearchParams() // Hook to read URL query parameters
 	const posthog = usePostHog()
 
+	// --- Guided Tour State ---
+	const [tourState, setTourState] = useState({
+		isActive: false,
+		step: 0,
+		subStep: 0, // For multi-part steps like the task simulation
+		isWaitingForAction: false,
+		isHighlightPaused: false
+	})
+	const chatActionsRef = useRef(null)
+
+	const skipTour = useCallback(() => {
+		setTourState({
+			isActive: false,
+			step: 0,
+			subStep: 0,
+			isWaitingForAction: false,
+			isHighlightPaused: false
+		})
+	}, [setTourState])
+
+	const finishTour = useCallback(() => {
+		setTourState({
+			isActive: false,
+			step: 0,
+			subStep: 0,
+			isWaitingForAction: false,
+			isHighlightPaused: false
+		})
+		// Potentially set a flag in localStorage or user profile to not show again
+	}, [setTourState])
+
+	const startTour = useCallback(() => {
+		setTourState({
+			isActive: true,
+			step: 0,
+			subStep: 0,
+			isWaitingForAction: false,
+			isHighlightPaused: false
+		})
+	}, [setTourState])
+
+	const nextStep = useCallback(() => {
+		setTourState((prev) => {
+			return {
+				...prev,
+				step: prev.step + 1,
+				subStep: 0,
+				isWaitingForAction: false,
+				isHighlightPaused: false // Ensure highlight is active on new step
+			}
+		})
+	}, [setTourState])
+
+	const nextSubStep = useCallback(() => {
+		setTourState((prev) => ({
+			...prev,
+			subStep: prev.subStep + 1
+		}))
+	}, [setTourState])
+
+	const startTaskDemo = useCallback(() => {
+		setTourState({
+			isActive: true,
+			step: 3,
+			subStep: 0,
+			isWaitingForAction: false,
+			isHighlightPaused: false
+		})
+	}, [setTourState])
+
+	const setHighlightPaused = useCallback((isPaused) => {
+		setTourState((prev) => ({
+			...prev,
+			isHighlightPaused: isPaused
+		}))
+	}, [])
+
+	const tourSteps = [
+		// Step 0: Welcome Mat (Modal)
+		{
+			type: "modal",
+			title: "Welcome to Sentient! Let's see your AI in action.",
+			body: "This quick, interactive tour will show you how I handle everything from simple commands to complex projects. You'll get to see the full lifecycle of an automated task.",
+			buttons: [
+				{
+					// This button will trigger the navigation to the /chat page for the next step
+					label: "Start Tour",
+					onClick: () => nextStep(),
+					primary: true
+				},
+				{ label: "Skip for now", onClick: skipTour }
+			]
+		},
+		// Step 1: Send Chat Message (was step 2)
+		{
+			type: "tooltip",
+			path: "/chat",
+			selector: "[data-tour-id='chat-input-area']", // This will stay highlighted for the whole chat sequence
+			title: "Step 1/7: Give a Command",
+			body: "For quick actions, you can tell me what to do. I'll handle it and reply here. After you send the message, I'll prepare the next one.",
+			instruction:
+				"Let's start with a simple greeting. Click the send button.",
+			isWaitingForAction: true, // This will hide the 'Next' button
+			// The prefill action is handled inside the useEffect logic
+			prefill:
+				"Send a 'Hello World' email to existence.sentient@gmail.com"
+		},
+		// Step 2: Go to Tasks Page (was step 3)
+		{
+			type: "tooltip",
+			path: "/chat",
+			selector: "[data-tour-id='sidebar-tasks-icon']",
+			title: "Step 2/7: Delegating Complex Work",
+			body: "That was a simple task. For bigger goals with multiple steps, I create a project on the Tasks page that you can track. Let's see a simulation of how that works.",
+			instruction: "Click the Tasks icon to continue.",
+			// NEW: This action tells the tour to wait for a navigation to /tasks before proceeding
+			action: { type: "navigate", targetPath: "/tasks" }
+		},
+		// Step 3: Create Task Button
+		{
+			type: "tooltip",
+			path: "/tasks",
+			selector: "[data-tour-id='create-task-button']",
+			title: "Step 3/7: Creating a Complex Task",
+			body: "Let's create a more complex, multi-step task. You can start by describing your goal in plain English.",
+			instruction: "Click the 'Create Task' button to open the composer.",
+			isWaitingForAction: true,
+			initialDelay: 500
+		},
+		// Step 4: Composer (placeholder for useEffect logic)
+		{
+			type: "tooltip",
+			path: "/tasks",
+			// Selector is overridden in useEffect, but we need a placeholder
+			selector: "[data-tour-id='task-composer']",
+			title: "Step 4/7: Describe Your Goal",
+			body: "I've pre-filled the composer with a goal. I will analyze this and create a plan to achieve it.",
+			instruction: "Click 'Create Task' to see me get to work.",
+			isWaitingForAction: true,
+			initialDelay: 500
+		},
+		// Step 5: Task Lifecycle Simulation
+		{
+			type: "tooltip",
+			path: "/tasks",
+			selector: "[data-tour-id='demo-task-card']",
+			title: "Step 5/7: Task Lifecycle",
+			body: "This is a simulation of a long-form task. Follow the steps to see how I handle complex goals.",
+			// Instruction is provided by taskSubSteps
+			instruction: "",
+			initialDelay: 500
+		},
+		// Step 6: Go to Integrations Page
+		{
+			type: "tooltip",
+			path: "/tasks", // from tasks page
+			selector: "[data-tour-id='sidebar-integrations-icon']",
+			title: "Step 6/7: Connect Your Apps",
+			body: "None of this works without connecting your apps. This is where you can manage connections to services like Gmail, Calendar, and more.",
+			instruction: "Click the Integrations icon to see.",
+			action: { type: "navigate", targetPath: "/integrations" }
+		},
+		// Step 7: Tour Complete
+		{
+			type: "modal",
+			title: "You're Ready to Go!",
+			body: "You've now seen how Sentient can handle immediate commands, orchestrate complex projects, and automate your work with workflows. You can replay the task simulation anytime from the Help menu.",
+			buttons: [
+				{ label: "Finish Tour", onClick: finishTour, primary: true }
+			]
+		}
+	]
+
+	const chatSubSteps = [
+		{
+			// subStep 0
+			prefill: "Hi Sentient!",
+			instruction:
+				"Let's start with a simple greeting. Click the send button."
+		},
+		{
+			// subStep 1
+			prefill: "Send an email to existence.sentient@gmail.com",
+			instruction:
+				"Great! Now, let's ask it to perform an action. Click send."
+		},
+		{
+			// subStep 2
+			prefill:
+				"Send me a daily brief of my unread emails on whatsapp every morning at 8"
+		}
+	]
+
+	const taskSubSteps = [
+		// subStep 0: Planning
+		{
+			title: "Step 5/7: Planning",
+			body: "The task has been created and is now in the 'Planning' stage. I'm breaking down your goal into a series of steps.",
+			instruction: "Click 'Simulate Next Step' to continue.",
+			button: "Simulate Next Step"
+		},
+		{
+			// subStep 1: Email sub-task
+			title: "Step 5/7: Taking Action",
+			body: "I've created the first sub-task: to email Kabeer. I'll search for his contact details and send the email automatically.",
+			instruction:
+				"Click 'Simulate Next Step' to see what happens after sending the email.",
+			button: "Simulate Next Step"
+		},
+		{
+			// subStep 2: Waiting
+			title: "Step 5/7: Waiting Intelligently",
+			body: "Now, I'll wait for Kabeer to reply. I won't waste resources; I'll pause and check back in a while. The main task status is now 'Waiting'.",
+			instruction:
+				"Let's fast-forward time and see me check for a reply.",
+			button: "Simulate Next Step"
+		},
+		{
+			// subStep 3: Checking
+			title: "Step 5/7: Following Up",
+			body: "The waiting period is over. I've created a new sub-task to check the email thread for a response. Let's assume Kabeer replied.",
+			instruction: "Click 'Simulate Next Step' to see the final action.",
+			button: "Simulate Next Step"
+		},
+		{
+			// subStep 4: Scheduling
+			title: "Step 5/7: Finalizing the Goal",
+			body: "Kabeer suggested a time. I'm now creating the final sub-task to schedule the event in your calendar and invite him.",
+			instruction: "Click 'Simulate Next Step' to complete the task.",
+			button: "Simulate Next Step"
+		},
+		{
+			// subStep 5: Completed
+			title: "Step 5/7: Task Completed!",
+			body: "Success! All sub-tasks are done, and the main goal is achieved. The task is now marked as 'Completed'.",
+			instruction: "Now, let's see where you connect your apps.",
+			button: "Next"
+		}
+	]
+
 	const { user, error: authError, isLoading: isAuthLoading } = useUser()
 
 	const [isLoading, setIsLoading] = useState(true)
 	const [isAllowed, setIsAllowed] = useState(false)
 
-	// --- Guided Tour State ---
-	const [tourState, setTourState] = useState({
-		isActive: false,
-		step: 0,
-		subStep: 0 // For multi-part steps like the task simulation
-	})
-	const chatActionsRef = useRef(null)
-
-	const startTour = useCallback(() => {
-		setTourState({ isActive: true, step: 0, subStep: 0 })
-	}, [])
-
-	const nextStep = useCallback(() => {
-		setTourState((prev) => ({ ...prev, step: prev.step + 1, subStep: 0 }))
-	}, [])
-
-	const skipTour = useCallback(() => {
-		setTourState({ isActive: false, step: 0, subStep: 0 })
-	}, [])
-
-	const finishTour = useCallback(() => {
-		setTourState({ isActive: false, step: 0, subStep: 0 })
-		// Potentially set a flag in localStorage or user profile to not show again
-	}, [])
-
-	const startTaskDemo = useCallback(() => {
-		setTourState({ isActive: true, step: 4, subStep: 0 })
-	}, [])
-
 	const handleCustomAction = useCallback(() => {
+		setHighlightPaused(true)
 		setTourState((prev) => {
-			if (prev.step === 4 && prev.subStep >= 3) {
-				return { ...prev, step: prev.step + 1, subStep: 0 }
+			// For the task simulation step
+			if (prev.step === 5) {
+				// If it's the last sub-step, advance to the main next step
+				if (prev.subStep >= taskSubSteps.length - 1) {
+					return { ...prev, step: prev.step + 1, subStep: 0 }
+				}
+				// Otherwise, just advance the sub-step
+				return {
+					...prev,
+					subStep: prev.subStep + 1
+				}
 			}
-			return { ...prev, subStep: prev.subStep + 1 }
+			// Default action for other custom buttons if any
+			return { ...prev, step: prev.step + 1 }
 		})
-	}, [])
+		// Re-enable highlight after a delay to allow UI to update
+		setTimeout(() => setHighlightPaused(false), 1500)
+	}, [setTourState, setHighlightPaused, taskSubSteps])
 
 	const tourValue = useMemo(
 		() => ({
@@ -420,13 +700,30 @@ export default function LayoutWrapper({ children }) {
 			setTourState,
 			startTour,
 			nextStep,
+			nextSubStep,
+			setHighlightPaused,
 			skipTour,
 			finishTour,
 			startTaskDemo,
 			handleCustomAction,
-			chatActionsRef
+			chatActionsRef,
+			tourSteps,
+			taskSubSteps
 		}),
-		[tourState, startTour, nextStep, skipTour, finishTour, startTaskDemo, handleCustomAction]
+		[
+			tourState,
+			setTourState,
+			startTour,
+			nextStep,
+			nextSubStep,
+			setHighlightPaused,
+			skipTour,
+			finishTour,
+			startTaskDemo,
+			handleCustomAction,
+			tourSteps,
+			taskSubSteps
+		]
 	)
 
 	const showNav = !["/", "/onboarding", "/complete-profile"].includes(
@@ -711,8 +1008,6 @@ export default function LayoutWrapper({ children }) {
 		}
 	}, [user?.sub, handleNotificationsOpen])
 
-	
-
 	// PWA Update Handler
 
 	useEffect(() => {
@@ -913,7 +1208,11 @@ export default function LayoutWrapper({ children }) {
 						<GlobalSearch onClose={() => setSearchOpen(false)} />
 					)}
 				</AnimatePresence>
-				<GuidedTour />
+				<GuidedTour
+					tourSteps={tourSteps}
+					chatSubSteps={chatSubSteps}
+					taskSubSteps={taskSubSteps}
+				/>
 			</TourContext.Provider>
 		</PlanContext.Provider>
 	)

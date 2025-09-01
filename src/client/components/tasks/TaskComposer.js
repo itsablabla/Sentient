@@ -180,6 +180,7 @@ const TaskComposer = ({
 			animate={{ opacity: 1, y: 0, scale: 1 }}
 			exit={{ opacity: 0, y: 100, scale: 0.9 }}
 			transition={{ type: "spring", stiffness: 300, damping: 30 }}
+			data-tour-id="task-composer"
 			className="absolute bottom-8 w-[90vw] max-w-2xl left-1/2 -translate-x-1/2 bg-neutral-900/50 backdrop-blur-lg border border-neutral-700 rounded-2xl shadow-2xl z-50"
 		>
 			<div className="relative p-4">
@@ -214,6 +215,7 @@ const TaskComposer = ({
 							</div>
 							<button
 								onClick={handleCreateTask}
+								data-tour-id="task-composer-create-button"
 								className="w-full sm:w-auto py-3 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
 							>
 								Create Task
@@ -259,6 +261,7 @@ const TaskComposer = ({
 							</div>
 							<button
 								onClick={handleCreateTask}
+								data-tour-id="task-composer-create-button"
 								className="py-2 px-4 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors text-sm"
 							>
 								{view === "workflows"

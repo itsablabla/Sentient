@@ -1260,6 +1260,7 @@ const IntegrationsPage = () => {
 								variants={cardVariants}
 								className="h-full"
 								data-tour-id={
+									// Add tour ID for Gmail card
 									integration.name === "gmail"
 										? "gmail-card"
 										: undefined

@@ -125,7 +125,13 @@ const TaskCardList = ({ task, onSelectTask }) => {
 			layout
 			variants={cardVariants}
 			exit={{ opacity: 0, transition: { duration: 0.1 } }}
-			data-tour-id={task.isDemo ? "demo-task-card" : undefined}
+			data-tour-id={
+				task.isDemoTask
+					? "demo-task-card"
+					: task.isDemoWorkflow
+						? "demo-workflow-card"
+						: undefined
+			}
 			className="bg-neutral-900/50 rounded-lg border border-zinc-700 hover:border-brand-orange/60 transition-all relative"
 		>
 			{inProgress && (
