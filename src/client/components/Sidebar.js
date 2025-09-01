@@ -481,7 +481,8 @@ const SidebarContent = ({
 	onMobileClose = () => {},
 	installPrompt,
 	handleInstallClick,
-	user
+	user,
+	isTourActive
 }) => {
 	const pathname = usePathname()
 	const [isHelpMenuOpen, setHelpMenuOpen] = useState(false)
@@ -683,7 +684,9 @@ const SidebarContent = ({
 							href={link.href}
 							key={link.title}
 							data-tour-id={link.tourId}
-							onClick={isMobile ? onMobileClose : undefined}
+							onClick={
+								isMobile && !isTourActive ? onMobileClose : undefined
+							}
 							className={cn(
 								"flex items-center gap-3 rounded-md p-2 transition-colors duration-200 text-sm",
 								isActive
@@ -815,7 +818,8 @@ const Sidebar = ({
 	unreadCount,
 	isMobileOpen,
 	onMobileClose,
-	user
+	user,
+	isTourActive
 }) => {
 	const [installPrompt, setInstallPrompt] = useState(null)
 
@@ -878,6 +882,7 @@ const Sidebar = ({
 								isMobile={true}
 								installPrompt={installPrompt}
 								handleInstallClick={handleInstallClick}
+								isTourActive={isTourActive}
 								user={user}
 							/>
 						</motion.div>
@@ -897,6 +902,7 @@ const Sidebar = ({
 					unreadCount={unreadCount}
 					installPrompt={installPrompt}
 					handleInstallClick={handleInstallClick}
+					isTourActive={isTourActive}
 					user={user}
 				/>
 			</div>

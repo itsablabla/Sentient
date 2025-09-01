@@ -190,6 +190,7 @@ const TaskDetailsPanel = ({
 				"w-full h-full bg-brand-black backdrop-blur-xl shadow-2xl md:border-l border-neutral-700/80 flex flex-col flex-shrink-0",
 				className
 			)}
+			data-tour-id="task-details-panel"
 		>
 			{!task ? (
 				<div className="flex flex-col items-center justify-center h-full text-center text-neutral-500 p-8">
@@ -254,7 +255,12 @@ const TaskDetailsPanel = ({
 										</span>
 									</div>
 									<div className="w-full bg-neutral-700 rounded-full h-1.5">
-										<div className="bg-brand-orange h-1.5 rounded-full" style={{ width: `${((task.swarm_details?.completed_agents || 0) / (task.swarm_details?.total_agents || 1)) * 100}%` }}></div>
+										<div
+											className="bg-brand-orange h-1.5 rounded-full"
+											style={{
+												width: `${((task.swarm_details?.completed_agents || 0) / (task.swarm_details?.total_agents || 1)) * 100}%`
+											}}
+										></div>
 									</div>
 								</div>
 							)}
@@ -449,4 +455,3 @@ const TaskDetailsPanel = ({
 }
 
 export default TaskDetailsPanel
-

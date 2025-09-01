@@ -1,5 +1,6 @@
 "use client"
 
+import { cn } from "@utils/cn"
 import React, {
 	useState,
 	useMemo,
@@ -301,39 +302,26 @@ function TasksPageContent() {
 	}, [isMobile, selectedTaskId])
 
 	useEffect(() => {
-		// Wait until tasks are loaded before trying to find a selected task, unless it's the tour.
-		if (isLoading && !(tourState.isActive && tourState.step >= 3)) {
-			return
-		}
-
 		const taskId = searchParams.get("taskId")
 
-		if (tourState.isActive && tourState.step >= 3) {
-			if (isMobile) setIsModalOpen(true)
-			// Keep the panel open for the demo task
-		} else if (taskId) {
-			const task = allTasks.find((t) => t.task_id === taskId)
-			if (task) {
-				// Task exists, open the modal on mobile.
-				if (isMobile) setIsModalOpen(true)
-			} else {
-				// A taskId is in the URL, but no matching task was found.
-				// This happens with invalid links or after a task is deleted.
-				// Clean up the state by closing the panel and clearing the URL.
-				handleClosePanel()
+		if (isMobile) {
+			// Tour logic: Modal is open ONLY during step 5 AND when the phase is 'panel'.
+			if (tourState.isActive && tourState.step === 5) {
+				setIsModalOpen(tourState.phase === "panel")
+			}
+			// Regular logic: Open modal if a task is selected via URL and it exists.
+			else if (taskId && selectedTask) {
+				setIsModalOpen(true)
+			}
+			// Cleanup: If no task is selected (or tour ended), close the modal.
+			else {
+				setIsModalOpen(false)
 			}
 		} else {
-			// No taskId in the URL, so ensure the modal is closed.
+			// On desktop, the modal is never used.
 			setIsModalOpen(false)
 		}
-	}, [
-		searchParams,
-		allTasks,
-		isMobile,
-		isLoading,
-		handleClosePanel,
-		tourState
-	])
+	}, [searchParams, isMobile, tourState, selectedTask, handleClosePanel])
 
 	const tasksWithDemo = useMemo(() => {
 		// Filter(Boolean) removes null/undefined demo tasks
@@ -341,10 +329,13 @@ function TasksPageContent() {
 	}, [allTasks, demoTask, demoWorkflow])
 
 	const selectedTaskOrDemo = useMemo(() => {
-		// During the tour, always show the demo task in the panel
-		if (tourState.isActive && tourState.step >= 5) return demoTask
-		return demoTask || selectedTask
-	}, [demoTask, selectedTask])
+		// During the tour's task simulation step (step 5+), force the demo task data into the panel.
+		if (tourState.isActive && tourState.step >= 5) {
+			return demoTask
+		}
+		// Otherwise, use the task selected via the URL parameter for regular use.
+		return selectedTask
+	}, [tourState, demoTask, selectedTask])
 
 	const fetchTasks = useCallback(async () => {
 		setIsLoading(true)
@@ -629,6 +620,9 @@ function TasksPageContent() {
 
 					<div
 						className="flex-1 overflow-y-auto custom-scrollbar px-4 md:px-6 pb-24"
+						style={{
+							display: isMobile && isModalOpen ? "none" : "block"
+						}}
 						key="list-view-container"
 					>
 						{isLoading && !demoTask ? (
@@ -751,12 +745,16 @@ function TasksPageContent() {
 			</div>
 
 			<AnimatePresence>
-				{isMobile && isModalOpen && (
+				{isMobile && isModalOpen && selectedTaskOrDemo && (
 					<motion.div
 						initial={{ opacity: 0 }}
 						animate={{ opacity: 1 }}
 						exit={{ opacity: 0 }}
-						className="fixed inset-0 bg-black/70 z-[70] md:hidden"
+						className={cn(
+							"fixed inset-0 z-[70] md:hidden",
+							// Let the tour component control the overlay during the tour
+							!tourState.isActive && "bg-black/70"
+						)}
 					>
 						<motion.div
 							initial={{ y: "100%" }}
@@ -769,8 +767,7 @@ function TasksPageContent() {
 							}}
 							className="absolute inset-0"
 						>
-							{selectedTaskOrDemo &&
-								renderTaskDetails(selectedTaskOrDemo)}
+							{renderTaskDetails(selectedTaskOrDemo)}
 						</motion.div>
 					</motion.div>
 				)}

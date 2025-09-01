@@ -23,6 +23,8 @@ import { useUser } from "@auth0/nextjs-auth0"
 import { usePostHog } from "posthog-js/react"
 import { motion } from "framer-motion"
 
+const isMobile = () => typeof window !== "undefined" && window.innerWidth < 768
+
 // --- Context Creation ---
 export const PlanContext = createContext({
 	plan: "free",
@@ -33,8 +35,21 @@ export const TourContext = createContext(null)
 export const useTour = () => useContext(TourContext)
 import { subscribeUser } from "@app/actions"
 
+function usePrevious(value) {
+	const ref = useRef()
+	useEffect(() => {
+		ref.current = value
+	})
+	return ref.current
+}
+
 // --- Guided Tour Component ---
-const GuidedTour = ({ tourSteps, chatSubSteps, taskSubSteps }) => {
+const GuidedTour = ({
+	tourSteps,
+	chatSubSteps,
+	taskSubSteps,
+	setMobileNavOpen
+}) => {
 	const tour = useTour()
 	const { tourState, nextStep, skipTour, finishTour } = tour
 	const router = useRouter()
@@ -54,53 +69,56 @@ const GuidedTour = ({ tourSteps, chatSubSteps, taskSubSteps }) => {
 		buttons: []
 	})
 	const [isWaiting, setIsWaiting] = useState(false)
+	const prevStep = usePrevious(tourState.step)
+	const prevPhase = usePrevious(tourState.phase)
 
 	// Keep a ref to the tour object to avoid stale closures in useEffect
 	useEffect(() => {
 		tourRef.current = tour
 	}, [tour])
 
-	const { positionStyle, isPositionedBelow } = useMemo(() => {
-		if (!targetRect) return { positionStyle: {}, isPositionedBelow: true }
+	const { positionStyle, isPositionedBelow, hideArrow } = useMemo(() => {
+		if (!targetRect)
+			return { positionStyle: {}, isPositionedBelow: true, hideArrow: false }
 
 		const { innerWidth, innerHeight } = window
 		const margin = 10
 		const tooltipWidth = 320 // from maxWidth
-		const tooltipHeightEstimate = 180 // A reasonable estimate for the tooltip height
 
-		// --- Vertical Positioning ---
+		// NEW: Special positioning for full-screen mobile modals
+		const isFullScreenModal = isMobile() && targetRect.height > innerHeight * 0.8
+
+		if (isFullScreenModal) {
+			return {
+				positionStyle: {
+					bottom: "120px", // Position above the panel's footer buttons
+					left: "50%",
+					transform: "translateX(-50%)",
+					maxWidth: `calc(100vw - ${margin * 2}px)`,
+					width: tooltipWidth
+				},
+				isPositionedBelow: false,
+				hideArrow: true // The arrow is confusing on a full-screen overlay
+			}
+		}
+
+		// --- Existing logic for non-fullscreen elements ---
+		const tooltipHeightEstimate = 180
 		const spaceBelow = innerHeight - targetRect.bottom
 		const spaceAbove = targetRect.top
-		// Prefer positioning below unless there's not enough space, or there's significantly more space above.
 		const positionBelow =
 			spaceBelow > tooltipHeightEstimate || spaceAbove < spaceBelow
-
 		const top = positionBelow ? targetRect.bottom + margin : "auto"
-		const bottom = positionBelow
-			? "auto"
-			: innerHeight - targetRect.top + margin
-
-		// --- Horizontal Positioning ---
-		// Start by centering the tooltip with the target
+		const bottom = positionBelow ? "auto" : innerHeight - targetRect.top + margin
 		let left = targetRect.left + targetRect.width / 2 - tooltipWidth / 2
-
-		// Clamp to viewport edges to prevent horizontal overflow
-		if (left < margin) {
-			left = margin
-		}
-		if (left + tooltipWidth > innerWidth - margin) {
+		if (left < margin) left = margin
+		if (left + tooltipWidth > innerWidth - margin)
 			left = innerWidth - tooltipWidth - margin
-		}
 
 		return {
-			positionStyle: {
-				top,
-				bottom,
-				left,
-				maxWidth: tooltipWidth,
-				width: tooltipWidth
-			},
-			isPositionedBelow: positionBelow
+			positionStyle: { top, bottom, left, maxWidth: tooltipWidth, width: tooltipWidth },
+			isPositionedBelow: positionBelow,
+			hideArrow: false
 		}
 	}, [targetRect])
 
@@ -111,11 +129,64 @@ const GuidedTour = ({ tourSteps, chatSubSteps, taskSubSteps }) => {
 			return
 		}
 
-		const currentStepConfig = tourSteps[tourState.step]
+		let baseConfig = tourSteps[tourState.step]
+		if (!baseConfig) {
+			finishTour()
+			return
+		}
+
+		// Create a mutable config for this render cycle that we can adjust dynamically.
+		let currentStepConfig = { ...baseConfig }
+
+		// --- DYNAMIC CONFIGURATION FOR STEP 5 (Task Simulation) ---
+		// This block adjusts the tour's target and content *before* it tries to render.
+		if (tourState.step === 5) {
+			const subStepConfig = taskSubSteps[tourState.subStep]
+			if (subStepConfig) {
+				if (isMobile()) {
+					const isPanelPhase = tourState.phase === "panel"
+					// Dynamically set the correct selector based on the phase
+					currentStepConfig.selector = isPanelPhase
+						? "[data-tour-id='task-details-panel']"
+						: "[data-tour-id='demo-task-card']"
+
+					// Update content to match the phase
+					currentStepConfig.title = isPanelPhase
+						? "Task Details"
+						: subStepConfig.title
+					currentStepConfig.body = isPanelPhase
+						? subStepConfig.body_panel
+						: subStepConfig.body_list
+					currentStepConfig.custom_button = isPanelPhase
+						? "Continue Simulation"
+						: "View Details"
+				} else {
+					// Desktop logic remains simple
+					currentStepConfig.selector =
+						"[data-tour-id='demo-task-card']"
+					currentStepConfig.title = subStepConfig.title
+					currentStepConfig.body = subStepConfig.body_list
+					currentStepConfig.custom_button = subStepConfig.button
+				}
+			}
+		}
+
 		if (!currentStepConfig) {
 			finishTour()
 			return
 		}
+
+		// --- NEW LOGIC for mobile sidebar ---
+		if (isMobile()) {
+			const isSidebarStep =
+				currentStepConfig.selector?.includes("sidebar-")
+			if (isSidebarStep) {
+				setMobileNavOpen(true) // Open sidebar for these steps
+			} else {
+				setMobileNavOpen(false) // For other steps, ensure it's closed
+			}
+		}
+		// --- END NEW LOGIC ---
 
 		// --- REVISED CRITICAL FIX: Synchronize tour with navigation ---
 		// 1. If the step has a navigation action and the user has completed it (by changing the URL),
@@ -154,7 +225,11 @@ const GuidedTour = ({ tourSteps, chatSubSteps, taskSubSteps }) => {
 			setModalContent(currentStepConfig)
 			setTargetElement(null)
 			setTargetRect(null)
-		} else if (currentStepConfig.type === "tooltip") {
+		} else if (
+			currentStepConfig.type === "tooltip" &&
+			currentStepConfig.selector
+		) {
+			// Set the content from our dynamically adjusted config
 			setTooltipContent(currentStepConfig)
 			setTargetElement(null)
 			setTargetRect(null) // Reset rect before finding new one
@@ -188,11 +263,31 @@ const GuidedTour = ({ tourSteps, chatSubSteps, taskSubSteps }) => {
 					setTargetElement(null)
 				}
 			}
-			const initialDelay = currentStepConfig.initialDelay || 100
+			const isSidebarStepOnMobile =
+				isMobile() && currentStepConfig.selector?.includes("sidebar-")
+			const animationDelay = isSidebarStepOnMobile ? 400 : 0
+
+			// Detect the specific transition from composer (step 4) to task list (step 5)
+			const isTransitioningToTaskList =
+				tourState.step === 5 && prevStep === 4
+			const taskCreationDelay = isTransitioningToTaskList ? 400 : 0 // Wait for composer to close and list to animate in.
+
+			// Add a new delay for the panel opening animation on mobile
+			const isPanelOpening =
+				tourState.step === 5 &&
+				tourState.phase === "panel" &&
+				prevPhase === "list"
+			const panelAnimationDelay = isPanelOpening ? 400 : 0
+
+			const initialDelay =
+				(currentStepConfig.initialDelay || 100) +
+				animationDelay +
+				taskCreationDelay +
+				panelAnimationDelay
 			setTimeout(findAndSetTarget, initialDelay)
 		}
 
-		// Handle special actions for steps
+		// Handle dynamic content for specific steps
 		if (tourState.step === 1 && !tourState.isHighlightPaused) {
 			const subStepConfig = chatSubSteps[tourState.subStep]
 			if (subStepConfig && tour.chatActionsRef.current) {
@@ -204,15 +299,6 @@ const GuidedTour = ({ tourSteps, chatSubSteps, taskSubSteps }) => {
 						subStepConfig.instruction ||
 						"Now, let's create a workflow. Click send."
 				}))
-			}
-		} else if (tourState.step === 5 && !tourState.isHighlightPaused) {
-			const subStepConfig = taskSubSteps[tourState.subStep]
-			if (subStepConfig) {
-				setTooltipContent({
-					...currentStepConfig,
-					...subStepConfig,
-					custom_button: subStepConfig.button
-				})
 			}
 		} else if (tourState.step === 4 && !tourState.isHighlightPaused) {
 			// Special handling for composer step
@@ -231,6 +317,7 @@ const GuidedTour = ({ tourSteps, chatSubSteps, taskSubSteps }) => {
 		tourState.isActive,
 		tourState.step,
 		tourState.subStep,
+		tourState.phase,
 		tourState.isHighlightPaused,
 		pathname,
 		router,
@@ -238,7 +325,10 @@ const GuidedTour = ({ tourSteps, chatSubSteps, taskSubSteps }) => {
 		tour.chatActionsRef, // It's a ref, but ESLint might want it.
 		tour.setTourState,
 		searchParams,
-		nextStep
+		nextStep,
+		prevStep,
+		prevPhase,
+		setMobileNavOpen
 		// Note: `tour` object itself is not a dependency as it causes loops.
 		// We depend on its granular state properties instead.
 	])
@@ -302,20 +392,29 @@ const GuidedTour = ({ tourSteps, chatSubSteps, taskSubSteps }) => {
 				<motion.div
 					initial={{ opacity: 0, y: 10 }}
 					animate={{ opacity: 1, y: 0 }}
-					style={{ position: "fixed", ...positionStyle }}
-					className="bg-neutral-900/90 backdrop-blur-xl p-4 rounded-lg shadow-2xl w-full border border-neutral-700 z-10 pointer-events-auto"
+					style={{
+						position: "fixed",
+						zIndex: 1002,
+						...positionStyle
+					}}
+					className="bg-neutral-900/90 backdrop-blur-xl p-4 rounded-lg shadow-2xl w-full border border-neutral-700 pointer-events-auto"
 				>
 					<div
 						className={cn(
-							"absolute w-3 h-3 bg-neutral-900/90 transform rotate-45 z-[-1]",
-							isPositionedBelow ? "-top-1.5" : "-bottom-1.5"
+							"absolute w-3 h-3 bg-neutral-900/90 transform rotate-45",
+							isPositionedBelow ? "-top-1.5" : "-bottom-1.5",
+							hideArrow && "hidden"
 						)}
 						style={{
-							left:
-								targetRect.left -
-								(positionStyle.left ?? 0) +
-								targetRect.width / 2 -
-								6 // half of width to center arrow
+							// When the arrow is hidden (e.g., on a full-screen modal),
+							// we provide a safe default value to prevent a NaN error from
+							// trying to perform calculations with percentage-based CSS values.
+							left: hideArrow
+								? 0
+								: targetRect.left -
+								  positionStyle.left +
+								  targetRect.width / 2 -
+								  6
 						}}
 					/>
 					<h3 className="font-bold text-white mb-1">
@@ -432,6 +531,7 @@ export default function LayoutWrapper({ children }) {
 		isActive: false,
 		step: 0,
 		subStep: 0, // For multi-part steps like the task simulation
+		phase: null, // new state: null | 'list' | 'panel'
 		isWaitingForAction: false,
 		isHighlightPaused: false
 	})
@@ -442,6 +542,7 @@ export default function LayoutWrapper({ children }) {
 			isActive: false,
 			step: 0,
 			subStep: 0,
+			phase: null,
 			isWaitingForAction: false,
 			isHighlightPaused: false
 		})
@@ -452,6 +553,7 @@ export default function LayoutWrapper({ children }) {
 			isActive: false,
 			step: 0,
 			subStep: 0,
+			phase: null,
 			isWaitingForAction: false,
 			isHighlightPaused: false
 		})
@@ -463,6 +565,7 @@ export default function LayoutWrapper({ children }) {
 			isActive: true,
 			step: 0,
 			subStep: 0,
+			phase: null,
 			isWaitingForAction: false,
 			isHighlightPaused: false
 		})
@@ -470,10 +573,12 @@ export default function LayoutWrapper({ children }) {
 
 	const nextStep = useCallback(() => {
 		setTourState((prev) => {
+			const newStep = prev.step + 1
 			return {
 				...prev,
-				step: prev.step + 1,
+				step: newStep,
 				subStep: 0,
+				phase: newStep === 5 ? "list" : null, // Set initial phase for step 5
 				isWaitingForAction: false,
 				isHighlightPaused: false // Ensure highlight is active on new step
 			}
@@ -492,6 +597,7 @@ export default function LayoutWrapper({ children }) {
 			isActive: true,
 			step: 3,
 			subStep: 0,
+			phase: null,
 			isWaitingForAction: false,
 			isHighlightPaused: false
 		})
@@ -601,8 +707,8 @@ export default function LayoutWrapper({ children }) {
 	]
 
 	const chatSubSteps = [
+		// subStep 0
 		{
-			// subStep 0
 			prefill: "Hi Sentient!",
 			instruction:
 				"Let's start with a simple greeting. Click the send button."
@@ -624,45 +730,55 @@ export default function LayoutWrapper({ children }) {
 		// subStep 0: Planning
 		{
 			title: "Step 5/7: Planning",
-			body: "The task has been created and is now in the 'Planning' stage. I'm breaking down your goal into a series of steps.",
-			instruction: "Click 'Simulate Next Step' to continue.",
-			button: "Simulate Next Step"
+			body_list:
+				"The task has been created and is now in the 'Planning' stage. I'm breaking down your goal into a series of steps.",
+			body_panel:
+				"In the details panel, you can see the execution log. It shows that I'm currently in the planning phase.",
+			button: "Simulate Next Step" // for desktop
 		},
 		{
 			// subStep 1: Email sub-task
 			title: "Step 5/7: Taking Action",
-			body: "I've created the first sub-task: to email Kabeer. I'll search for his contact details and send the email automatically.",
-			instruction:
-				"Click 'Simulate Next Step' to see what happens after sending the email.",
+			body_list:
+				"I've created the first sub-task: to email Kabeer. The main task status is now 'Processing'.",
+			body_panel:
+				"I'll search for Kabeer's contact details and send the email automatically. The new sub-task appears here.",
 			button: "Simulate Next Step"
 		},
 		{
 			// subStep 2: Waiting
 			title: "Step 5/7: Waiting Intelligently",
-			body: "Now, I'll wait for Kabeer to reply. I won't waste resources; I'll pause and check back in a while. The main task status is now 'Waiting'.",
-			instruction:
-				"Let's fast-forward time and see me check for a reply.",
+			body_list:
+				"Now, I'll wait for Kabeer to reply. The main task status is now 'Waiting'. I won't waste resources; I'll pause and check back later.",
+			body_panel:
+				"The log shows I'm waiting. This could be for a few hours in a real task. Let's fast-forward time.",
 			button: "Simulate Next Step"
 		},
 		{
 			// subStep 3: Checking
 			title: "Step 5/7: Following Up",
-			body: "The waiting period is over. I've created a new sub-task to check the email thread for a response. Let's assume Kabeer replied.",
-			instruction: "Click 'Simulate Next Step' to see the final action.",
+			body_list:
+				"The waiting period is over. I've created a new sub-task to check the email thread for a response. Let's assume Kabeer replied.",
+			body_panel:
+				"The new sub-task to check the email thread is now visible. Once this is complete, I'll know what to do next.",
 			button: "Simulate Next Step"
 		},
 		{
 			// subStep 4: Scheduling
 			title: "Step 5/7: Finalizing the Goal",
-			body: "Kabeer suggested a time. I'm now creating the final sub-task to schedule the event in your calendar and invite him.",
-			instruction: "Click 'Simulate Next Step' to complete the task.",
+			body_list:
+				"Kabeer suggested a time. I'm now creating the final sub-task to schedule the event in your calendar.",
+			body_panel:
+				"The final sub-task to create the calendar event has been added. The goal is almost complete.",
 			button: "Simulate Next Step"
 		},
 		{
 			// subStep 5: Completed
 			title: "Step 5/7: Task Completed!",
-			body: "Success! All sub-tasks are done, and the main goal is achieved. The task is now marked as 'Completed'.",
-			instruction: "Now, let's see where you connect your apps.",
+			body_list:
+				"Success! All sub-tasks are done, and the main goal is achieved. The task is now marked as 'Completed'.",
+			body_panel:
+				"The task is complete. You can review the full history of sub-tasks and logs at any time.",
 			button: "Next"
 		}
 	]
@@ -675,23 +791,53 @@ export default function LayoutWrapper({ children }) {
 	const handleCustomAction = useCallback(() => {
 		setHighlightPaused(true)
 		setTourState((prev) => {
-			// For the task simulation step
 			if (prev.step === 5) {
-				// If it's the last sub-step, advance to the main next step
-				if (prev.subStep >= taskSubSteps.length - 1) {
-					return { ...prev, step: prev.step + 1, subStep: 0 }
-				}
-				// Otherwise, just advance the sub-step
-				return {
-					...prev,
-					subStep: prev.subStep + 1
+				if (isMobile()) {
+					// On mobile, toggle between list and panel
+					if (prev.phase === "list") {
+						// Was showing list, now show panel for the same sub-step
+						return { ...prev, phase: "panel" }
+					} else {
+						// phase === 'panel'
+						// Was showing panel.
+						const isLastSubStep =
+							prev.subStep >= taskSubSteps.length - 1
+						if (isLastSubStep) {
+							// If it's the end of the simulation, move to the next main step
+							return {
+								...prev,
+								step: prev.step + 1,
+								subStep: 0,
+								phase: null
+							}
+						}
+						// Otherwise, advance simulation and go back to list view
+						return {
+							...prev,
+							subStep: prev.subStep + 1,
+							phase: "list"
+						}
+					}
+				} else {
+					// On desktop, panel is always open, just advance the sub-step
+					const isLastSubStep =
+						prev.subStep >= taskSubSteps.length - 1
+					if (isLastSubStep) {
+						return {
+							...prev,
+							step: prev.step + 1,
+							subStep: 0,
+							phase: null
+						}
+					}
+					return { ...prev, subStep: prev.subStep + 1 }
 				}
 			}
 			// Default action for other custom buttons if any
 			return { ...prev, step: prev.step + 1 }
 		})
 		// Re-enable highlight after a delay to allow UI to update
-		setTimeout(() => setHighlightPaused(false), 1500)
+		setTimeout(() => setHighlightPaused(false), 500)
 	}, [setTourState, setHighlightPaused, taskSubSteps])
 
 	const tourValue = useMemo(
@@ -1178,6 +1324,7 @@ export default function LayoutWrapper({ children }) {
 							isMobileOpen={isMobileNavOpen}
 							onMobileClose={() => setMobileNavOpen(false)}
 							user={user}
+							isTourActive={tourState.isActive}
 						/>
 						<button
 							onClick={() => setMobileNavOpen(true)}
@@ -1212,6 +1359,7 @@ export default function LayoutWrapper({ children }) {
 					tourSteps={tourSteps}
 					chatSubSteps={chatSubSteps}
 					taskSubSteps={taskSubSteps}
+					setMobileNavOpen={setMobileNavOpen}
 				/>
 			</TourContext.Provider>
 		</PlanContext.Provider>
