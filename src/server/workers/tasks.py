@@ -24,6 +24,7 @@ from main.llm import run_agent as run_main_agent, LLMProviderDownError
 from main.db import MongoManager
 from workers.celery_app import celery_app # noqa: E501
 from workers.planner.utils import get_all_mcp_descriptions
+from workers.utils.worker_helpers import run_async
 from workers.executor.tasks import async_execute_task_plan, run_single_item_worker, aggregate_results_callback, execute_task_plan
 from main.vector_db import get_conversation_summaries_collection
 from mcp_hub.tasks.prompts import ITEM_EXTRACTOR_SYSTEM_PROMPT, RESOURCE_MANAGER_SYSTEM_PROMPT
@@ -38,20 +39,6 @@ def get_date_from_text(text: str) -> str:
     if match:
         return match.group(1)
     return datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d')
-
-# Helper to run async code in Celery's sync context
-def run_async(coro):
-    # Always create a new loop for each task to ensure isolation and prevent conflicts.
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        # Ensure the connection pool for this specific loop is closed.
-        from mcp_hub.memory.db import close_db_pool_for_loop
-        loop.run_until_complete(close_db_pool_for_loop(loop))
-        loop.close()
-        asyncio.set_event_loop(None)
 
 async def async_cud_memory_task(user_id: str, information: str, source: Optional[str] = None):
     """The async logic for the CUD memory task."""
@@ -163,7 +150,7 @@ async def async_orchestrate_swarm_task(task_id: str, user_id: str):
             # SAFE UPDATE: Fetch swarm_details, modify, and set the whole object back.
             current_swarm_details = task.get("swarm_details", {})
             current_swarm_details["items"] = items
-            await db_manager.update_task(task_id, {"swarm_details": current_swarm_details})
+            await db_manager.update_task(task_id, user_id, {"swarm_details": current_swarm_details})
 
         if not goal or not items: # Re-check after potential extraction attempt
             raise ValueError("Swarm task is missing goal or items after extraction attempt.")
@@ -293,7 +280,7 @@ async def async_orchestrate_swarm_task(task_id: str, user_id: str):
             "swarm_details.total_agents": total_agents,
             "swarm_details.completed_agents": 0 # Initialize completed count
         }
-        await db_manager.update_task(task_id, update_payload)
+        await db_manager.update_task(task_id, user_id, update_payload)
         await push_task_list_update(user_id, task_id, "swarm_plan_created")
 
         # Create and dispatch the chord
@@ -306,10 +293,10 @@ async def async_orchestrate_swarm_task(task_id: str, user_id: str):
 
     except LLMProviderDownError as e:
         logger.error(f"LLM provider down during swarm orchestration for {task_id}: {e}", exc_info=True)
-        await db_manager.update_task(task_id, {"status": "error", "error": "Sorry, our AI provider is currently down. Please try again later."})
+        await db_manager.update_task(task_id, user_id, {"status": "error", "error": "Sorry, our AI provider is currently down. Please try again later."})
     except Exception as e:
         logger.error(f"Error in orchestrate_swarm_task for task {task_id}: {e}", exc_info=True)
-        await db_manager.update_task(task_id, {"status": "error", "error": str(e)})
+        await db_manager.update_task(task_id, user_id, {"status": "error", "error": str(e)})
     finally:
         await db_manager.close()
 
@@ -956,7 +943,7 @@ async def async_execute_triggered_task(user_id: str, source: str, event_type: st
                     "runs": current_runs,
                     "status": "processing",
                 }
-                await db_manager.update_task(task_id, update_payload)
+                await db_manager.update_task(task_id, user_id, update_payload)
 
                 # Queue the executor with the new run_id
                 execute_task_plan.delay(task_id, user_id, new_run['run_id'])
@@ -1064,7 +1051,7 @@ async def async_run_due_tasks():
             if not isinstance(current_runs, list):
                 current_runs = []
             current_runs.append(new_run)
-            await db_manager.update_task(task_id, {"runs": current_runs})
+            await db_manager.update_task(task_id, user_id, {"runs": current_runs})
             execute_task_plan.delay(task_id, user_id, new_run['run_id'])
 
     except Exception as e:
