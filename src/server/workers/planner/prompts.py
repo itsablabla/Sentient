@@ -63,6 +63,7 @@ Your output MUST be a single, valid JSON object that follows this exact schema:
 Final Instructions & Output Format:
 - Create a concise `name` for the task.
 - Create a concise `description` summarizing the overall goal.
+- ONLY USE tools from the provided list. Do not make up your own tools. Do not add tools like 'null' or 'none'.
 - Break down the goal into logical steps, choosing the most appropriate tool for each.
 - If an action item is not actionable with the given tools (e.g., "Think about the marketing report"), do not create a plan for it.
 - Do not include any text outside of the JSON object. Your response must begin with `{{` and end with `}}`.

@@ -179,6 +179,14 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 	)
 }
 
+function usePrevious(value) {
+	const ref = useRef()
+	useEffect(() => {
+		ref.current = value
+	})
+	return ref.current
+}
+
 export default function ChatPage() {
 	const [displayedMessages, setDisplayedMessages] = useState([])
 	const [input, setInput] = useState("")
@@ -211,7 +219,15 @@ export default function ChatPage() {
 	const searchParams = useSearchParams()
 	const router = useRouter()
 	const { isPro } = usePlan()
-	const { startTour, tourState } = useTour()
+	const {
+		startTour,
+		tourState,
+		setHighlightPaused,
+		nextSubStep,
+		nextStep,
+		chatActionsRef
+	} = useTour()
+	const prevTourState = usePrevious(tourState)
 
 	// --- File Upload State ---
 	const [selectedFile, setSelectedFile] = useState(null)
@@ -253,6 +269,10 @@ export default function ChatPage() {
 	}, [])
 
 	const fetchInitialMessages = useCallback(async () => {
+		if (tourState.isActive) {
+			setIsLoading(false)
+			return
+		}
 		setIsLoading(true)
 		try {
 			const res = await fetch("/api/chat/history", {
@@ -273,7 +293,7 @@ export default function ChatPage() {
 		} finally {
 			setIsLoading(false)
 		}
-	}, [])
+	}, [tourState.isActive])
 
 	const fetchUserDetails = useCallback(async () => {
 		try {
@@ -291,6 +311,13 @@ export default function ChatPage() {
 	}, [])
 
 	useEffect(() => {
+		// When tour becomes inactive, refetch original messages
+		if (!tourState.isActive && prevTourState?.isActive) {
+			fetchInitialMessages()
+		}
+	}, [tourState.isActive, prevTourState?.isActive, fetchInitialMessages])
+
+	useEffect(() => {
 		fetchInitialMessages()
 		fetchUserDetails()
 		return () => {
@@ -302,13 +329,14 @@ export default function ChatPage() {
 
 	useEffect(() => {
 		if (
-			searchParams.get("show_demo") === "true" &&
-			startTour &&
+			searchParams.get("show_demo") === "true" && // eslint-disable-next-line
+			useTour().startTour &&
 			!tourState.isActive
 		) {
-			startTour()
+			// eslint-disable-next-line
+			useTour().startTour()
 			router.replace("/chat", { scroll: false }) // Keep this to clean URL
-		}
+		} // eslint-disable-next-line
 	}, [searchParams, router, startTour, tourState.isActive])
 
 	useEffect(() => {
@@ -379,7 +407,7 @@ export default function ChatPage() {
 			if (tourState.isActive && tourState.step === 1) {
 				// --- TOUR SIMULATION ---
 				const subStep = tourState.subStep
-				startTour.setHighlightPaused(true) // Pause highlight as soon as message is sent
+				setHighlightPaused(true) // Pause highlight as soon as message is sent
 				setThinking(true)
 
 				if (subStep === 0) {
@@ -394,8 +422,8 @@ export default function ChatPage() {
 						setDisplayedMessages((prev) => [...prev, fakeResponse])
 						setThinking(false)
 						setTimeout(() => {
-							startTour.setHighlightPaused(false) // Resume highlight for next instruction
-							startTour.nextSubStep()
+							setHighlightPaused(false) // Resume highlight for next instruction
+							nextSubStep()
 						}, 2000) // 2 second delay to read the message
 					}, 1500) // Delay for assistant to "think"
 				} else if (subStep === 1) {
@@ -418,8 +446,8 @@ export default function ChatPage() {
 						setThinking(false)
 						setStatusText("")
 						setTimeout(() => {
-							startTour.setHighlightPaused(false) // Resume highlight for next instruction
-							startTour.nextSubStep()
+							setHighlightPaused(false) // Resume highlight for next instruction
+							nextSubStep()
 						}, 2000)
 					}, 2500) // Delay for assistant to "work"
 				} else if (subStep === 2) {
@@ -442,7 +470,7 @@ export default function ChatPage() {
 						// This is the last chat step, move to the next main step.
 						setTimeout(() => {
 							// No need to resume highlight, as the next step will have a new target.
-							startTour.nextStep()
+							nextStep()
 						}, 2000)
 					}, 2500)
 				}
@@ -596,20 +624,20 @@ export default function ChatPage() {
 
 	// Attach chat functions to the tour context's ref
 	useEffect(() => {
-		if (startTour?.chatActionsRef) {
+		if (chatActionsRef) {
 			// Attach the functions the tour needs to the ref
-			startTour.chatActionsRef.current = {
+			chatActionsRef.current = {
 				setInput: setInput,
 				sendMessage: sendMessage
 			}
 		}
 		// Cleanup function to nullify the ref when the component unmounts
 		return () => {
-			if (startTour?.chatActionsRef) {
-				startTour.chatActionsRef.current = null
+			if (chatActionsRef) {
+				chatActionsRef.current = null
 			}
 		}
-	}, [startTour, sendMessage]) // setInput is stable, but sendMessage is wrapped in useCallback
+	}, [chatActionsRef, sendMessage, setInput])
 
 	const fetchIntegrations = useCallback(async () => {
 		try {

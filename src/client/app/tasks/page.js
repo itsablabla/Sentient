@@ -2,6 +2,7 @@
 
 import { cn } from "@utils/cn"
 import React, {
+	useRef,
 	useState,
 	useMemo,
 	useEffect,
@@ -126,6 +127,14 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 	)
 }
 
+function usePrevious(value) {
+	const ref = useRef()
+	useEffect(() => {
+		ref.current = value
+	})
+	return ref.current
+}
+
 function TasksPageContent() {
 	const router = useRouter()
 	const searchParams = useSearchParams()
@@ -150,6 +159,7 @@ function TasksPageContent() {
 	const { isPro } = usePlan()
 	const tour = useTour()
 	const { tourState, setTourState } = tour
+	const prevTourState = usePrevious(tourState)
 
 	const demoWorkflow = useMemo(() => {
 		if (!tourState.isActive || tourState.step < 6) return null
@@ -338,6 +348,10 @@ function TasksPageContent() {
 	}, [tourState, demoTask, selectedTask])
 
 	const fetchTasks = useCallback(async () => {
+		if (tourState.isActive) {
+			setIsLoading(false)
+			return
+		}
 		setIsLoading(true)
 		try {
 			const tasksRes = await fetch("/api/tasks", { method: "POST" })
@@ -365,7 +379,14 @@ function TasksPageContent() {
 		} finally {
 			setIsLoading(false)
 		}
-	}, [])
+	}, [tourState.isActive])
+
+	useEffect(() => {
+		// When tour ends, refetch tasks
+		if (!tourState.isActive && prevTourState?.isActive) {
+			fetchTasks()
+		}
+	}, [tourState.isActive, prevTourState?.isActive, fetchTasks])
 
 	useEffect(() => {
 		fetchTasks()
