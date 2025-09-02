@@ -155,6 +155,11 @@ async def add_task(
         # This is a recurring or triggered workflow
         workflow_limit = PLAN_LIMITS[plan].get("workflows_active", 0)
         active_workflows = await mongo_manager.count_active_workflows(user_id)
+
+        # Inject timezone into the schedule before saving
+        if schedule:
+            schedule['timezone'] = user_timezone_str
+
         if active_workflows >= workflow_limit:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -218,6 +223,9 @@ async def add_task(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=f"You have reached your monthly task limit of {task_limit}. Please upgrade or try again next month."
             )
+
+        if schedule:
+            schedule['timezone'] = user_timezone_str
 
         # Differentiate between scheduled and immediate
         if schedule_type == "once" and run_at is not None:
