@@ -303,8 +303,20 @@ const GuidedTour = ({
 		// Handle dynamic content for specific steps
 		if (tourState.step === 1 && !tourState.isHighlightPaused) {
 			const subStepConfig = chatSubSteps[tourState.subStep]
-			if (subStepConfig && tour.chatActionsRef.current) {
-				tour.chatActionsRef.current.setInput(subStepConfig.prefill)
+			if (subStepConfig) {
+				const attemptToSetInput = (retries = 5, delay = 100) => {
+					if (tour.chatActionsRef.current?.setInput) {
+						tour.chatActionsRef.current.setInput(
+							subStepConfig.prefill
+						)
+					} else if (retries > 0) {
+						setTimeout(
+							() => attemptToSetInput(retries - 1, delay),
+							delay
+						)
+					}
+				}
+				attemptToSetInput()
 				// Update tooltip content dynamically for chat steps
 				setTooltipContent((prev) => ({
 					...prev,
@@ -534,8 +546,6 @@ export default function LayoutWrapper({ children }) {
 	const [notifRefreshKey, setNotifRefreshKey] = useState(0)
 	const [userDetails, setUserDetails] = useState(null)
 	const wsRef = useRef(null)
-	const pathname = usePathname()
-	const router = useRouter()
 	const searchParams = useSearchParams() // Hook to read URL query parameters
 	const posthog = usePostHog()
 
@@ -549,6 +559,8 @@ export default function LayoutWrapper({ children }) {
 		isHighlightPaused: false
 	})
 	const chatActionsRef = useRef(null)
+	const pathname = usePathname()
+	const router = useRouter()
 
 	const skipTour = useCallback(() => {
 		setTourState({
@@ -574,6 +586,7 @@ export default function LayoutWrapper({ children }) {
 	}, [setTourState])
 
 	const startTour = useCallback(() => {
+		// Always reset to the beginning of the tour
 		setTourState({
 			isActive: true,
 			step: 0,
@@ -582,7 +595,11 @@ export default function LayoutWrapper({ children }) {
 			isWaitingForAction: false,
 			isHighlightPaused: false
 		})
-	}, [setTourState])
+		// If not on the chat page, navigate there. The tour's useEffect will handle the rest.
+		if (pathname !== "/chat") {
+			router.push("/chat")
+		}
+	}, [setTourState, pathname, router])
 
 	const nextStep = useCallback(() => {
 		setTourState((prev) => {
