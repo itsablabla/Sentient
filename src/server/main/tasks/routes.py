@@ -659,11 +659,18 @@ async def long_form_task_action(
 
     action = request.action.lower()
     if action == "pause":
-        await mongo_manager.update_task(task_id, user_id, {"orchestrator_state.current_state": "PAUSED"})
+        orchestrator_state = task.get("orchestrator_state", {})
+        if not isinstance(orchestrator_state, dict): orchestrator_state = {}
+        orchestrator_state["current_state"] = "PAUSED"
+        await mongo_manager.update_task(task_id, user_id, {"orchestrator_state": orchestrator_state})
         await push_update(user_id)
         return JSONResponse(content={"message": "Task paused."})
     elif action == "resume":
-        await mongo_manager.update_task(task_id, user_id, {"orchestrator_state.current_state": "ACTIVE"})
+        orchestrator_state = task.get("orchestrator_state", {})
+        if not isinstance(orchestrator_state, dict): orchestrator_state = {}
+        orchestrator_state["current_state"] = "ACTIVE"
+        await mongo_manager.update_task(task_id, user_id, {"orchestrator_state": orchestrator_state})
+
         execute_orchestrator_cycle.delay(task_id)
         await push_update(user_id)
         return JSONResponse(content={"message": "Task resumed."})
