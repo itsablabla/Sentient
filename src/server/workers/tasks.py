@@ -274,11 +274,14 @@ async def async_orchestrate_swarm_task(task_id: str, user_id: str):
             current_runs = []
         current_runs.append(run_doc)
 
+        current_swarm_details = task.get("swarm_details", {})
+        current_swarm_details["total_agents"] = total_agents
+        current_swarm_details["completed_agents"] = 0
+
         update_payload = {
             "runs": current_runs,
             "status": "processing",
-            "swarm_details.total_agents": total_agents,
-            "swarm_details.completed_agents": 0 # Initialize completed count
+            "swarm_details": current_swarm_details
         }
         await db_manager.update_task(task_id, user_id, update_payload)
         await push_task_list_update(user_id, task_id, "swarm_plan_created")
@@ -964,12 +967,11 @@ def calculate_next_run(schedule: Dict[str, Any], last_run: Optional[datetime.dat
     user_timezone_str = schedule.get("timezone", "UTC")
 
     try:
-        user_tz = gettz(user_timezone_str)
-        if user_tz is None: raise ValueError(f"Unknown timezone: {user_timezone_str}")
-    except Exception:
+        user_tz = ZoneInfo(user_timezone_str)
+    except ZoneInfoNotFoundError:
         logger.warning(f"Invalid timezone '{user_timezone_str}'. Defaulting to UTC.")
         user_timezone_str = "UTC"
-        user_tz = datetime.timezone.utc
+        user_tz = ZoneInfo("UTC")
 
     time_str = schedule.get("time", "09:00")
     if not isinstance(time_str, str) or ":" not in time_str:

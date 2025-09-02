@@ -38,8 +38,18 @@ def start_long_form_task(task_id: str, user_id: str):
 async def async_start_long_form_task(task_id: str, user_id: str):
     db_manager = MongoManager()
     try:
+        task = await db_manager.get_task(task_id, user_id)
+        if not task:
+            logger.error(f"Cannot start long-form task: Task {task_id} not found.")
+            return
+
+        orchestrator_state = task.get("orchestrator_state", {})
+        if not isinstance(orchestrator_state, dict):
+             orchestrator_state = {}
+        orchestrator_state["current_state"] = "PLANNING"
+
         await db_manager.update_task(task_id, user_id, {
-            "orchestrator_state.current_state": "PLANNING",
+            "orchestrator_state": orchestrator_state,
             "status": "processing" # Visually indicate that something is happening
         })
         logger.info(f"Long-form task {task_id} moved to PLANNING state.")
