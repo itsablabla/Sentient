@@ -269,7 +269,12 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
     user_location_raw = personal_info.get("location", "Not specified")
     user_location = f"latitude: {user_location_raw.get('latitude')}, longitude: {user_location_raw.get('longitude')}" if isinstance(user_location_raw, dict) else user_location_raw
 
+    # The plan for recurring/triggered tasks is at the top level.
+    # For one-off tasks, it might be in the run itself (e.g., after a change request).
+    # Prioritize the run-specific plan, then fall back to the task-level plan.
     plan_to_execute = current_run.get("plan", [])
+    if not plan_to_execute:
+        plan_to_execute = task.get("plan", [])
 
     required_tools_from_plan = {step['tool'] for step in plan_to_execute}
     user_integrations = user_profile.get("userData", {}).get("integrations", {}) if user_profile else {}
