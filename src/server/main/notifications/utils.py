@@ -5,6 +5,8 @@ import json
 
 from main.dependencies import mongo_manager, websocket_manager
 from main.notifications.whatsapp_client import send_whatsapp_message # Import the new client
+from main.config import DB_ENCRYPTION_ENABLED
+from workers.utils.crypto import decrypt_field
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,13 @@ async def create_and_push_notification(user_id: str, message: str, task_id: Opti
         if not new_notification:
             logger.error(f"Failed to save notification to DB for user {user_id}")
             return
+
+        # Decrypt fields before pushing to websocket
+        if DB_ENCRYPTION_ENABLED:
+            SENSITIVE_NOTIFICATION_FIELDS = ["message", "suggestion_payload"]
+            for field in SENSITIVE_NOTIFICATION_FIELDS:
+                if field in new_notification and new_notification[field] is not None:
+                    new_notification[field] = decrypt_field(new_notification[field])
 
         # Convert datetime to string for JSON serialization before pushing
         if isinstance(new_notification.get("timestamp"), datetime.datetime):
