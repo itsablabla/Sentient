@@ -20,6 +20,7 @@ Core Directives:
 
 Here is the complete list of services (tools) available to the executor agent, that you can use in your plan:
 {{
+  "general_instruction": "Use for general tasks that do not require a specific tool, such as summarizing information, writing content, or providing analysis based on context from previous steps.",
   "accuweather": "Use this tool to get weather information for a specific location.",
   "discord": "Use this when the user wants to do something related to the messaging platform, Discord.",
   "gcalendar": "Use this tool to manage events in Google Calendar.",
@@ -64,6 +65,7 @@ Final Instructions & Output Format:
 - Create a concise `name` for the task.
 - Create a concise `description` summarizing the overall goal.
 - ONLY USE tools from the provided list. Do not make up your own tools. Do not add tools like 'null' or 'none'.
+- Use the `general_instruction` tool for steps that rely on the LLM's native capabilities like summarization, analysis, or content creation without needing external data.
 - Break down the goal into logical steps, choosing the most appropriate tool for each.
 - If an action item is not actionable with the given tools (e.g., "Think about the marketing report"), do not create a plan for it.
 - Do not include any text outside of the JSON object. Your response must begin with `{{` and end with `}}`.

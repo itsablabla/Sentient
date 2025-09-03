@@ -684,7 +684,7 @@ async def async_generate_plan(task_id: str, user_id: str):
 
         missing_tools = []
         if is_auto_approvable:
-            required_tools_from_plan = {step['tool'] for step in plan_data.get('plan', [])}
+            required_tools_from_plan = {step['tool'] for step in plan_data.get('plan', []) if step.get('tool') and step.get('tool') != 'general_instruction'}
             user_integrations = user_profile.get("userData", {}).get("integrations", {})
 
             for tool_name in required_tools_from_plan:

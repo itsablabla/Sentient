@@ -1,5 +1,3 @@
-### `src\server\workers\executor\tasks.py`
-
 import os
 import json
 import datetime
@@ -282,7 +280,7 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
     if not plan_to_execute:
         plan_to_execute = task.get("plan", [])
 
-    required_tools_from_plan = {step['tool'] for step in plan_to_execute}
+    required_tools_from_plan = {step['tool'] for step in plan_to_execute if step.get('tool') and step.get('tool') != 'general_instruction'}
     user_integrations = user_profile.get("userData", {}).get("integrations", {}) if user_profile else {}
     active_mcp_servers = {}
     for tool_name in required_tools_from_plan:
@@ -317,13 +315,14 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
         "1.  **Think Step-by-Step:** Before each action, you MUST explain your reasoning and what you are about to do. This is your internal monologue and will be logged.\n"
         "2.  **Execution Flow:** You MUST start by executing the first step of the plan. Do not summarize the plan or provide a final answer until you have executed all steps. Follow the plan sequentially. SEARCH FOR ANY RELEVANT CONTEXT THAT YOU NEED TO COMPLETE THE EXECUTION. If you are resuming a task after the user answered a clarifying question, the answered questions will be in the `clarifying_questions` field of the task context. Use this new information to proceed.\n"
         "3.  **Map Plan to Tools:** The plan provides a high-level tool name (e.g., 'gmail', 'gdrive'). You must map this to the specific functions available to you (e.g., `gmail_server-sendEmail`, `gdrive_server-gdrive_search`).\n"
-        "4.  **Be Resourceful & Fill Gaps:** The plan is a guideline. If a step is missing information (e.g., an email address for a manager, a document name), your first action for that step MUST be to use the `memory-search_memory` tool to find the missing information. Do not proceed with incomplete information.\n"
-        "5.  **Remember New Information:** If you discover a new, permanent fact about the user during your execution (e.g., you find their manager's email is 'boss@example.com'), you MUST use `memory-cud_memory` to save it. This is critical for personalization.\n"
-        "6.  **Handle Failures:** If a tool fails, analyze the error, think about an alternative approach, and try again. Do not give up easily. Your thought process and the error will be logged automatically.\n"
-        "7.  **Provide a Final, Detailed Answer:** ONLY after all steps are successfully completed, you MUST provide a final, comprehensive answer to the user. This should be your final message, not a tool call. For example: 'I have successfully scheduled the meeting and sent an invitation to John Doe.'.\n"
-        "8.  **Fill Placeholders Dynamically:** If a step involves drafting content (e.g., emails), ALWAYS fill in placeholders like [name] or [description] using data from memory (first call `memory-search_memory` if needed) or context. NEVER leave brackets [] in final outputs.\n"
-        "9.  **Contact Information:** To find contact details like phone numbers or emails, use the `gpeople` tool before attempting to send an email or make a call.\n"
-        "10. **Handle Missing Information**: If you have exhausted all tool options (including memory and search) and still lack critical information to proceed, you MUST fail. Your final answer should clearly state what information is missing. For example: `<answer>Task failed. I could not find the client's email address in memory or through any available tools.</answer>`\n"
+        "4.  **Special Tool 'general_instruction':** When a step's tool is `general_instruction`, you do not need to call an external tool. Instead, use your own reasoning and knowledge to fulfill the instruction in the step's `description`. This is for tasks like summarizing text from a previous step, analyzing data you already have, or drafting content.\n"
+        "5.  **Be Resourceful & Fill Gaps:** The plan is a guideline. If a step is missing information (e.g., an email address for a manager, a document name), your first action for that step MUST be to use the `memory-search_memory` tool to find the missing information. Do not proceed with incomplete information.\n"
+        "6.  **Remember New Information:** If you discover a new, permanent fact about the user during your execution (e.g., you find their manager's email is 'boss@example.com'), you MUST use `memory-cud_memory` to save it. This is critical for personalization.\n"
+        "7.  **Handle Failures:** If a tool fails, analyze the error, think about an alternative approach, and try again. Do not give up easily. Your thought process and the error will be logged automatically.\n"
+        "8.  **Provide a Final, Detailed Answer:** ONLY after all steps are successfully completed, you MUST provide a final, comprehensive answer to the user. This should be your final message, not a tool call. For example: 'I have successfully scheduled the meeting and sent an invitation to John Doe.'.\n"
+        "9.  **Fill Placeholders Dynamically:** If a step involves drafting content (e.g., emails), ALWAYS fill in placeholders like [name] or [description] using data from memory (first call `memory-search_memory` if needed) or context. NEVER leave brackets [] in final outputs.\n"
+        "10. **Contact Information:** To find contact details like phone numbers or emails, use the `gpeople` tool before attempting to send an email or make a call.\n"
+        "11. **Handle Missing Information**: If you have exhausted all tool options (including memory and search) and still lack critical information to proceed, you MUST fail. Your final answer should clearly state what information is missing.\n"
         "\nNow, begin your work. Think step-by-step and start executing the plan."
     )
 
@@ -612,6 +611,9 @@ async def async_generate_task_result(task_id: str, run_id: str, user_id: str, ag
                     }
                 logger.info(f"Subtask {task_id} for step {parent_step_id} completed. Updating parent task {parent_task_id}.")
 
+                await push_task_list_update(user_id, task_id, run_id) # Push update for subtask completion
+                await push_task_list_update(user_id, parent_task_id, "orchestrator_progress") # Push update for parent task
+
                 from workers.long_form_tasks import execute_orchestrator_cycle
                 from mcp_hub.orchestrator.state_manager import mark_step_as_complete, add_execution_log, update_orchestrator_state
 
@@ -645,10 +647,12 @@ async def async_generate_task_result(task_id: str, run_id: str, user_id: str, ag
                 for run in runs:
                     if run.get("run_id") == run_id:
                         run["result"] = error_result
+                        run["status"] = "error" # Mark run as error
                         break
                 update_payload = {"runs": runs}
                 encrypt_doc(update_payload, ["runs"])
                 await db.tasks.update_one({"task_id": task_id, "user_id": user_id}, {"$set": update_payload})
+                await push_task_list_update(user_id, task_id, run_id)
     except Exception as e:
         logger.error(f"Error in async_generate_task_result for task {task_id}: {e}", exc_info=True)
         error_result = {"summary": f"Failed to generate final report: {str(e)}"}
@@ -661,10 +665,12 @@ async def async_generate_task_result(task_id: str, run_id: str, user_id: str, ag
                 for run in runs:
                     if run.get("run_id") == run_id:
                         run["result"] = error_result
+                        run["status"] = "error" # Mark run as error
                         break
                 update_payload = {"runs": runs}
                 encrypt_doc(update_payload, ["runs"])
                 await db.tasks.update_one({"task_id": task_id, "user_id": user_id}, {"$set": update_payload})
+                await push_task_list_update(user_id, task_id, run_id)
 
 @celery_app.task(name="run_single_item_worker", bind=True)
 def run_single_item_worker(self, sub_task_id: str, parent_task_id: str, user_id: str, item: Any, worker_prompt: str, worker_tools: List[str]):
