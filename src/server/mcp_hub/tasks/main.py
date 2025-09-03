@@ -13,6 +13,7 @@ from main.llm import run_agent, LLMProviderDownError
 from workers.long_form_tasks import start_long_form_task
 from workers.tasks import generate_plan_from_context
 from workers.utils.text_utils import clean_llm_output
+from .prompts import TASK_CREATION_PROMPT
 
 from fastmcp.utilities.logging import configure_logging, get_logger
 
@@ -40,22 +41,61 @@ def get_tasks_system_prompt() -> str:
 @mcp.tool()
 async def create_task(ctx: Context, prompt: str, auto_approve_subtasks: bool = False) -> Dict[str, Any]:
     """
-    Use this tool for tasks that need to be executed IMMEDIATELY.
-    It creates a long-form task that starts planning and executing right away.
-    This is for complex, multi-step goals or simple one-off requests that are not scheduled for the future.
+    Intelligently creates a task that needs to be executed IMMEDIATELY.
+    It determines if the task is simple (one-shot) or complex (long-form) and creates the appropriate task type.
+    Use this for any immediate action that is not scheduled for the future.
     """
     try:
         user_id = auth.get_user_id_from_context(ctx)
 
+        # 1. Get user context for the LLM prompt
+        user_profile = await mongo_manager.get_user_profile(user_id)
+        personal_info = user_profile.get("userData", {}).get("personalInfo", {}) if user_profile else {}
+        user_name = personal_info.get("name", "User")
+        user_timezone_str = personal_info.get("timezone", "UTC")
+        try:
+            user_timezone = ZoneInfo(user_timezone_str)
+        except ZoneInfoNotFoundError:
+            user_timezone = ZoneInfo("UTC")
+        current_time_str = datetime.now(user_timezone).strftime('%Y-%m-%d %H:%M:%S %Z')
+
+        # 2. Call LLM to parse prompt into structured data
+        system_prompt = TASK_CREATION_PROMPT.format(
+            user_name=user_name,
+            user_timezone=user_timezone_str,
+            current_time=current_time_str
+        )
+        messages = [{'role': 'user', 'content': prompt}]
+
+        response_str = ""
+        for chunk in run_main_agent(system_message=system_prompt, function_list=[], messages=messages):
+            if isinstance(chunk, list) and chunk and chunk[-1].get("role") == "assistant":
+                response_str = chunk[-1].get("content", "")
+
+        if not response_str:
+            raise Exception("LLM failed to generate task details.")
+
+        parsed_data = JsonExtractor.extract_valid_json(clean_llm_output(response_str))
+        if not parsed_data or not isinstance(parsed_data, dict):
+            raise Exception(f"LLM returned invalid JSON for task details: {response_str}")
+
+        # 3. Triage based on parsed data
+        task_type_from_llm = parsed_data.get("task_type")
+
+        if task_type_from_llm == "long_form":
+            task_type = "long_form"
+        else:
+            task_type = "single" # Default to single for immediate tasks from chat
+
         task_data = {
-            "name": prompt,
-            "description": prompt,
-            "task_type": "long_form",
+            "name": parsed_data.get("name", prompt),
+            "description": parsed_data.get("description", prompt),
+            "task_type": task_type,
             "auto_approve_subtasks": auto_approve_subtasks,
             "orchestrator_state": {
-                "main_goal": prompt,
+                "main_goal": parsed_data.get("description", prompt),
                 "current_state": "CREATED",
-            },
+            } if task_type == "long_form" else None,
             "original_context": {
                 "source": "mcp_create_task",
                 "prompt": prompt
@@ -65,10 +105,13 @@ async def create_task(ctx: Context, prompt: str, auto_approve_subtasks: bool = F
         if not task_id:
             raise Exception("Failed to create the task in the database.")
 
-        start_long_form_task.delay(task_id, user_id)
+        if task_type == "long_form":
+            start_long_form_task.delay(task_id, user_id)
+        else: # single
+            generate_plan_from_context.delay(task_id, user_id)
 
-        short_name = prompt[:50] + '...' if len(prompt) > 50 else prompt
-        return {"status": "success", "result": f"Task '{short_name}' has been created and is being planned by the orchestrator."}
+        short_name = parsed_data.get("name", prompt)[:50] + '...' if len(prompt) > 50 else parsed_data.get("name", prompt)
+        return {"status": "success", "result": f"Task '{short_name}' has been created and is being planned."}
     except Exception as e:
         logger.error(f"Error in create_task: {e}", exc_info=True)
         return {"status": "failure", "error": str(e)}

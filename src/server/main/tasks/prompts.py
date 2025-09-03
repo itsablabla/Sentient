@@ -11,8 +11,9 @@ Instructions:
     -   `name`: Create a short, clear, and concise task name (title) from the user's prompt.
     -   `description`: Create a detailed description that captures the full intent of the task.
 2.  Task Type: Determine the type of task.
+    -   `long_form`: Use for complex, multi-step goals that require follow-ups, coordination, or managing context over a period of time (e.g., "plan my trip to Paris", "coordinate a meeting with the marketing team", "organize my messy Google Drive").
     -   `swarm`: Use this for tasks that involve performing the SAME ACTION on a list of multiple items (e.g., "research these 5 topics", "email these 10 people"). The `description` for a swarm task should clearly state the goal to be performed on EACH item.
-    -   If it's not a swarm task, you don't need to specify a task type. The system will determine it based on the schedule.
+    -   If the task is a simple, one-shot action that can be completed immediately (e.g., "send an email to John", "create a doc with this title"), you do not need to specify a `task_type`. The system will correctly interpret it as a single, one-shot task.
 3.  Priority: Determine the task's priority. Use one of the following integer values:
     - `0`: High priority (urgent, important, deadlines).
     - `1`: Medium priority (standard tasks, default).

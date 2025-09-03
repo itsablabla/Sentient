@@ -212,9 +212,8 @@ async def add_task(
         orchestrate_swarm_task.delay(task_id, user_id)
         await push_update(user_id)
         return {"message": "Swarm task created. The agents will begin work shortly.", "task_id": task_id}
-
-    else:  # This covers immediate (long-form) and scheduled one-shot tasks
-        # Check monthly task limit for both
+    else:  # This covers one-shot (single) and long-form tasks
+        # Check monthly task limit
         usage = await mongo_manager.get_or_create_monthly_usage(user_id)
         task_limit = PLAN_LIMITS[plan].get("tasks_monthly", 0)
         current_task_count = usage.get("tasks", 0)
@@ -227,15 +226,19 @@ async def add_task(
         if schedule:
             schedule['timezone'] = user_timezone_str
 
-        # Differentiate between scheduled and immediate
+        # Differentiate between scheduled, immediate single, and immediate long-form
         if schedule_type == "once" and run_at is not None:
             # This is a scheduled one-shot task
             task_type = "single"
             message = "Scheduled task created successfully. It will be planned shortly."
-        else:
-            # This is an immediate long-form task
+        elif task_type_from_llm == "long_form":
+            # This is an immediate complex task
             task_type = "long_form"
-            message = "Task created successfully. The orchestrator will begin planning shortly."
+            message = "Complex task created. The orchestrator will begin planning shortly."
+        else:
+            # This is an immediate simple/one-shot task
+            task_type = "single"
+            message = "Task created! I'll start working on it right away."
 
         task_data = {
             "name": parsed_data.get("name", request.prompt),
@@ -255,7 +258,7 @@ async def add_task(
 
         if task_type == "long_form":
             start_long_form_task.delay(task_id, user_id)
-        else: # single (scheduled)
+        else: # single (scheduled or immediate)
             generate_plan_from_context.delay(task_id, user_id)
 
         await push_update(user_id)

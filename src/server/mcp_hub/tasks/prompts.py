@@ -3,7 +3,7 @@ You can create new tasks for the user that are run in the background.
 
 INSTRUCTIONS:
 - Use the correct tool based on the user's request:
-  - For tasks that need to run IMMEDIATELY or have no specific schedule (e.g., "Summarize my emails", "Draft a report on X"), use the `create_task` tool. This will create a long-form task that starts planning right away.
+  - For tasks that need to run IMMEDIATELY or have no specific schedule (e.g., "Summarize my emails", "Draft a report on X"), use the `create_task` tool. It will intelligently create either a simple one-shot task or a complex long-form task.
   - For tasks that need to run on a SCHEDULE (e.g., "Remind me tomorrow at 9am", "Send a report every Friday") or are based on a TRIGGER (e.g., "When I get an email from my boss..."), you MUST use the `create_workflow` tool. The system will determine if it's a one-time scheduled task, a recurring task, or a triggered workflow.
 - Provide a clear, detailed, natural language description of what needs to be done in the `prompt`. ALWAYS INCLUDE ANY REQUIRED CONTEXT FOR THE TASK AS PART OF THE NATURAL LANGUAGE PROMPT. THIS MAY ALSO INCLUDE CONTEXT THAT HAS PREVIOUSLY BEEN MENTIONED IN THE CONVERSATION, such as a thread ID or an email address. IT IS IMPERATIVE THAT ALL THE NECESSARY INFORMATION IS PASSED while creating the task, so that the executor agent can complete the action. Always decide what relevant info will be needed for the executor to complete this task and include it in the description.
     Example: "Email John Doe at john.example@gmail.com to schedule a meeting next week to discuss the Q3 report"
