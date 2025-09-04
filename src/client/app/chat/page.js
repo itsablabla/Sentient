@@ -329,14 +329,13 @@ export default function ChatPage() {
 
 	useEffect(() => {
 		if (
-			searchParams.get("show_demo") === "true" && // eslint-disable-next-line
-			useTour().startTour &&
+			searchParams.get("show_demo") === "true" &&
+			startTour &&
 			!tourState.isActive
 		) {
-			// eslint-disable-next-line
-			useTour().startTour()
+			startTour()
 			router.replace("/chat", { scroll: false }) // Keep this to clean URL
-		} // eslint-disable-next-line
+		}
 	}, [searchParams, router, startTour, tourState.isActive])
 
 	useEffect(() => {
