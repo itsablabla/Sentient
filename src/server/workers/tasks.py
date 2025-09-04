@@ -520,10 +520,7 @@ async def async_generate_plan(task_id: str, user_id: str):
 
         original_context = task.get("original_context", {})
 
-        user_profile = await db_manager.user_profiles_collection.find_one(
-            {"user_id": user_id},
-            {"userData.personalInfo": 1, "userData.integrations": 1} # Projection to get only necessary data
-        )
+        user_profile = await db_manager.get_user_profile(user_id)
         if not user_profile:
             logger.error(f"User profile not found for user_id '{user_id}' associated with task {task_id}. Cannot generate plan.")
             return

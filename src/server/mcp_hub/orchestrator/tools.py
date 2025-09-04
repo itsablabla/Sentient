@@ -208,25 +208,31 @@ async def ask_user_clarification(ctx: Context, question: str, urgency: str = "no
     task_id = auth.get_task_id_from_context(ctx)
     db = state_manager.MongoManager()
     try:
+        # --- FIX: Perform a read-modify-write to handle encryption correctly ---
+        task = await db.get_task(task_id, user_id)
+        if not task:
+            raise ToolError(f"Task {task_id} not found.")
+
+        # `get_task` already decrypts, so `clarification_requests` is a list
+        current_requests = task.get("clarification_requests", [])
+        if not isinstance(current_requests, list):
+            logger.warning(f"Task {task_id} had a non-list 'clarification_requests' field. Overwriting.")
+            current_requests = []
+
         request_id = str(uuid.uuid4())
-        clarification_request = {
-            "request_id": request_id,
-            "question": question,
+        current_requests.append({
+            "request_id": request_id, "question": question,
             "asked_at": datetime.datetime.now(datetime.timezone.utc),
-            "response": None,
-            "responded_at": None,
-            "status": "pending"
-        }
-        await db.tasks_collection.update_one(
-            {"task_id": task_id, "user_id": user_id},
-            {
-                "$push": {"clarification_requests": clarification_request},
-                "$set": {
-                    "orchestrator_state.current_state": "SUSPENDED",
-                    "status": "clarification_pending"
-                }
-            }
-        )
+            "response": None, "responded_at": None, "status": "pending"
+        })
+
+        orchestrator_state = task.get("orchestrator_state", {})
+        if not isinstance(orchestrator_state, dict): orchestrator_state = {}
+        orchestrator_state["current_state"] = "SUSPENDED"
+
+        update_payload = {"clarification_requests": current_requests, "orchestrator_state": orchestrator_state, "status": "clarification_pending"}
+        await db.update_task(task_id, user_id, update_payload)
+
         await state_manager.add_execution_log(task_id, user_id, "clarification_requested", {"question": question}, reasoning)
         
         await notify_user(

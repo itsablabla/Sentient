@@ -20,6 +20,7 @@ from workers.utils.text_utils import clean_llm_output
 from celery import chord, group
 from main.llm import run_agent as run_main_agent, LLMProviderDownError
 from workers.utils.crypto import aes_decrypt, encrypt_doc, decrypt_doc
+from main.db import MongoManager
 
 # Load environment variables for the worker from its own config
 from workers.executor.config import (MONGO_URI, MONGO_DB_NAME,
@@ -267,7 +268,7 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
     await update_task_run_status(db, task_id, run_id, "processing", user_id, block_id=block_id)
     await add_progress_update(db, task_id, run_id, user_id, {"type": "info", "content": "Executor has picked up the task and is starting execution."}, block_id=block_id)
 
-    user_profile = await db.user_profiles.find_one({"user_id": user_id})
+    user_profile = await MongoManager().get_user_profile(user_id)
     personal_info = user_profile.get("userData", {}).get("personalInfo", {}) if user_profile else {}
     user_name = personal_info.get("name", "User")
     user_location_raw = personal_info.get("location", "Not specified")
@@ -757,7 +758,7 @@ async def async_run_single_item_worker(sub_task_id: str, parent_task_id: str, us
         await update_sub_task_safely(sub_task_id, {"status": "processing", "runs": [run_doc]})
         
         # 2. Get user context and integrations
-        user_profile = await db.user_profiles.find_one({"user_id": user_id})
+        user_profile = await MongoManager().get_user_profile(user_id)
         user_integrations = user_profile.get("userData", {}).get("integrations", {}) if user_profile else {} # noqa
 
         # 3. Configure tools for the sub-agent

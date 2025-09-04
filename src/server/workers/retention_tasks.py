@@ -1,6 +1,7 @@
 import logging
 import random
 import random
+from workers.utils.crypto import decrypt_doc
 from datetime import datetime, timedelta, timezone
 
 from workers.celery_app import celery_app
@@ -84,6 +85,9 @@ async def async_run_retention_campaigns():
         
         async for user_profile in users_cursor:
             user_id = user_profile.get("user_id")
+            # Decrypt the sensitive userData field before accessing it
+            decrypt_doc(user_profile, ["userData"])
+
             user_data = user_profile.get("userData", {})
             if not user_id:
                 continue
