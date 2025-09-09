@@ -27,6 +27,8 @@ import ReactMarkdown from "react-markdown"
 import ExecutionUpdate from "./ExecutionUpdate"
 import { TextShimmer } from "@components/ui/text-shimmer"
 import { motion, AnimatePresence } from "framer-motion"
+import { Textarea } from "@components/ui/textarea"
+import { Select } from "@components/ui/select"
 import { Button } from "@components/ui/button"
 
 // --- NEW COMPONENT: WaitingStateDisplay (integrated into flowchart node) ---
@@ -559,7 +561,7 @@ const QnaSection = ({ questions, task, onAnswerClarifications }) => {
 							{q.text}
 						</label>
 						{isInputMode ? (
-							<textarea
+							<Textarea
 								value={answers[q.question_id] || ""}
 								onChange={(e) =>
 									handleAnswerChange(
@@ -568,7 +570,6 @@ const QnaSection = ({ questions, task, onAnswerClarifications }) => {
 									)
 								}
 								rows={2}
-								className="w-full p-2 bg-neutral-800 border border-neutral-700 rounded-md text-sm text-white transition-colors focus:border-yellow-400 focus:ring-0"
 								placeholder="Your answer..."
 							/>
 						) : (
@@ -701,7 +702,7 @@ const LongFormQnaSection = ({ requests, task, onAnswer }) => {
 						<label className="block text-sm font-medium text-neutral-300 mb-2 whitespace-pre-wrap">
 							{req.question}
 						</label>
-						<textarea
+						<Textarea
 							value={answers[req.request_id] || ""}
 							onChange={(e) =>
 								handleAnswerChange(
@@ -710,7 +711,6 @@ const LongFormQnaSection = ({ requests, task, onAnswer }) => {
 								)
 							}
 							rows={3}
-							className="w-full p-2 bg-neutral-800 border border-neutral-700 rounded-md text-sm text-white transition-colors focus:border-yellow-400 focus:ring-0"
 							placeholder="Your answer..."
 						/>
 						<div className="flex justify-end mt-2">
@@ -1089,7 +1089,7 @@ const TaskDetailsContent = ({
 							Priority:
 						</span>
 						{isEditing ? (
-							<select
+							<Select
 								value={editableTask.priority}
 								onChange={(e) =>
 									handleFieldChange(
@@ -1097,12 +1097,12 @@ const TaskDetailsContent = ({
 										Number(e.target.value)
 									)
 								}
-								className="bg-neutral-700/50 border border-neutral-600 rounded-md px-2 py-1 text-xs appearance-none"
+								className="px-2 py-1 text-xs h-auto"
 							>
 								<option value={0}>High</option>
 								<option value={1}>Medium</option>
 								<option value={2}>Low</option>
-							</select>
+							</Select>
 						) : (
 							<span
 								className={cn(
@@ -1123,12 +1123,11 @@ const TaskDetailsContent = ({
 					Description
 				</label>
 				{isEditing ? (
-					<textarea
+					<Textarea
 						value={editableTask.description}
 						onChange={(e) =>
 							handleFieldChange("description", e.target.value)
 						}
-						className="w-full p-3 bg-neutral-800/50 border border-neutral-700 rounded-lg transition-colors focus:border-[var(--color-accent-blue)]"
 						rows={4}
 						placeholder="Detailed task description..."
 					/>
@@ -1177,7 +1176,7 @@ const TaskDetailsContent = ({
 							className="flex items-center gap-3 p-3 bg-neutral-800/50 rounded-lg"
 						>
 							<IconGripVertical className="h-5 w-5 text-neutral-500 cursor-grab flex-shrink-0" />
-							<select
+							<Select
 								value={step.tool}
 								onChange={(e) =>
 									handleStepChange(
@@ -1186,7 +1185,7 @@ const TaskDetailsContent = ({
 										e.target.value
 									)
 								}
-								className="w-1/3 p-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/80 appearance-none"
+								className="w-1/3 p-2.5 h-auto"
 							>
 								<option value="">Select tool...</option>
 								{allTools.map((tool) => (
@@ -1194,8 +1193,8 @@ const TaskDetailsContent = ({
 										{tool.display_name}
 									</option>
 								))}
-							</select>
-							<input
+							</Select>
+							<Input
 								type="text"
 								value={step.description}
 								onChange={(e) =>
@@ -1205,7 +1204,7 @@ const TaskDetailsContent = ({
 										e.target.value
 									)
 								}
-								className="flex-grow p-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/80"
+								className="flex-grow p-2.5 h-auto"
 								placeholder="Step description..."
 							/>
 							<button

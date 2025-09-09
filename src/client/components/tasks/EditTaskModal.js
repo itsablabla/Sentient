@@ -14,6 +14,9 @@ import {
 import ScheduleEditor from "@components/tasks/ScheduleEditor"
 import { cn } from "@utils/cn"
 import { Button } from "@components/ui/button"
+import { Input } from "@components/ui/input"
+import { Select } from "@components/ui/select"
+import { Textarea } from "@components/ui/textarea"
 import {
 	ModalDialog,
 	ModalHeader,
@@ -87,16 +90,16 @@ const EditTaskModal = ({ task, onClose, onSave, allTools }) => {
 						Goal & Priority
 					</label>
 					<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-						<input
+						<Input
 							type="text"
 							value={localTask.description}
 							onChange={(e) =>
 								handleFieldChange("description", e.target.value)
 							}
-							className="md:col-span-2 p-3 bg-neutral-800/50 border border-neutral-700 rounded-lg transition-colors focus:border-[var(--color-accent-blue)]"
+							className="md:col-span-2 p-3 h-auto"
 							placeholder="Task description..."
 						/>
-						<select
+						<Select
 							value={localTask.priority}
 							onChange={(e) =>
 								handleFieldChange(
@@ -104,12 +107,12 @@ const EditTaskModal = ({ task, onClose, onSave, allTools }) => {
 									Number(e.target.value)
 								)
 							}
-							className="p-3 bg-neutral-800/50 border border-neutral-700 rounded-lg appearance-none transition-colors focus:border-[var(--color-accent-blue)]"
+							className="p-3 h-auto"
 						>
 							<option value={0}>High Priority</option>
 							<option value={1}>Medium Priority</option>
 							<option value={2}>Low Priority</option>
-						</select>
+						</Select>
 					</div>
 				</div>
 
@@ -124,7 +127,7 @@ const EditTaskModal = ({ task, onClose, onSave, allTools }) => {
 							className="flex items-center gap-2 p-2 bg-neutral-800/30 rounded-lg border border-neutral-700/50"
 						>
 							<IconGripVertical className="h-5 w-5 text-neutral-500 cursor-grab flex-shrink-0" />
-							<select
+							<Select
 								value={step.tool || ""}
 								onChange={(e) =>
 									handleStepChange(
@@ -133,7 +136,7 @@ const EditTaskModal = ({ task, onClose, onSave, allTools }) => {
 										e.target.value
 									)
 								}
-								className="w-1/3 p-2 bg-neutral-700 border border-neutral-600 rounded-md text-sm"
+								className="w-1/3 p-2 h-auto"
 							>
 								<option value="">Select tool...</option>
 								{allTools.map((tool) => (
@@ -141,8 +144,8 @@ const EditTaskModal = ({ task, onClose, onSave, allTools }) => {
 										{tool.display_name}
 									</option>
 								))}
-							</select>
-							<input
+							</Select>
+							<Input
 								type="text"
 								value={step.description}
 								onChange={(e) =>
@@ -152,7 +155,7 @@ const EditTaskModal = ({ task, onClose, onSave, allTools }) => {
 										e.target.value
 									)
 								}
-								className="flex-grow p-2 bg-neutral-700 border border-neutral-600 rounded-md text-sm"
+								className="flex-grow p-2 h-auto"
 								placeholder="Step description..."
 							/>
 							<button

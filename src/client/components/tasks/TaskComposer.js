@@ -17,6 +17,8 @@ import useClickOutside from "@hooks/useClickOutside"
 import { TextLoop } from "@components/ui/TextLoop"
 
 import { Button } from "@components/ui/button"
+import { Textarea } from "@components/ui/textarea"
+import { Select } from "@components/ui/select"
 const workflowTabs = [
 	{
 		id: "recurring",
@@ -189,7 +191,7 @@ const TaskComposer = ({
 					<div className="space-y-3">
 						<div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
 							<div className="relative flex-1">
-								<textarea
+								<Textarea
 									ref={textareaRef}
 									value={goalInput}
 									onChange={handleGoalInputChange}
@@ -200,7 +202,7 @@ const TaskComposer = ({
 											handleCreateTask()
 										}
 									}}
-									className="w-full p-3 bg-transparent border border-neutral-700 rounded-lg focus:ring-2 focus:ring-brand-orange resize-none custom-scrollbar relative z-10 h-20 sm:h-12"
+									className="p-3 bg-transparent resize-none custom-scrollbar relative z-10 h-20 sm:h-12"
 									style={{ maxHeight: "150px" }}
 								/>
 								{!goalInput && (
@@ -272,20 +274,20 @@ const TaskComposer = ({
 							>
 								{workflowTab === "recurring" && (
 									<div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-										<select
+										<Select
 											value={recurringFrequency}
 											onChange={(e) =>
 												setRecurringFrequency(
 													e.target.value
 												)
 											}
-											className="w-full p-2 bg-neutral-800 border border-neutral-700 rounded-md"
+											className="w-full p-2 h-auto"
 										>
 											<option value="daily">Daily</option>
 											<option value="weekly">
 												Weekly
 											</option>
-										</select>
+										</Select>
 										{recurringFrequency === "weekly" && (
 											<div className="flex gap-1 bg-neutral-800 border border-neutral-700 rounded-md p-1 md:col-span-2">
 												{[
@@ -322,7 +324,7 @@ const TaskComposer = ({
 											onChange={(e) =>
 												setRecurringTime(e.target.value)
 											}
-											className="w-full p-2 bg-neutral-800 border border-neutral-700 rounded-md"
+											className="w-full p-2 bg-neutral-800 border border-neutral-700 rounded-md h-10"
 										/>
 									</div>
 								)}
@@ -362,12 +364,12 @@ const TaskComposer = ({
 									</div>
 								)}
 
-								<textarea
+								<Textarea
 									ref={textareaRef}
 									value={goalInput}
 									onChange={handleGoalInputChange}
 									placeholder="Describe the goal of the workflow..."
-									className="w-full p-3 bg-neutral-800 border border-neutral-700 rounded-lg focus:ring-2 focus:ring-brand-orange resize-none custom-scrollbar"
+									className="w-full p-3 resize-none custom-scrollbar"
 									rows={2}
 									style={{ maxHeight: "150px" }}
 								/>

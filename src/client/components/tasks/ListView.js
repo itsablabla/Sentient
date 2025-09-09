@@ -7,6 +7,7 @@ import WelcomePanel from "./WelcomePanel"
 import { startOfWeek, isToday, isWithinInterval, startOfMonth } from "date-fns"
 import { cn } from "@utils/cn"
 import useClickOutside from "@hooks/useClickOutside"
+import { Input } from "@components/ui/input"
 import { Button } from "@components/ui/button"
 
 const ListView = ({
@@ -336,12 +337,12 @@ const ListView = ({
 						className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
 						size={20}
 					/>
-					<input
+					<Input
 						type="text"
 						value={searchQuery}
 						onChange={(e) => onSearchChange(e.target.value)}
 						placeholder="Search tasks..."
-						className="w-full bg-neutral-900/50 backdrop-blur-sm border border-neutral-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-orange"
+						className="w-full bg-neutral-900/50 backdrop-blur-sm pl-10 pr-4"
 					/>
 				</div>
 

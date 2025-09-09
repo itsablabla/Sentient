@@ -40,6 +40,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@components/ui/button"
 import { Card, CardContent, CardFooter } from "@components/ui/card"
 import { Drawer } from "@components/ui/drawer"
+import { Textarea } from "@components/ui/textarea"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -233,12 +234,12 @@ const MemoryDetailPanel = ({ memory, onClose, onUpdate, onDelete }) => {
 							CONTENT
 						</h3>
 						{isEditing ? (
-							<textarea
+							<Textarea
 								value={editedContent}
 								onChange={(e) =>
 									setEditedContent(e.target.value)
 								}
-								className="w-full h-40 bg-neutral-900 border border-neutral-700 rounded-lg p-3 text-base text-neutral-200 focus:ring-2 focus:ring-brand-orange"
+								className="w-full h-40 p-3 text-base"
 								autoFocus
 							/>
 						) : (
@@ -421,11 +422,11 @@ const CreateMemoryModal = ({ onClose, onCreate, userDetails }) => {
 				<ModalCloseButton onClose={onClose} />
 			</ModalHeader>
 			<ModalBody className="p-6 pt-0">
-				<textarea
+				<Textarea
 					value={content}
 					onChange={(e) => setContent(e.target.value)}
 					placeholder="Enter a fact or piece of information to remember..."
-					className="w-full h-40 bg-neutral-800 border border-neutral-700 rounded-lg p-3 text-base text-neutral-200 focus:ring-2 focus:ring-brand-orange"
+					className="w-full h-40 p-3 text-base"
 					autoFocus
 				/>
 				<p className="text-xs text-neutral-500 mt-2 px-1">

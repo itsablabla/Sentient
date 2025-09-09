@@ -15,6 +15,7 @@ import {
 import { cn } from "@utils/cn"
 import { useRouter } from "next/navigation"
 import { formatDistanceToNow, parseISO } from "date-fns"
+import { Input } from "./ui/input"
 
 const useDebounce = (value, delay) => {
 	const [debouncedValue, setDebouncedValue] = useState(value)
@@ -147,12 +148,12 @@ export default function GlobalSearch({ onClose }) {
 						className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500"
 						size={20}
 					/>
-					<input
+					<Input
 						type="text"
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}
 						placeholder="Search tasks, chats, and memories..."
-						className="w-full bg-neutral-800/50 border border-neutral-700 rounded-lg pl-12 pr-10 py-3 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-orange"
+						className="pl-12 pr-10 py-3 h-auto"
 						autoFocus
 					/>
 					<button

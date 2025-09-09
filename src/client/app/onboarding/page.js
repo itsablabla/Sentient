@@ -21,6 +21,9 @@ import SparkleEffect from "@components/ui/SparkleEffect"
 import SiriSpheres from "@components/voice-visualization/SiriSpheres"
 import IntroSequence from "@components/onboarding/IntroSequence"
 import { Button } from "@components/ui/button"
+import { Input } from "@components/ui/input"
+import { Select } from "@components/ui/select"
+import { Textarea } from "@components/ui/textarea"
 
 const countryData = [
 	{ name: "United States", code: "US", dial_code: "+1", flag: "🇺🇸" },
@@ -68,10 +71,6 @@ const questionStyles = {
 	container:
 		"min-h-[100px] md:min-h-[120px] flex items-center justify-center w-full"
 }
-
-// Standard input styles
-const inputStyles =
-	"w-full px-6 py-4 md:py-5 bg-neutral-900/60 backdrop-blur-sm border border-neutral-700/50 rounded-xl focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/50 transition-all duration-300 text-center text-base md:text-lg placeholder:text-neutral-500 shadow-lg shadow-black/20"
 
 // --- Onboarding Data ---
 
@@ -773,12 +772,12 @@ const OnboardingPage = () => {
 						<div className="relative w-full max-w-lg mx-auto space-y-4">
 							<div className="flex items-center gap-0 w-full bg-neutral-900/60 backdrop-blur-sm border border-neutral-700/50 rounded-xl focus-within:ring-2 focus-within:ring-brand-orange/50 focus-within:border-brand-orange/50 transition-all duration-300 shadow-lg shadow-black/20">
 								<div className="relative border-r border-neutral-700/50">
-									<select
+									<Select
 										value={whatsappCountry.code}
 										onChange={(e) => {
 											handleCountryChange(e.target.value)
 										}}
-										className="bg-transparent pl-4 pr-10 py-4 md:py-5 text-base appearance-none focus:outline-none cursor-pointer min-w-[120px]"
+										className="bg-transparent pl-4 pr-10 py-4 md:py-5 text-base appearance-none focus:outline-none cursor-pointer min-w-[120px] border-none h-auto"
 									>
 										{countryData.map((country) => (
 											<option
@@ -790,7 +789,7 @@ const OnboardingPage = () => {
 												{country.dial_code || "Other"}
 											</option>
 										))}
-									</select>
+									</Select>
 									<div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-neutral-400">
 										<svg
 											className="h-4 w-4 fill-current"
@@ -801,17 +800,17 @@ const OnboardingPage = () => {
 									</div>
 								</div>
 								{showCustomDialCode && (
-									<input
+									<Input
 										type="text"
 										value={customDialCode}
 										onChange={(e) =>
 											setCustomDialCode(e.target.value)
 										}
 										placeholder="+XXX"
-										className="bg-transparent px-4 py-4 md:py-5 text-base focus:outline-none border-r border-neutral-700/50 w-20"
+										className="bg-transparent px-4 py-4 md:py-5 text-base focus:outline-none border-r border-neutral-700/50 w-20 h-auto rounded-none border-none"
 									/>
 								)}
-								<input
+								<Input
 									type="tel"
 									value={whatsappLocalNumber}
 									onChange={(e) =>
@@ -820,7 +819,7 @@ const OnboardingPage = () => {
 									placeholder="Your number"
 									required={currentQuestion.required}
 									autoFocus
-									className="flex-1 bg-transparent px-4 py-4 md:py-5 text-base md:text-lg placeholder:text-neutral-500 focus:outline-none"
+									className="flex-1 bg-transparent px-4 py-4 md:py-5 text-base md:text-lg placeholder:text-neutral-500 focus:outline-none border-none h-auto"
 								/>
 							</div>
 
@@ -862,7 +861,7 @@ const OnboardingPage = () => {
 				}
 				return (
 					<div className="relative w-full max-w-lg mx-auto">
-						<input
+						<Input
 							type="text"
 							value={answers[currentQuestion.id] || ""}
 							onChange={(e) =>
@@ -871,7 +870,7 @@ const OnboardingPage = () => {
 							placeholder={currentQuestion.placeholder}
 							required={currentQuestion.required}
 							autoFocus
-							className={inputStyles}
+							className="px-6 py-4 md:py-5 bg-neutral-900/60 backdrop-blur-sm border-neutral-700/50 rounded-xl focus:ring-brand-orange/50 focus:border-brand-orange/50 transition-all duration-300 text-center text-base md:text-lg placeholder:text-neutral-500 shadow-lg shadow-black/20"
 						/>
 					</div>
 				)
@@ -908,7 +907,7 @@ const OnboardingPage = () => {
 
 					return (
 						<div className="w-full max-w-xl mx-auto text-center">
-							<select
+							<Select
 								value={answers[currentQuestion.id] || ""}
 								onChange={(e) =>
 									handleAnswer(
@@ -918,7 +917,7 @@ const OnboardingPage = () => {
 								}
 								required={currentQuestion.required}
 								disabled={timezoneDetected === true}
-								className={cn(inputStyles, "appearance-none")}
+								className="px-6 py-4 md:py-5 bg-neutral-900/60 backdrop-blur-sm border-neutral-700/50 rounded-xl focus:ring-brand-orange/50 focus:border-brand-orange/50 transition-all duration-300 text-center text-base md:text-lg placeholder:text-neutral-500 shadow-lg shadow-black/20 appearance-none"
 							>
 								{timezoneOptions.map((option) => (
 									<option
@@ -930,7 +929,7 @@ const OnboardingPage = () => {
 										{option.label}
 									</option>
 								))}
-							</select>
+							</Select>
 							{timezoneDetected === true && (
 								<p className="text-green-400 text-sm mt-3 bg-green-400/10 border border-green-400/20 rounded-lg px-4 py-2">
 									We've automatically detected your timezone.
@@ -948,13 +947,13 @@ const OnboardingPage = () => {
 				// Default select rendering for other questions
 				return (
 					<div className="w-full max-w-xl mx-auto">
-						<select
+						<Select
 							value={answers[currentQuestion.id] || ""}
 							onChange={(e) =>
 								handleAnswer(currentQuestion.id, e.target.value)
 							}
 							required={currentQuestion.required}
-							className={cn(inputStyles, "appearance-none")}
+							className="px-6 py-4 md:py-5 bg-neutral-900/60 backdrop-blur-sm border-neutral-700/50 rounded-xl focus:ring-brand-orange/50 focus:border-brand-orange/50 transition-all duration-300 text-center text-base md:text-lg placeholder:text-neutral-500 shadow-lg shadow-black/20 appearance-none"
 						>
 							{currentQuestion.options.map((option) => (
 								<option
@@ -966,18 +965,18 @@ const OnboardingPage = () => {
 									{option.label}
 								</option>
 							))}
-						</select>
+						</Select>
 					</div>
 				)
 			case "textarea":
 				return (
 					<div className="w-full max-w-3xl mx-auto">
-						<textarea
+						<Textarea
 							value={answers[currentQuestion.id] || ""}
 							onChange={(e) =>
 								handleAnswer(currentQuestion.id, e.target.value)
 							}
-							className="w-full h-32 md:h-40 px-6 py-4 md:py-5 bg-neutral-900/60 backdrop-blur-sm border border-neutral-700/50 rounded-xl focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/50 resize-none transition-all duration-300 text-center text-base md:text-lg placeholder:text-neutral-500 shadow-lg shadow-black/20"
+							className="w-full h-32 md:h-40 px-6 py-4 md:py-5 bg-neutral-900/60 backdrop-blur-sm border-neutral-700/50 rounded-xl focus:ring-brand-orange/50 focus:border-brand-orange/50 resize-none transition-all duration-300 text-center text-base md:text-lg placeholder:text-neutral-500 shadow-lg shadow-black/20"
 							placeholder={currentQuestion.placeholder}
 							autoFocus
 							rows={4}
@@ -987,7 +986,7 @@ const OnboardingPage = () => {
 			case "location":
 				return (
 					<div className="flex flex-col sm:flex-row items-center justify-center gap-4 md:gap-6 w-full max-w-3xl mx-auto">
-						<input
+						<Input
 							type="text"
 							placeholder="Enter Locality, City, State..."
 							value={
@@ -998,7 +997,7 @@ const OnboardingPage = () => {
 							onChange={(e) =>
 								handleAnswer("location", e.target.value)
 							}
-							className={cn(inputStyles, "sm:flex-grow")}
+							className="px-6 py-4 md:py-5 bg-neutral-900/60 backdrop-blur-sm border-neutral-700/50 rounded-xl focus:ring-brand-orange/50 focus:border-brand-orange/50 transition-all duration-300 text-center text-base md:text-lg placeholder:text-neutral-500 shadow-lg shadow-black/20 sm:flex-grow"
 						/>
 						<span className="hidden sm:inline text-neutral-400 text-base font-medium">
 							or

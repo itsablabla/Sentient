@@ -9,6 +9,7 @@ import ExecutionUpdate from "./ExecutionUpdate"
 import ReactMarkdown from "react-markdown"
 import toast from "react-hot-toast"
 import { IconLoader } from "@tabler/icons-react"
+import { Textarea } from "@components/ui/textarea"
 import { Button } from "@components/ui/button"
 
 // This component is used to handle clarification questions
@@ -62,7 +63,7 @@ const QnaSection = ({ questions, task, onAnswerClarifications, runStatus }) => {
 							{q.text}
 						</label>
 						{isInputMode ? (
-							<textarea
+							<Textarea
 								value={answers[q.question_id] || ""}
 								onChange={(e) =>
 									handleAnswerChange(
@@ -71,7 +72,6 @@ const QnaSection = ({ questions, task, onAnswerClarifications, runStatus }) => {
 									)
 								}
 								rows={2}
-								className="w-full p-2 bg-neutral-800 border border-neutral-700 rounded-md text-sm text-white transition-colors focus:border-yellow-400 focus:ring-0"
 								placeholder="Your answer..."
 							/>
 						) : (
