@@ -64,6 +64,7 @@ import ModalDialog from "@components/ModalDialog"
 import { useRouter } from "next/navigation"
 import { INTEGRATION_CAPABILITIES } from "@utils/integration-capabilities"
 import { Button } from "@components/ui/button"
+import { Card, CardContent, CardFooter, CardHeader } from "@components/ui/card"
 
 const integrationColorIcons = {
 	gmail: IconMail,
@@ -731,15 +732,15 @@ const IntegrationCard = ({
 	const isDisabledForFree = isProFeature && !isProUser
 
 	return (
-		<div className="bg-neutral-900/50 p-4 sm:p-5 rounded-xl transition-all duration-300 border border-neutral-800/70 hover:border-brand-orange hover:-translate-y-1 flex flex-col text-left h-full">
+		<Card className="transition-all duration-300 hover:border-brand-orange hover:-translate-y-1 flex flex-col text-left h-full">
 			{/* Top Section */}
-			<div className="flex items-start justify-between mb-4">
+			<CardHeader className="flex-row items-start justify-between pb-4">
 				<div className="flex items-center gap-3">
 					<div className="w-10 h-10 flex items-center justify-center rounded-lg bg-brand-gray p-1.5 text-brand-orange">
 						<Icon className="w-full h-full" />
 					</div>
 					<div>
-						<h3 className="font-semibold text-white text-base sm:text-lg">
+						<h3 className="font-semibold text-white text-base">
 							{integration.display_name}
 						</h3>
 						<span
@@ -767,18 +768,18 @@ const IntegrationCard = ({
 						</div>
 					)}
 				</div>
-			</div>
+			</CardHeader>
 
 			{/* Middle Section */}
-			<div className="flex-grow">
+			<CardContent className="flex-grow pt-0">
 				<p className="text-sm text-gray-400 mt-1 line-clamp-3">
 					{integration.description}
 				</p>
-			</div>
+			</CardContent>
 
 			{/* Bottom Section */}
 			{isConnectable && (
-				<div className="mt-4 pt-4 border-t border-neutral-800 flex justify-end">
+				<CardFooter className="pt-4 border-t border-neutral-800 flex justify-end">
 					{isDisabledForFree ? (
 						<Button
 							onClick={onUpgradeClick}
@@ -793,9 +794,9 @@ const IntegrationCard = ({
 							View Details →
 						</span>
 					)}
-				</div>
+				</CardFooter>
 			)}
-		</div>
+		</Card>
 	)
 }
 

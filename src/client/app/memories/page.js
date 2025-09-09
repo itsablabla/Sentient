@@ -30,6 +30,7 @@ import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackg
 import ModalDialog from "@components/ModalDialog"
 import useClickOutside from "@hooks/useClickOutside"
 import { useRouter, useSearchParams } from "next/navigation"
+import { Card, CardContent, CardFooter } from "@components/ui/card"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -444,25 +445,29 @@ const CreateMemoryModal = ({ onClose, onCreate, userDetails }) => {
 	)
 }
 
+const MotionCard = motion(Card)
+
 const MemoryCard = ({ memory, onSelect }) => {
 	const timeAgo = formatDistanceToNow(parseISO(memory.created_at), {
 		addSuffix: true
 	})
 
 	return (
-		<motion.div
+		<MotionCard
 			layout
 			initial={{ opacity: 0, scale: 0.9 }}
 			animate={{ opacity: 1, scale: 1 }}
 			exit={{ opacity: 0, scale: 0.9 }}
 			transition={{ duration: 0.3 }}
 			onClick={() => onSelect(memory)}
-			className="bg-neutral-900/50 p-6 rounded-2xl border border-neutral-800/80 flex flex-col justify-between text-left h-full shadow-lg hover:border-brand-orange/50 transition-colors cursor-pointer"
+			className="flex flex-col justify-between text-left h-full shadow-lg hover:border-brand-orange/50 transition-colors cursor-pointer rounded-2xl"
 		>
-			<p className="text-neutral-200 text-base mb-4 font-sans leading-relaxed line-clamp-6">
-				{memory.content}
-			</p>
-			<div className="mt-auto pt-4 border-t border-neutral-800/50 text-xs text-neutral-500 space-y-2">
+			<CardContent className="p-6">
+				<p className="text-neutral-200 text-base font-sans leading-relaxed line-clamp-6">
+					{memory.content}
+				</p>
+			</CardContent>
+			<CardFooter className="p-6 pt-4 border-t border-neutral-800/50 text-xs text-neutral-500 flex-col items-start space-y-2">
 				<div className="flex items-center gap-2">
 					<IconClock size={14} />
 					<span>{timeAgo}</span>
@@ -486,8 +491,8 @@ const MemoryCard = ({ memory, onSelect }) => {
 						))}
 					</div>
 				)}
-			</div>
-		</motion.div>
+			</CardFooter>
+		</MotionCard>
 	)
 }
 
