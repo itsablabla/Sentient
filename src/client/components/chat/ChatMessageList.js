@@ -3,7 +3,7 @@
 import { IconLoader } from "@tabler/icons-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@utils/cn"
-import ChatBubble from "@components/ChatBubble"
+import ChatBubble from "@components/chat/ChatBubble"
 import { TextShimmer } from "@components/ui/text-shimmer"
 
 const ChatMessageList = ({
@@ -32,9 +32,7 @@ const ChatMessageList = ({
 					id={`message-${msg.id}`}
 					className={cn(
 						"flex w-full",
-						msg.role === "user"
-							? "justify-end"
-							: "justify-start"
+						msg.role === "user" ? "justify-end" : "justify-start"
 					)}
 				>
 					<ChatBubble

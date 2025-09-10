@@ -15,7 +15,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { formatDistanceToNow, parseISO } from "date-fns"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { Drawer } from "./ui/drawer"
+import { Drawer } from "@components/ui/drawer"
 
 const NotificationItem = ({
 	notification,
@@ -225,11 +225,7 @@ const NotificationsOverlay = ({ onClose, notifRefreshKey }) => {
 	}
 
 	return (
-		<Drawer
-			isOpen={true}
-			onClose={onClose}
-			className="w-full max-w-md"
-		>
+		<Drawer isOpen={true} onClose={onClose} className="w-full max-w-md">
 			<div
 				onClick={(e) => e.stopPropagation()} // Prevent drawer from closing when clicking inside
 				className="h-full flex flex-col p-4"

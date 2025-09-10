@@ -20,7 +20,7 @@ import { useMutation } from "@tanstack/react-query"
 import { useUserStore } from "@stores/app-stores"
 import ProgressBar from "@components/onboarding/ProgressBar" // Assuming this component exists
 import SparkleEffect from "@components/ui/SparkleEffect"
-import SiriSpheres from "@components/voice-visualization/SiriSpheres"
+import SiriSpheres from "@components/voice/SiriSpheres"
 import IntroSequence from "@components/onboarding/IntroSequence"
 import { Button } from "@components/ui/button"
 import { Input } from "@components/ui/input"
@@ -270,14 +270,11 @@ const OnboardingPage = () => {
 					"Please use E.164 format with country code (e.g., +14155552671)."
 				)
 			}
-			return fetch(
-				"/api/settings/whatsapp-notifications/verify",
-				{
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ phone_number: number })
-				}
-			).then(async (res) => {
+			return fetch("/api/settings/whatsapp-notifications/verify", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ phone_number: number })
+			}).then(async (res) => {
 				const result = await res.json()
 				if (!res.ok) {
 					throw new Error(
@@ -293,7 +290,9 @@ const OnboardingPage = () => {
 				setWhatsappError("")
 			} else {
 				setWhatsappStatus("invalid")
-				setWhatsappError("This number does not appear to be on WhatsApp.")
+				setWhatsappError(
+					"This number does not appear to be on WhatsApp."
+				)
 			}
 		},
 		onError: (error) => {
@@ -469,7 +468,7 @@ const OnboardingPage = () => {
 			toast.error(`Error: ${error.message}`)
 			setStage("questions") // Go back to questions on error
 		}
-	});
+	})
 
 	const handleNext = useCallback(() => {
 		if (!isCurrentQuestionAnswered()) return
@@ -718,7 +717,8 @@ const OnboardingPage = () => {
 				)
 
 			case "submitting":
-				return ( // prettier-ignore
+				return (
+					// prettier-ignore
 					<motion.div
 						key="submitting"
 						initial={{ opacity: 0 }}

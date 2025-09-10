@@ -824,6 +824,9 @@ const IntegrationCard = ({
 	)
 }
 
+// Define the missing constant to prevent reference errors.
+const MANUAL_INTEGRATION_CONFIGS = {}
+
 const IntegrationsPage = () => {
 	const queryClient = useQueryClient()
 	const {

@@ -1,7 +1,7 @@
 "use client"
 import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import SiriSpheres from "@components/voice-visualization/SiriSpheres"
+import SiriSpheres from "@components/voice/SiriSpheres"
 import FloatingIcons from "./FloatingIcons"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import { IconArrowRight } from "@tabler/icons-react"

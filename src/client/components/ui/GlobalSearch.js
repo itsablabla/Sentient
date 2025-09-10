@@ -16,7 +16,7 @@ import { useQuery } from "@tanstack/react-query"
 import { cn } from "@utils/cn"
 import { useRouter } from "next/navigation"
 import { formatDistanceToNow, parseISO } from "date-fns"
-import { Input } from "./ui/input"
+import { Input } from "@components/ui/input"
 
 const useDebounce = (value, delay) => {
 	const [debouncedValue, setDebouncedValue] = useState(value)

@@ -36,13 +36,13 @@ import { motion, AnimatePresence } from "framer-motion"
 import { usePostHog } from "posthog-js/react"
 import useClickOutside from "@hooks/useClickOutside"
 import { Tooltip } from "react-tooltip"
-import { Button } from "./ui/button"
+import { Button } from "@components/ui/button"
 import {
 	ModalDialog,
 	ModalHeader,
 	ModalTitle,
 	ModalCloseButton
-} from "./ui/ModalDialog"
+} from "@components/ui/ModalDialog"
 import { useTourStore, useUserStore, useUIStore } from "@stores/app-stores"
 
 const proPlanFeatures = [

@@ -50,7 +50,7 @@ import { Input } from "@components/ui/input"
 import ReactMarkdown from "react-markdown"
 import { motion, AnimatePresence } from "framer-motion"
 import ExecutionUpdate from "./ExecutionUpdate"
-import ChatBubble from "@components/ChatBubble"
+import ChatBubble from "@components/chat/ChatBubble"
 import { parseISO } from "date-fns"
 
 // --- Start of Inlined Components ---

@@ -4,7 +4,7 @@ import "@styles/globals.css" // Import global styles for the application
 import { Toaster } from "react-hot-toast"
 import React, { Suspense } from "react"
 import ReactQueryProvider from "@lib/ReactQueryProvider"
-import LayoutWrapper from "@components/LayoutWrapper"
+import LayoutWrapper from "@components/layout/LayoutWrapper"
 import { PostHogProvider } from "@components/PostHogProvider"
 
 /**
@@ -80,4 +80,3 @@ export default function RootLayout({ children }) {
 		</html>
 	)
 }
-

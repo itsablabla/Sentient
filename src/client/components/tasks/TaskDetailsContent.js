@@ -21,7 +21,7 @@ import {
 	IconPlayerPlay
 } from "@tabler/icons-react"
 import ScheduleEditor from "./ScheduleEditor"
-import ChatBubble from "@components/ChatBubble"
+import ChatBubble from "@components/chat/ChatBubble"
 import ReactMarkdown from "react-markdown"
 import ExecutionUpdate from "./ExecutionUpdate"
 import { TextShimmer } from "@components/ui/text-shimmer"
@@ -35,6 +35,7 @@ import {
 import { Textarea } from "@components/ui/textarea"
 import { Select } from "@components/ui/select"
 import { Button } from "@components/ui/button"
+import { Input } from "@components/ui/input"
 
 // --- NEW COMPONENT: WaitingStateDisplay (integrated into flowchart node) ---
 const WaitingNodeDetails = ({

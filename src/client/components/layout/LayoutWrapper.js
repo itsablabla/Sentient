@@ -2,10 +2,10 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
-import NotificationsOverlay from "@components/NotificationsOverlay"
+import NotificationsOverlay from "@components/ui/NotificationsOverlay"
 import { IconMenu2, IconLoader, IconX } from "@tabler/icons-react"
-import Sidebar from "@components/Sidebar"
-import GlobalSearch from "./GlobalSearch"
+import Sidebar from "@components/layout/Sidebar"
+import GlobalSearch from "@components/ui/GlobalSearch"
 import { useGlobalShortcuts } from "@hooks/useGlobalShortcuts"
 import { cn } from "@utils/cn"
 import toast from "react-hot-toast"
@@ -21,8 +21,7 @@ import { tourSteps, chatSubSteps, taskSubSteps } from "@lib/tour-steps"
 import { subscribeUser } from "@app/actions"
 import { useMutation } from "@tanstack/react-query"
 
-
-import { Drawer } from "./ui/drawer"
+import { Drawer } from "@components/ui/drawer"
 const isMobile = () => typeof window !== "undefined" && window.innerWidth < 768
 
 // --- Guided Tour Component ---
@@ -869,15 +868,16 @@ export default function LayoutWrapper({ children }) {
 			>
 				{children}
 			</div>
-				<Drawer isOpen={isNotificationsOpen} onClose={closeNotifications}>
-					<NotificationsOverlay notifRefreshKey={notifRefreshKey} onClose={closeNotifications} />
-				</Drawer>
-				<AnimatePresence>
-					{isSearchOpen && (
-						<GlobalSearch onClose={closeSearch} />
-					)}
-				</AnimatePresence>
-				<GuidedTour />
-			</>
+			<Drawer isOpen={isNotificationsOpen} onClose={closeNotifications}>
+				<NotificationsOverlay
+					notifRefreshKey={notifRefreshKey}
+					onClose={closeNotifications}
+				/>
+			</Drawer>
+			<AnimatePresence>
+				{isSearchOpen && <GlobalSearch onClose={closeSearch} />}
+			</AnimatePresence>
+			<GuidedTour />
+		</>
 	)
 }

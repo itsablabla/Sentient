@@ -253,9 +253,25 @@ export const useMemoryStore = create(
 )
 
 // --- Integration Store (for integrations page) ---
-export const useIntegrationStore = create((set) => ({
-	// Existing implementation, no changes requested
-	isIntegrationModalOpen: false,
-	openIntegrationModal: () => set({ isIntegrationModalOpen: true }),
-	closeIntegrationModal: () => set({ isIntegrationModalOpen: false })
-}))
+export const useIntegrationStore = create(
+	devtools(
+		(set) => ({
+			searchQuery: "",
+			activeCategory: "Core", // Set a default category
+			privacyModalService: null,
+			disconnectingIntegration: null,
+			setSearchQuery: (query) => set({ searchQuery: query }),
+			setActiveCategory: (category) => set({ activeCategory: category }),
+			openPrivacyModal: (service) => set({ privacyModalService: service }),
+			closePrivacyModal: () => set({ privacyModalService: null }),
+			setDisconnectingIntegration: (integration) =>
+				set({ disconnectingIntegration: integration }),
+
+			// Deprecated modal state, kept for backward compatibility during refactor
+			isIntegrationModalOpen: false,
+			openIntegrationModal: () => set({ isIntegrationModalOpen: true }),
+			closeIntegrationModal: () => set({ isIntegrationModalOpen: false })
+		}),
+		{ name: "IntegrationStore" }
+	)
+)

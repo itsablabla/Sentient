@@ -10,7 +10,7 @@ import {
 } from "@tabler/icons-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@utils/cn"
-import SiriSpheres from "@components/voice-visualization/SiriSpheres"
+import SiriSpheres from "@components/voice/SiriSpheres"
 import { TextShimmer } from "@components/ui/text-shimmer"
 import { Button } from "@components/ui/button"
 
@@ -31,10 +31,7 @@ const VoiceModeUI = ({
 	return (
 		<div className="flex-1 flex flex-col -translate-y-12 relative overflow-hidden">
 			{/* The 3D visualization will render here as a background */}
-			<SiriSpheres
-				status={connectionStatus}
-				audioLevel={audioLevel}
-			/>
+			<SiriSpheres status={connectionStatus} audioLevel={audioLevel} />
 
 			{/* Overlay for controls and status text */}
 			<div className="absolute inset-0 z-20 flex flex-col translate-y-20 items-center justify-end p-4 pb-8 sm:p-6 sm:pb-12">
@@ -107,10 +104,7 @@ const VoiceModeUI = ({
 						</Button>
 					) : connectionStatus === "connecting" ? (
 						<div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-yellow text-brand-black shadow-lg">
-							<IconLoader
-								size={24}
-								className="animate-spin"
-							/>
+							<IconLoader size={24} className="animate-spin" />
 						</div>
 					) : (
 						<Button

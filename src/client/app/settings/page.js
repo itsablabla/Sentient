@@ -515,9 +515,12 @@ const TestingTools = () => {
 			"Queueing onboarding data for memory reprocessing..."
 		)
 		try {
-			const result = await apiClient("/api/testing/reprocess-onboarding", {
-				method: "POST"
-			})
+			const result = await apiClient(
+				"/api/testing/reprocess-onboarding",
+				{
+					method: "POST"
+				}
+			)
 			toast.success(result.message, { id: toastId })
 		} catch (error) {
 			toast.error(`Error: ${error.message}`, { id: toastId })
@@ -930,13 +933,18 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 																		type="text"
 																		value={
 																			formData[
-																				q.id
-																			] || ""
+																				q
+																					.id
+																			] ||
+																			""
 																		}
-																		onChange={(e) =>
+																		onChange={(
+																			e
+																		) =>
 																			handleAnswer(
 																				q.id,
-																				e.target
+																				e
+																					.target
 																					.value
 																			)
 																		}
@@ -952,13 +960,18 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 																	<textarea
 																		value={
 																			formData[
-																				q.id
-																			] || ""
+																				q
+																					.id
+																			] ||
+																			""
 																		}
-																		onChange={(e) =>
+																		onChange={(
+																			e
+																		) =>
 																			handleAnswer(
 																				q.id,
-																				e.target
+																				e
+																					.target
 																					.value
 																			)
 																		}
@@ -970,15 +983,21 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 																	/>
 																)
 															case "select": {
-																let options = q.options
+																let options =
+																	q.options
 																if (
-																	q.id === "timezone"
+																	q.id ===
+																	"timezone"
 																) {
 																	const savedTimezone =
-																		formData[q.id]
+																		formData[
+																			q.id
+																		]
 																	const isTimezoneInOptions =
 																		q.options.some(
-																			(opt) =>
+																			(
+																				opt
+																			) =>
 																				opt.value ===
 																				savedTimezone
 																		)
@@ -987,9 +1006,10 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 																		!isTimezoneInOptions
 																	) {
 																		// Clone to avoid mutating the original questions array
-																		options = [
-																			...q.options
-																		]
+																		options =
+																			[
+																				...q.options
+																			]
 																		options.unshift(
 																			{
 																				value: savedTimezone,
@@ -1007,20 +1027,27 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 																	<select
 																		value={
 																			formData[
-																				q.id
-																			] || ""
+																				q
+																					.id
+																			] ||
+																			""
 																		}
-																		onChange={(e) =>
+																		onChange={(
+																			e
+																		) =>
 																			handleAnswer(
 																				q.id,
-																				e.target
+																				e
+																					.target
 																					.value
 																			)
 																		}
 																		className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-brand-orange appearance-none"
 																	>
 																		{options.map(
-																			(opt) => (
+																			(
+																				opt
+																			) => (
 																				<option
 																					key={
 																						opt.value
@@ -1040,7 +1067,9 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 															}
 															case "location": // Simplified for now
 																const locationValue =
-																	formData[q.id]
+																	formData[
+																		q.id
+																	]
 																const isGpsLocation =
 																	typeof locationValue ===
 																		"object" &&
@@ -1048,7 +1077,9 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 																		null &&
 																	locationValue.latitude
 
-																if (isGpsLocation) {
+																if (
+																	isGpsLocation
+																) {
 																	return (
 																		<div className="flex items-center gap-2 font-mono">
 																			<p className="w-full bg-neutral-800/50 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-300">
@@ -1082,8 +1113,10 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 																		type="text"
 																		value={
 																			formData[
-																				q.id
-																			] || ""
+																				q
+																					.id
+																			] ||
+																			""
 																		}
 																		onChange={
 																			(
@@ -1125,8 +1158,6 @@ export default function SettingsPage() {
 		isLoading: isProfileLoading,
 		fetchUserData
 	} = useUserStore()
-
-	React.useEffect(() => { fetchUserData() }, [fetchUserData])
 
 	const saveProfileMutation = useMutation({
 		mutationFn: (newOnboardingData) => {
