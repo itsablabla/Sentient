@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react" // eslint-disable-line
+import React, { useState, useMemo, useRef, useCallback } from "react"
 import toast from "react-hot-toast"
 import {
 	IconLoader,
@@ -21,11 +21,11 @@ import {
 	IconCheck,
 	IconSparkles
 } from "@tabler/icons-react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { motion, AnimatePresence } from "framer-motion"
 import { formatDistanceToNow, parseISO } from "date-fns"
 import { cn } from "@utils/cn"
 import dynamic from "next/dynamic"
-import { usePlan } from "@hooks/usePlan"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import {
 	ModalDialog,
@@ -42,6 +42,7 @@ import { Card, CardContent, CardFooter } from "@components/ui/card"
 import { Drawer } from "@components/ui/drawer"
 import { Textarea } from "@components/ui/textarea"
 import apiClient, { ApiError } from "@lib/apiClient"
+import { useUIStore, useUserStore, useMemoryStore } from "@stores/app-stores"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -639,19 +640,68 @@ const memoryTabs = [
 ]
 
 export default function MemoriesPage() {
-	const [view, setView] = useState("graph")
-	const [memories, setMemories] = useState([])
-	const [graphData, setGraphData] = useState({ nodes: [], edges: [] })
-	const [isLoading, setIsLoading] = useState(true)
-	const [activeTopic, setActiveTopic] = useState("All")
-	const [selectedMemory, setSelectedMemory] = useState(null)
-	const [isInfoPanelOpen, setIsInfoPanelOpen] = useState(false)
-	const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
-	const { isPro } = usePlan()
-	const [userDetails, setUserDetails] = useState(null)
+	const {
+		view,
+		activeTopic,
+		selectedMemory,
+		isInfoPanelOpen,
+		isCreateModalOpen,
+		setView,
+		setActiveTopic,
+		setSelectedMemory,
+		openInfoPanel,
+		closeInfoPanel,
+		openCreateModal,
+		closeCreateModal
+	} = useMemoryStore()
+	const { isUpgradeModalOpen, openUpgradeModal, closeUpgradeModal } =
+		useUIStore()
+	const { isPro } = useUserStore()
 	const router = useRouter()
 	const searchParams = useSearchParams()
+
+	const queryClient = useQueryClient()
+
+	const { data: userDetails } = useQuery({
+		queryKey: ["userProfile"],
+		queryFn: async () => {
+			const res = await fetch("/api/user/profile")
+			if (!res.ok) {
+				throw new Error("Failed to fetch user details")
+			}
+			return res.json()
+		},
+		staleTime: Infinity // User profile is unlikely to change during a session
+	})
+
+	const { data, isLoading } = useQuery({
+		queryKey: ["memories", view],
+		queryFn: async () => {
+			const endpoint =
+				view === "list" ? "/api/memories" : "/api/memories/graph"
+			const response = await fetch(endpoint, { cache: "no-store" })
+			if (!response.ok) {
+				throw new Error(
+					`Failed to fetch memories data for ${view} view.`
+				)
+			}
+			return response.json()
+		}
+	})
+
+	const memories = useMemo(() => {
+		if (view === "list") {
+			return data?.memories || []
+		}
+		return data?.nodes || []
+	}, [data, view])
+
+	const graphData = useMemo(() => {
+		if (view === "graph") {
+			return data || { nodes: [], links: [] }
+		}
+		return { nodes: [], links: [] }
+	}, [data, view])
 
 	const topics = useMemo(() => {
 		const allTopics = new Set()
@@ -668,42 +718,7 @@ export default function MemoriesPage() {
 		)
 	}, [memories, activeTopic])
 
-	const fetchData = useCallback(async () => {
-		setIsLoading(true)
-		try {
-			if (view === "list") {
-				const data = await apiClient("/api/memories", {
-					cache: "no-store"
-				})
-				setMemories(data.memories || [])
-			} else {
-				const data = await apiClient("/api/memories/graph", { cache: "no-store" })
-				setGraphData(data)
-				// Also update the flat list for topic filtering consistency
-				setMemories(data.nodes || [])
-			}
-		} catch (error) {
-			toast.error(error.message)
-		} finally {
-			setIsLoading(false)
-		}
-	}, [view])
-
-	const fetchUserDetails = useCallback(async () => {
-		try {
-			const data = await apiClient("/api/user/profile")
-			setUserDetails(data)
-		} catch (error) {
-			console.error("Failed to fetch user details:", error)
-			setUserDetails({ given_name: "User" })
-		}
-	}, [])
-	useEffect(() => {
-		fetchData()
-		fetchUserDetails()
-	}, [fetchData, fetchUserDetails])
-
-	useEffect(() => {
+	React.useEffect(() => {
 		const memoryId = searchParams.get("memoryId")
 		if (memoryId && memories.length > 0) {
 			const memoryToSelect = memories.find(
@@ -714,63 +729,81 @@ export default function MemoriesPage() {
 				router.replace("/memories", { scroll: false })
 			}
 		}
-	}, [searchParams, memories, router])
+	}, [searchParams, memories, router, setSelectedMemory])
 
-	const handleCreateMemory = async (content) => {
-		const toastId = toast.loading("Adding memory...")
-		try {
-			await apiClient("/api/memories", {
+	const createMemoryMutation = useMutation({
+		mutationFn: (content) =>
+			fetch("/api/memories", {
 				method: "POST",
 				body: JSON.stringify({ content, source: "manual_entry" })
-			})
-			toast.success("Memory added successfully!", { id: toastId })
-			setIsCreateModalOpen(false)
-			await fetchData() // Refresh data
-		} catch (error) {
-			if (error instanceof ApiError && error.status === 429) {
+			}).then(async (res) => {
+				if (!res.ok) {
+					const errorData = await res.json().catch(() => ({}))
+					const error = new Error(
+						errorData.error || "Failed to add memory"
+					)
+					error.status = res.status
+					throw error
+				}
+				return res.json()
+			}),
+		onSuccess: () => {
+			toast.success("Memory added successfully!")
+			closeCreateModal()
+			queryClient.invalidateQueries({ queryKey: ["memories"] })
+		},
+		onError: (error) => {
+			if (error.status === 429) {
 				toast.error(
 					error.message ||
-						"You've reached your memory limit for the free plan.",
-					{ id: toastId }
+						"You've reached your memory limit for the free plan."
 				)
 				if (!isPro) {
-					setUpgradeModalOpen(true)
-					setIsCreateModalOpen(false) // Close the create modal
+					openUpgradeModal()
+					closeCreateModal()
 				}
 			} else {
-				toast.error(error.message, { id: toastId })
+				toast.error(error.message)
 			}
 		}
-	}
+	})
 
-	const handleUpdateMemory = async (memoryId, newContent) => {
-		const toastId = toast.loading("Updating memory...")
-		try {
-			await apiClient(`/api/memories/${memoryId}`, {
+	const updateMemoryMutation = useMutation({
+		mutationFn: ({ memoryId, newContent }) =>
+			fetch(`/api/memories/${memoryId}`, {
 				method: "PUT",
 				body: JSON.stringify({ content: newContent })
-			})
-			toast.success("Memory updated!", { id: toastId })
-			setSelectedMemory(null) // Close panel
-			await fetchData() // Refresh data
-		} catch (error) {
-			toast.error(error.message, { id: toastId })
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to update memory")
+				return res.json()
+			}),
+		onSuccess: () => {
+			toast.success("Memory updated!")
+			setSelectedMemory(null) // This will be handled by the store action
+			queryClient.invalidateQueries({ queryKey: ["memories"] })
+		},
+		onError: (error) => {
+			toast.error(error.message)
 		}
-	}
+	})
 
-	const handleDeleteMemory = async (memoryId) => {
-		const toastId = toast.loading("Deleting memory...")
-		try {
-			await apiClient(`/api/memories/${memoryId}`, {
-				method: "DELETE"
-			})
-			toast.success("Memory deleted.", { id: toastId })
-			setSelectedMemory(null) // Close panel
-			await fetchData() // Refresh data
-		} catch (error) {
-			toast.error(error.message, { id: toastId })
+	const deleteMemoryMutation = useMutation({
+		mutationFn: (memoryId) =>
+			fetch(`/api/memories/${memoryId}`, { method: "DELETE" }).then(
+				(res) => {
+					if (!res.ok) throw new Error("Failed to delete memory")
+					return res.json()
+				}
+			),
+		onSuccess: () => {
+			toast.success("Memory deleted.")
+			setSelectedMemory(null)
+			queryClient.invalidateQueries({ queryKey: ["memories"] })
+		},
+		onError: (error) => {
+			toast.error(error.message)
 		}
-	}
+	})
 
 	const ViewSwitcher = () => (
 		<div className="flex flex-wrap items-center gap-2">
@@ -792,12 +825,12 @@ export default function MemoriesPage() {
 		<div className="flex-1 flex h-screen text-white overflow-hidden">
 			<UpgradeToProModal
 				isOpen={isUpgradeModalOpen}
-				onClose={() => setUpgradeModalOpen(false)}
+				onClose={closeUpgradeModal}
 			/>
 			<AnimatePresence>
 				{isInfoPanelOpen && (
 					<InfoPanel
-						onClose={() => setIsInfoPanelOpen(false)}
+						onClose={closeInfoPanel}
 						title={
 							<div className="flex items-center gap-2">
 								<IconSparkles /> About Memories
@@ -878,7 +911,7 @@ export default function MemoriesPage() {
 						<div className="w-px h-8 bg-neutral-700 hidden sm:block"></div>
 						<ViewSwitcher />
 						<button
-							onClick={() => setIsInfoPanelOpen(true)}
+							onClick={openInfoPanel}
 							className="p-2 rounded-full bg-neutral-800/50 hover:bg-neutral-700/80 text-white"
 							aria-label="About memories"
 						>
@@ -951,19 +984,23 @@ export default function MemoriesPage() {
 					)}
 				</main>
 			</div>
-			<Drawer
-				isOpen={!!selectedMemory}
-				onClose={() => setSelectedMemory(null)}
-			>
-				<MemoryDetailPanel
-					memory={selectedMemory}
-					onClose={() => setSelectedMemory(null)}
-					onUpdate={handleUpdateMemory}
-					onDelete={handleDeleteMemory}
-				/>
-			</Drawer>
+			<AnimatePresence>
+				{selectedMemory && (
+					<MemoryDetailPanel
+						memory={selectedMemory}
+						onClose={() => setSelectedMemory(null)}
+						onUpdate={(id, content) =>
+							updateMemoryMutation.mutate({
+								memoryId: id,
+								newContent: content
+							})
+						}
+						onDelete={(id) => deleteMemoryMutation.mutate(id)}
+					/>
+				)}
+			</AnimatePresence>
 			<button
-				onClick={() => setIsCreateModalOpen(true)}
+				onClick={openCreateModal}
 				className="fixed bottom-6 right-6 z-40 p-4 bg-brand-orange text-black rounded-full shadow-lg hover:bg-brand-orange/90 transition-transform hover:scale-105"
 				aria-label="Add new memory"
 			>
@@ -972,8 +1009,10 @@ export default function MemoriesPage() {
 			<AnimatePresence>
 				{isCreateModalOpen && (
 					<CreateMemoryModal
-						onClose={() => setIsCreateModalOpen(false)}
-						onCreate={handleCreateMemory}
+						onClose={closeCreateModal}
+						onCreate={(content) =>
+							createMemoryMutation.mutate(content)
+						}
 						userDetails={userDetails}
 					/>
 				)}

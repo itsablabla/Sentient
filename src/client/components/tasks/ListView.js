@@ -124,10 +124,10 @@ const ListView = ({
 				(task) =>
 					(task.name || "")
 						.toLowerCase()
-						.includes(searchQuery.toLowerCase()) ||
+						.includes(searchQuery?.toLowerCase()) ||
 					(task.description || "")
 						.toLowerCase()
-						.includes(searchQuery.toLowerCase())
+						.includes(searchQuery?.toLowerCase())
 			)
 		}
 

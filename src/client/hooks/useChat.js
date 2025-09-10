@@ -5,8 +5,6 @@ import { useSearchParams, useRouter } from "next/navigation"
 import toast from "react-hot-toast"
 import { usePostHog } from "posthog-js/react"
 import { WebRTCClient } from "@lib/webrtc-client"
-import { usePlan } from "@hooks/usePlan"
-import { useTour } from "@components/LayoutWrapper"
 
 function usePrevious(value) {
 	const ref = useRef()
@@ -95,7 +93,7 @@ export const useChat = () => {
 	}, [])
 
 	const fetchInitialMessages = useCallback(async () => {
-		if (tourState.isActive) {
+		if (tourState?.isActive) {
 			setIsLoading(false)
 			return
 		}
@@ -119,7 +117,7 @@ export const useChat = () => {
 		} finally {
 			setIsLoading(false)
 		}
-	}, [tourState.isActive])
+	}, [tourState?.isActive])
 
 	const fetchUserDetails = useCallback(async () => {
 		try {
@@ -138,10 +136,10 @@ export const useChat = () => {
 
 	useEffect(() => {
 		// When tour becomes inactive, refetch original messages
-		if (!tourState.isActive && prevTourState?.isActive) {
+		if (!tourState?.isActive && prevTourState?.isActive) {
 			fetchInitialMessages()
 		}
-	}, [tourState.isActive, prevTourState?.isActive, fetchInitialMessages])
+	}, [tourState?.isActive, prevTourState?.isActive, fetchInitialMessages])
 
 	useEffect(() => {
 		fetchInitialMessages()
@@ -157,12 +155,12 @@ export const useChat = () => {
 		if (
 			searchParams.get("show_demo") === "true" &&
 			startTour &&
-			!tourState.isActive
+			!tourState?.isActive
 		) {
 			startTour()
 			router.replace("/chat", { scroll: false }) // Keep this to clean URL
 		}
-	}, [searchParams, router, startTour, tourState.isActive])
+	}, [searchParams, router, startTour, tourState?.isActive])
 
 	useEffect(() => {
 		const messageId = searchParams.get("messageId")
@@ -229,7 +227,7 @@ export const useChat = () => {
 		if (textareaRef.current) textareaRef.current.style.height = "auto"
 
 		try {
-			if (tourState.isActive && tourState.step === 1) {
+			if (tourState?.isActive && tourState.step === 1) {
 				// --- TOUR SIMULATION ---
 				const subStep = tourState.subStep
 				setHighlightPaused(true) // Pause highlight as soon as message is sent

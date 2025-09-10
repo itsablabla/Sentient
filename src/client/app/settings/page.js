@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import toast from "react-hot-toast"
 import {
 	// ICONS
@@ -19,9 +20,11 @@ import {
 	IconRefresh,
 	IconUsers
 } from "@tabler/icons-react"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useCallback } from "react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Tooltip } from "react-tooltip"
 import { cn } from "@utils/cn"
+import { useUserStore } from "@stores/app-stores"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import { sendNotificationToCurrentUser } from "@app/actions"
 import { Button } from "@components/ui/button"
@@ -207,62 +210,78 @@ const questions = [
 ]
 
 const WhatsAppSettings = () => {
-	// State for System Notifications
+	const queryClient = useQueryClient()
 	const [notificationNumber, setNotificationNumber] = useState("")
-	const [isNotifLoading, setIsNotifLoading] = useState(true)
-	const [isSaving, setIsSaving] = useState(false)
-	const [notificationsEnabled, setNotificationsEnabled] = useState(false)
 
-	const fetchNotificationSettings = useCallback(async () => {
-		setIsNotifLoading(true)
-		try {
-			const data = await apiClient("/api/settings/whatsapp-notifications")
+	const { data: settings, isLoading: isNotifLoading } = useQuery({
+		queryKey: ["whatsappNotificationSettings"],
+		queryFn: async () => {
+			const response = await fetch("/api/settings/whatsapp-notifications")
+			if (!response.ok)
+				throw new Error(
+					"Failed to fetch WhatsApp notification settings."
+				)
+			const data = await response.json()
 			setNotificationNumber(data.whatsapp_notifications_number || "")
-			setNotificationsEnabled(data.notifications_enabled || false)
-		} catch (error) {
-			toast.error(error.message)
-		} finally {
-			setIsNotifLoading(false)
+			return data
 		}
-	}, [])
+	})
 
-	useEffect(() => {
-		fetchNotificationSettings()
-	}, [fetchNotificationSettings])
+	const notificationsEnabled = settings?.notifications_enabled || false
 
-	const handleSaveNotifNumber = async () => {
-		setIsSaving(true)
-		try {
-			await apiClient("/api/settings/whatsapp-notifications", {
+	const saveNumberMutation = useMutation({
+		mutationFn: (number) =>
+			fetch("/api/settings/whatsapp-notifications", {
 				method: "POST",
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					whatsapp_notifications_number: notificationNumber
+					whatsapp_notifications_number: number
 				})
-			})
+			}).then(async (res) => {
+				if (!res.ok) {
+					const data = await res.json()
+					throw new Error(data.detail || "Failed to save number.")
+				}
+				return res.json()
+			}),
+		onSuccess: () => {
 			toast.success("Notifications enabled for this number!")
-		} catch (error) {
-			toast.error(error.message)
-		} finally {
-			setIsSaving(false)
-		}
-	}
+			queryClient.invalidateQueries({
+				queryKey: ["whatsappNotificationSettings"]
+			})
+		},
+		onError: (error) => toast.error(error.message)
+	})
 
-	const handleToggleNotifications = async (enabled) => {
-		setNotificationsEnabled(enabled)
-		const toastId = toast.loading(
-			enabled ? "Enabling notifications..." : "Disabling notifications..."
-		)
-		try {
-			const data = await apiClient(
-				"/api/settings/whatsapp-notifications/toggle",
-				{ method: "POST", body: JSON.stringify({ enabled }) }
-			)
-			toast.success(data.message, { id: toastId })
-		} catch (error) {
-			setNotificationsEnabled(!enabled)
+	const toggleNotificationsMutation = useMutation({
+		mutationFn: (enabled) =>
+			fetch("/api/settings/whatsapp-notifications/toggle", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ enabled })
+			}).then(async (res) => {
+				if (!res.ok) {
+					const data = await res.json()
+					throw new Error(
+						data.detail || "Failed to update preference."
+					)
+				}
+				return res.json()
+			}),
+		onSuccess: (data) => {
+			toast.success(data.message)
+			queryClient.invalidateQueries({
+				queryKey: ["whatsappNotificationSettings"]
+			})
+		},
+		onError: (error) => {
 			toast.error(error.message)
+			// Revert optimistic update on error by invalidating
+			queryClient.invalidateQueries({
+				queryKey: ["whatsappNotificationSettings"]
+			})
 		}
-	}
+	})
 
 	const hasNotifNumber =
 		notificationNumber && notificationNumber.trim() !== ""
@@ -303,7 +322,7 @@ const WhatsAppSettings = () => {
 								<button
 									id="whatsapp-toggle"
 									onClick={() =>
-										handleToggleNotifications(
+										toggleNotificationsMutation.mutate(
 											!notificationsEnabled
 										)
 									}
@@ -347,14 +366,18 @@ const WhatsAppSettings = () => {
 								</div>
 								<div className="flex gap-2 justify-end">
 									<Button
-										onClick={handleSaveNotifNumber}
+										onClick={() =>
+											saveNumberMutation.mutate(
+												notificationNumber
+											)
+										}
 										disabled={
-											isSaving ||
+											saveNumberMutation.isPending ||
 											!notificationNumber.trim()
 										}
 										className="gap-2 bg-brand-orange hover:bg-brand-orange/70 text-white font-medium"
 									>
-										{isSaving ? (
+										{saveNumberMutation.isPending ? (
 											<IconLoader className="w-4 h-4 mr-2 animate-spin" />
 										) : (
 											<IconPlus className="w-4 h-4 mr-2" />
@@ -834,9 +857,10 @@ const TestingTools = () => {
 }
 
 const ProfileSettings = ({ initialData, onSave, isSaving }) => {
-	const [formData, setFormData] = useState(initialData || {})
+	const [formData, setFormData] = useState({})
 
-	useEffect(() => {
+	// biome-ignore lint/correctness/useExhaustiveDependencies: We only want this to run when initialData changes
+	React.useEffect(() => {
 		setFormData(initialData || {})
 	}, [initialData])
 
@@ -1094,52 +1118,45 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 }
 
 export default function SettingsPage() {
-	const [profileData, setProfileData] = useState(null)
-	const [isSavingProfile, setIsSavingProfile] = useState(false)
+	const queryClient = useQueryClient()
 
-	const handleSaveProfile = async (newOnboardingData) => {
-		setIsSavingProfile(true)
-		try {
-			const payload = {
-				onboardingAnswers: newOnboardingData,
-				personalInfo: {
-					name: newOnboardingData["user-name"],
-					location: newOnboardingData["location"],
-					timezone: newOnboardingData["timezone"]
-				},
-				preferences: {}
-			}
+	const {
+		user: profileData,
+		isLoading: isProfileLoading,
+		fetchUserData
+	} = useUserStore()
 
-			await apiClient("/api/settings/profile", {
+	React.useEffect(() => { fetchUserData() }, [fetchUserData])
+
+	const saveProfileMutation = useMutation({
+		mutationFn: (newOnboardingData) => {
+			return fetch("/api/settings/profile", {
 				method: "POST",
-				body: JSON.stringify(payload)
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					onboardingAnswers: newOnboardingData,
+					personalInfo: {
+						name: newOnboardingData["user-name"],
+						location: newOnboardingData["location"],
+						timezone: newOnboardingData["timezone"]
+					},
+					preferences: {}
+				})
+			}).then(async (res) => {
+				if (!res.ok) {
+					const errorData = await res.json()
+					throw new Error(errorData.error || "Failed to save profile")
+				}
+				return res.json()
 			})
+		},
+		onSuccess: () => {
 			toast.success("Profile updated successfully!")
-			fetchData() // Refresh data to show changes
-		} catch (error) {
+			queryClient.invalidateQueries({ queryKey: ["userProfileData"] })
+		},
+		onError: (error) =>
 			toast.error(`Error saving profile: ${error.message}`)
-		} finally {
-			setIsSavingProfile(false)
-		}
-	}
-
-	const fetchData = useCallback(async () => {
-		try {
-			const [result, profile] = await Promise.all([
-				apiClient("/api/user/data", { method: "POST" }),
-				apiClient("/api/user/profile")
-			])
-			if (result.data) {
-				setProfileData({ ...profile, ...result.data })
-			}
-		} catch (error) {
-			toast.error(`Failed to fetch user data: ${error.message}`)
-		}
-	}, [])
-
-	useEffect(() => {
-		fetchData()
-	}, [fetchData])
+	})
 
 	return (
 		<div className="flex-1 flex h-screen text-white overflow-x-hidden">
@@ -1164,11 +1181,19 @@ export default function SettingsPage() {
 
 				<main className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-10 pb-4 sm:pb-6 md:pb-10 custom-scrollbar">
 					<div className="w-full max-w-4xl mx-auto space-y-12">
-						<ProfileSettings
-							initialData={profileData?.onboardingAnswers}
-							onSave={handleSaveProfile}
-							isSaving={isSavingProfile}
-						/>
+						{isProfileLoading ? (
+							<div className="flex justify-center items-center h-64">
+								<IconLoader className="animate-spin text-brand-orange" />
+							</div>
+						) : (
+							<ProfileSettings
+								initialData={profileData?.onboardingAnswers}
+								onSave={(data) =>
+									saveProfileMutation.mutate(data)
+								}
+								isSaving={saveProfileMutation.isPending}
+							/>
+						)}
 						<div data-tour-id="notifications-section">
 							<WhatsAppSettings />
 						</div>
