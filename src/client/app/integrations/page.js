@@ -1,4 +1,3 @@
-// src/client/app/integrations/page.js
 "use client"
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
@@ -71,6 +70,7 @@ import { useRouter } from "next/navigation"
 import { INTEGRATION_CAPABILITIES } from "@utils/integration-capabilities"
 import { Button } from "@components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@components/ui/card"
+import apiClient from "@lib/apiClient"
 
 const integrationColorIcons = {
 	gmail: IconMail,
@@ -260,8 +260,6 @@ const WhatsAppDisclaimerModal = ({ isOpen, onAgree, onClose }) => {
 	)
 }
 
-const MANUAL_INTEGRATION_CONFIGS = {} // Manual integrations removed for Slack and Notion
-
 const WhatsAppQRCodeModal = ({ onClose }) => {
 	const [qrCode, setQrCode] = useState(null)
 	const [status, setStatus] = useState("initiating") // initiating, scanning, working,const WhatsAppQRCodeModal = ({ onClose }) => {
@@ -277,13 +275,9 @@ const WhatsAppQRCodeModal = ({ onClose }) => {
 
 	const pollStatus = useCallback(async () => {
 		try {
-			const res = await fetch(
+			const data = await apiClient(
 				"/api/settings/integrations/whatsapp/status"
 			)
-			const data = await res.json()
-			if (!res.ok) {
-				throw new Error(data.error || "Failed to get status")
-			}
 			if (data.status === "WORKING") {
 				setStatus("working")
 				toast.success("WhatsApp connected successfully!")
@@ -307,14 +301,10 @@ const WhatsAppQRCodeModal = ({ onClose }) => {
 		setStatus("initiating")
 		setError("")
 		try {
-			const res = await fetch(
+			const data = await apiClient(
 				"/api/settings/integrations/whatsapp/connect/initiate",
 				{ method: "POST" }
 			)
-			const data = await res.json()
-			if (!res.ok) {
-				throw new Error(data.error || "Failed to get QR code")
-			}
 			setQrCode(data.data)
 			setStatus("scanning")
 
@@ -473,11 +463,9 @@ const PrivacySettings = ({ serviceName }) => {
 	const fetchFilters = useCallback(async () => {
 		setIsLoading(true)
 		try {
-			const response = await fetch(
+			const data = await apiClient(
 				`/api/settings/privacy-filters?service=${serviceName}`
 			)
-			if (!response.ok) throw new Error("Failed to fetch filters.")
-			const data = await response.json()
 			setFilters(data.filters)
 		} catch (error) {
 			toast.error(error.message)
@@ -493,15 +481,13 @@ const PrivacySettings = ({ serviceName }) => {
 	const handleSaveFilters = async (updatedFilters) => {
 		setIsLoading(true)
 		try {
-			const response = await fetch("/api/settings/privacy-filters", {
+			await apiClient("/api/settings/privacy-filters", {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					service: serviceName,
 					filters: updatedFilters
 				})
 			})
-			if (!response.ok) throw new Error("Failed to save filters.")
 			toast.success("Privacy filters updated.")
 			setFilters(updatedFilters)
 		} catch (error) {
@@ -860,13 +846,10 @@ const IntegrationsPage = () => {
 	const fetchIntegrations = useCallback(async () => {
 		setLoading(true)
 		try {
-			const response = await fetch("/api/settings/integrations", {
-				method: "POST",
+			const data = await apiClient("/api/settings/integrations", {
+				method: "POST", // This endpoint expects POST
 				cache: "no-store"
 			})
-			const data = await response.json()
-			if (!response.ok)
-				throw new Error(data.error || "Failed to fetch integrations")
 
 			const integrationsWithIcons = (data.integrations || []).map(
 				(ds) => ({
@@ -917,8 +900,7 @@ const IntegrationsPage = () => {
 		if (isProFeature) {
 			const toastId = toast.loading("Preparing secure connection...")
 			try {
-				const res = await fetch("/api/auth/refresh-session")
-				if (!res.ok) throw new Error("Session refresh failed")
+				await apiClient("/api/auth/refresh-session")
 				toast.dismiss(toastId)
 			} catch (e) {
 				toast.error("Could not prepare connection. Please try again.", {
@@ -1023,17 +1005,13 @@ const IntegrationsPage = () => {
 			// Store service name for callback handling
 			localStorage.setItem("composio_pending_service", serviceName)
 
-			const response = await fetch(
+			const data = await apiClient(
 				"/api/settings/integrations/connect/composio/initiate",
 				{
 					method: "POST",
-					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ service_name: serviceName })
 				}
 			)
-			const data = await response.json()
-			if (!response.ok)
-				throw new Error(data.error || "Failed to start connection.")
 			window.location.href = data.redirect_url
 		} catch (error) {
 			toast.error(`Connection failed: ${error.message}`)
@@ -1061,14 +1039,10 @@ const IntegrationsPage = () => {
 					? {}
 					: { service_name: integrationName }
 
-			const response = await fetch(apiEndpoint, {
+			await apiClient(apiEndpoint, {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(bodyPayload)
 			})
-
-			if (!response.ok)
-				throw new Error(`Failed to disconnect ${displayName}`)
 			posthog?.capture("integration_disconnected", {
 				integration_name: integrationName
 			})
@@ -1110,23 +1084,16 @@ const IntegrationsPage = () => {
 				)
 				localStorage.removeItem("composio_pending_service") // Clean up immediately
 				try {
-					const response = await fetch(
+					const data = await apiClient(
 						"/api/settings/integrations/connect/composio/finalize",
 						{
 							method: "POST",
-							headers: { "Content-Type": "application/json" },
 							body: JSON.stringify({
 								service_name: pendingService,
 								connectedAccountId: connectedAccountId
 							})
 						}
 					)
-					const data = await response.json()
-					if (!response.ok) {
-						throw new Error(
-							data.error || "Failed to finalize connection."
-						)
-					}
 
 					toast.success(data.message, { id: toastId })
 					posthog?.capture("integration_connected", {
@@ -1168,24 +1135,16 @@ const IntegrationsPage = () => {
 					)
 					try {
 						// Use the manual connection endpoint to save the user's token
-						const response = await fetch(
+						await apiClient(
 							"/api/settings/integrations/connect/manual",
 							{
 								method: "POST",
-								headers: { "Content-Type": "application/json" },
 								body: JSON.stringify({
 									service_name: "trello",
 									credentials: { token: t } // Trello returns a single token
 								})
 							}
 						)
-						if (!response.ok) {
-							const errorData = await response.json()
-							throw new Error(
-								errorData.error ||
-									"Failed to save Trello token."
-							)
-						}
 						// This will trigger the success toast and state refresh below
 						router.replace(
 							"/integrations?integration_success=trello",

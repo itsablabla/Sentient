@@ -30,6 +30,7 @@ import { usePlan } from "@hooks/usePlan"
 import { useTour } from "@components/LayoutWrapper"
 import { Drawer } from "@components/ui/drawer"
 import { Button } from "@components/ui/button"
+import apiClient from "@lib/apiClient"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -357,20 +358,12 @@ function TasksPageContent() {
 		}
 		setIsLoading(true)
 		try {
-			const tasksRes = await fetch("/api/tasks", { method: "POST" })
-			if (!tasksRes.ok) throw new Error("Failed to fetch tasks")
-			const tasksData = await tasksRes.json()
+			const tasksData = await apiClient("/api/tasks", { method: "POST" })
 			const rawTasks = Array.isArray(tasksData.tasks)
 				? tasksData.tasks
 				: []
 			setAllTasks(rawTasks)
-
-			const integrationsRes = await fetch("/api/settings/integrations", {
-				method: "POST"
-			})
-			if (!integrationsRes.ok)
-				throw new Error("Failed to fetch integrations")
-			const integrationsData = await integrationsRes.json()
+			const integrationsData = await apiClient("/api/settings/integrations", { method: "POST" })
 			setIntegrations(integrationsData.integrations || [])
 			const tools = integrationsData.integrations.map((i) => ({
 				name: i.name,
@@ -416,11 +409,7 @@ function TasksPageContent() {
 		async (actionFn, successMessage, ...args) => {
 			const toastId = toast.loading("Processing...")
 			try {
-				const response = await actionFn(...args)
-				if (!response.ok) {
-					const errorData = await response.json()
-					throw new Error(errorData.error || "Action failed")
-				}
+				await actionFn(...args)
 				toast.success(successMessage, { id: toastId })
 				await fetchTasks()
 			} catch (error) {
@@ -433,9 +422,8 @@ function TasksPageContent() {
 	const handleAnswerClarifications = async (taskId, answers) => {
 		await handleAction(
 			() =>
-				fetch("/api/tasks/answer-clarifications", {
+				apiClient("/api/tasks/answer-clarifications", {
 					method: "POST",
-					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ taskId, answers })
 				}),
 			"Answers submitted successfully. The task will now resume."
@@ -450,9 +438,8 @@ function TasksPageContent() {
 	) => {
 		await handleAction(
 			() =>
-				fetch(`/api/tasks/${taskId}/answer-clarification`, {
+				apiClient(`/api/tasks/${taskId}/answer-clarification`, {
 					method: "POST",
-					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ requestId, answer })
 				}),
 			"Answer submitted. The task will now resume."
@@ -464,18 +451,10 @@ function TasksPageContent() {
 			view === "workflows" ? "Creating workflow..." : "Creating task..."
 		)
 		try {
-			const response = await fetch("/api/tasks/add", {
+			const data = await apiClient("/api/tasks/add", {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(payload)
 			})
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({}))
-				const error = new Error(errorData.error || "Failed to add task")
-				error.status = response.status
-				throw error
-			}
-			const data = await response.json()
 
 			toast.success(
 				data.message ||
@@ -488,7 +467,7 @@ function TasksPageContent() {
 			// The view is already correct, so no need to set it again.
 			// This fixes the issue of being switched to 'tasks' after creating a workflow.
 		} catch (error) {
-			if (error.status === 429) {
+			if (error.status === 429) { // ApiError has status property
 				toast.error(
 					error.message || "You've reached your daily task limit.",
 					{ id: toastId }
@@ -503,9 +482,8 @@ function TasksPageContent() {
 	const handleResumeTask = async (taskId) => {
 		await handleAction(
 			() =>
-				fetch(`/api/tasks/${taskId}/action`, {
+				apiClient(`/api/tasks/${taskId}/action`, {
 					method: "POST",
-					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ action: "resume" })
 				}),
 			"Task resumed."
@@ -515,9 +493,8 @@ function TasksPageContent() {
 	const handleUpdateTask = async (updatedTask) => {
 		await handleAction(
 			() =>
-				fetch("/api/tasks/update", {
+				apiClient("/api/tasks/update", {
 					method: "POST",
-					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
 						...updatedTask,
 						taskId: updatedTask.task_id
@@ -558,32 +535,21 @@ function TasksPageContent() {
 			onSelectTask={handleSelectItem}
 			onDelete={(taskId) =>
 				handleAction(
-					() =>
-						fetch(`/api/tasks/delete`, {
-							method: "POST",
-							body: JSON.stringify({ taskId }),
-							headers: { "Content-Type": "application/json" }
-						}),
+					() => apiClient(`/api/tasks/delete`, { method: "POST", body: JSON.stringify({ taskId }) }),
 					"Task deleted."
 				)
 			}
 			onApprove={(taskId) =>
 				handleAction(
-					() =>
-						fetch(`/api/tasks/approve`, {
-							method: "POST",
-							body: JSON.stringify({ taskId }),
-							headers: { "Content-Type": "application/json" }
-						}),
+					() => apiClient(`/api/tasks/approve`, { method: "POST", body: JSON.stringify({ taskId }) }),
 					"Task approved."
 				)
 			}
 			onRerun={(taskId) =>
 				handleAction(
 					() =>
-						fetch("/api/tasks/rerun", {
+						apiClient("/api/tasks/rerun", {
 							method: "POST",
-							headers: { "Content-Type": "application/json" },
 							body: JSON.stringify({ taskId })
 						}),
 					"Task re-run initiated."
@@ -592,13 +558,12 @@ function TasksPageContent() {
 			onArchiveTask={(taskId) =>
 				handleAction(
 					() =>
-						fetch(`/api/tasks/update`, {
+						apiClient(`/api/tasks/update`, {
 							method: "POST",
 							body: JSON.stringify({
 								taskId,
 								status: "archived"
-							}),
-							headers: { "Content-Type": "application/json" }
+							})
 						}),
 					"Task archived."
 				)
@@ -606,10 +571,9 @@ function TasksPageContent() {
 			onSendChatMessage={(taskId, message) =>
 				handleAction(
 					() =>
-						fetch(`/api/tasks/chat`, {
+						apiClient(`/api/tasks/chat`, {
 							method: "POST",
-							body: JSON.stringify({ taskId, message }),
-							headers: { "Content-Type": "application/json" }
+							body: JSON.stringify({ taskId, message })
 						}),
 					"Message sent."
 				)

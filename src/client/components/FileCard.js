@@ -4,21 +4,16 @@ import React from "react"
 import { IconFile, IconDownload } from "@tabler/icons-react"
 import { cn } from "@utils/cn"
 import toast from "react-hot-toast"
+import apiClient from "@lib/apiClient"
 
 const FileCard = ({ filename }) => {
 	const handleDownload = async () => {
 		const toastId = toast.loading(`Downloading ${filename}...`)
 		try {
-			const response = await fetch(
-				`/api/files/download/${encodeURIComponent(filename)}`
+			const blob = await apiClient(
+				`/api/files/download/${encodeURIComponent(filename)}`,
+				{ responseType: "blob" }
 			)
-
-			if (!response.ok) {
-				const errorData = await response.json()
-				throw new Error(errorData.error || "Download failed")
-			}
-
-			const blob = await response.blob()
 			const url = window.URL.createObjectURL(blob)
 			const a = document.createElement("a")
 			a.href = url

@@ -31,6 +31,7 @@ import {
 	AccordionItem,
 	AccordionTrigger
 } from "@components/ui/accordion"
+import apiClient from "@lib/apiClient"
 
 const handleTestPush = async () => {
 	const toastId = toast.loading("Sending test push notification...")
@@ -67,15 +68,10 @@ const questionSections = {
 const handleTestInApp = async () => {
 	const toastId = toast.loading("Sending test in-app notification...")
 	try {
-		const response = await fetch("/api/testing/notification", {
+		await apiClient("/api/testing/notification", {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ type: "in-app" })
 		})
-		const result = await response.json()
-		if (!response.ok) {
-			throw new Error(result.detail || "Failed to send notification.")
-		}
 		// The notification will arrive via WebSocket, so no success toast here.
 		// The LayoutWrapper will show the toast. I'll just dismiss the loading one.
 		toast.dismiss(toastId)
@@ -220,12 +216,7 @@ const WhatsAppSettings = () => {
 	const fetchNotificationSettings = useCallback(async () => {
 		setIsNotifLoading(true)
 		try {
-			const response = await fetch("/api/settings/whatsapp-notifications") // prettier-ignore
-			if (!response.ok)
-				throw new Error(
-					"Failed to fetch WhatsApp notification settings."
-				)
-			const data = await response.json()
+			const data = await apiClient("/api/settings/whatsapp-notifications")
 			setNotificationNumber(data.whatsapp_notifications_number || "")
 			setNotificationsEnabled(data.notifications_enabled || false)
 		} catch (error) {
@@ -242,19 +233,12 @@ const WhatsAppSettings = () => {
 	const handleSaveNotifNumber = async () => {
 		setIsSaving(true)
 		try {
-			const response = await fetch(
-				"/api/settings/whatsapp-notifications",
-				{
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						whatsapp_notifications_number: notificationNumber
-					})
-				}
-			)
-			const data = await response.json()
-			if (!response.ok)
-				throw new Error(data.detail || "Failed to save number.")
+			await apiClient("/api/settings/whatsapp-notifications", {
+				method: "POST",
+				body: JSON.stringify({
+					whatsapp_notifications_number: notificationNumber
+				})
+			})
 			toast.success("Notifications enabled for this number!")
 		} catch (error) {
 			toast.error(error.message)
@@ -269,19 +253,10 @@ const WhatsAppSettings = () => {
 			enabled ? "Enabling notifications..." : "Disabling notifications..."
 		)
 		try {
-			const response = await fetch(
+			const data = await apiClient(
 				"/api/settings/whatsapp-notifications/toggle",
-				{
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ enabled })
-				}
+				{ method: "POST", body: JSON.stringify({ enabled }) }
 			)
-			const data = await response.json()
-			if (!response.ok) {
-				setNotificationsEnabled(!enabled)
-				throw new Error(data.detail || "Failed to update preference.")
-			}
 			toast.success(data.message, { id: toastId })
 		} catch (error) {
 			setNotificationsEnabled(!enabled)
@@ -480,18 +455,13 @@ const TestingTools = () => {
 		}
 
 		try {
-			const response = await fetch("/api/testing/inject-context", {
+			const result = await apiClient("/api/testing/inject-context", {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					service_name: serviceName,
 					event_data: parsedData
 				})
 			})
-			const result = await response.json()
-			if (!response.ok) {
-				throw new Error(result.error || "Failed to inject event.")
-			}
 			toast.success(
 				`Event injected successfully! Event ID: ${result.event_id}`
 			)
@@ -522,15 +492,9 @@ const TestingTools = () => {
 			"Queueing onboarding data for memory reprocessing..."
 		)
 		try {
-			const response = await fetch("/api/testing/reprocess-onboarding", {
+			const result = await apiClient("/api/testing/reprocess-onboarding", {
 				method: "POST"
 			})
-			const result = await response.json()
-			if (!response.ok) {
-				throw new Error(
-					result.detail || "Failed to trigger reprocessing."
-				)
-			}
 			toast.success(result.message, { id: toastId })
 		} catch (error) {
 			toast.error(`Error: ${error.message}`, { id: toastId })
@@ -552,13 +516,9 @@ const TestingTools = () => {
 	const handleTriggerScheduler = async () => {
 		setIsTriggeringScheduler(true)
 		try {
-			const response = await fetch("/api/testing/trigger-scheduler", {
+			const result = await apiClient("/api/testing/trigger-scheduler", {
 				method: "POST"
 			})
-			const result = await response.json()
-			if (!response.ok) {
-				throw new Error(result.detail || "Failed to trigger scheduler.")
-			}
 			toast.success(result.message)
 		} catch (error) {
 			toast.error(error.message)
@@ -569,13 +529,9 @@ const TestingTools = () => {
 	const handleTriggerPoller = async () => {
 		setIsTriggeringPoller(true)
 		try {
-			const response = await fetch("/api/testing/trigger-poller", {
+			const result = await apiClient("/api/testing/trigger-poller", {
 				method: "POST"
 			})
-			const result = await response.json()
-			if (!response.ok) {
-				throw new Error(result.detail || "Failed to trigger poller.")
-			}
 			toast.success(result.message)
 		} catch (error) {
 			toast.error(error.message)
@@ -592,15 +548,10 @@ const TestingTools = () => {
 		setIsVerifying(true)
 		setVerificationResult({ status: null, message: "Verifying..." })
 		try {
-			const response = await fetch("/api/testing/whatsapp/verify", {
+			const result = await apiClient("/api/testing/whatsapp/verify", {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ phone_number: whatsAppNumber })
 			})
-			const result = await response.json()
-			if (!response.ok) {
-				throw new Error(result.detail || "Verification request failed.")
-			}
 
 			if (result.numberExists) {
 				toast.success("Verification successful!")
@@ -631,17 +582,10 @@ const TestingTools = () => {
 		}
 		setIsSending(true)
 		try {
-			const response = await fetch("/api/testing/whatsapp", {
+			await apiClient("/api/testing/whatsapp", {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ phone_number: whatsAppNumber })
 			})
-			const result = await response.json()
-			if (!response.ok) {
-				throw new Error(
-					result.detail || "Failed to send test notification."
-				)
-			}
 			toast.success("Test notification sent successfully!")
 		} catch (error) {
 			toast.error(`Send failed: ${error.message}`)
@@ -1166,16 +1110,10 @@ export default function SettingsPage() {
 				preferences: {}
 			}
 
-			const response = await fetch("/api/settings/profile", {
+			await apiClient("/api/settings/profile", {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(payload)
 			})
-
-			if (!response.ok) {
-				const errorData = await response.json()
-				throw new Error(errorData.error || "Failed to save profile")
-			}
 			toast.success("Profile updated successfully!")
 			fetchData() // Refresh data to show changes
 		} catch (error) {
@@ -1187,20 +1125,10 @@ export default function SettingsPage() {
 
 	const fetchData = useCallback(async () => {
 		try {
-			const [response, profileResponse] = await Promise.all([
-				fetch("/api/user/data", { method: "POST" }),
-				fetch("/api/user/profile")
+			const [result, profile] = await Promise.all([
+				apiClient("/api/user/data", { method: "POST" }),
+				apiClient("/api/user/profile")
 			])
-			if (!response.ok) {
-				const errorData = await response.json()
-				throw new Error(
-					errorData.message || "Failed to fetch user data"
-				)
-			}
-			if (!profileResponse.ok)
-				throw new Error("Failed to fetch user profile")
-			const result = await response.json()
-			const profile = await profileResponse.json()
 			if (result.data) {
 				setProfileData({ ...profile, ...result.data })
 			}

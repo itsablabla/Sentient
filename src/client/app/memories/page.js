@@ -41,6 +41,7 @@ import { Button } from "@components/ui/button"
 import { Card, CardContent, CardFooter } from "@components/ui/card"
 import { Drawer } from "@components/ui/drawer"
 import { Textarea } from "@components/ui/textarea"
+import apiClient, { ApiError } from "@lib/apiClient"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -671,19 +672,12 @@ export default function MemoriesPage() {
 		setIsLoading(true)
 		try {
 			if (view === "list") {
-				const response = await fetch("/api/memories", {
+				const data = await apiClient("/api/memories", {
 					cache: "no-store"
 				})
-				if (!response.ok) throw new Error("Failed to fetch memories.")
-				const data = await response.json()
 				setMemories(data.memories || [])
 			} else {
-				const response = await fetch("/api/memories/graph", {
-					cache: "no-store"
-				})
-				if (!response.ok)
-					throw new Error("Failed to fetch memory graph data.")
-				const data = await response.json()
+				const data = await apiClient("/api/memories/graph", { cache: "no-store" })
 				setGraphData(data)
 				// Also update the flat list for topic filtering consistency
 				setMemories(data.nodes || [])
@@ -697,13 +691,8 @@ export default function MemoriesPage() {
 
 	const fetchUserDetails = useCallback(async () => {
 		try {
-			const res = await fetch("/api/user/profile")
-			if (res.ok) {
-				const data = await res.json()
-				setUserDetails(data)
-			} else {
-				setUserDetails({ given_name: "User" })
-			}
+			const data = await apiClient("/api/user/profile")
+			setUserDetails(data)
 		} catch (error) {
 			console.error("Failed to fetch user details:", error)
 			setUserDetails({ given_name: "User" })
@@ -730,24 +719,15 @@ export default function MemoriesPage() {
 	const handleCreateMemory = async (content) => {
 		const toastId = toast.loading("Adding memory...")
 		try {
-			const res = await fetch("/api/memories", {
+			await apiClient("/api/memories", {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ content, source: "manual_entry" })
 			})
-			if (!res.ok) {
-				const errorData = await res.json().catch(() => ({}))
-				const error = new Error(
-					errorData.error || "Failed to add memory"
-				)
-				error.status = res.status
-				throw error
-			}
 			toast.success("Memory added successfully!", { id: toastId })
 			setIsCreateModalOpen(false)
 			await fetchData() // Refresh data
 		} catch (error) {
-			if (error.status === 429) {
+			if (error instanceof ApiError && error.status === 429) {
 				toast.error(
 					error.message ||
 						"You've reached your memory limit for the free plan.",
@@ -766,15 +746,10 @@ export default function MemoriesPage() {
 	const handleUpdateMemory = async (memoryId, newContent) => {
 		const toastId = toast.loading("Updating memory...")
 		try {
-			const res = await fetch(`/api/memories/${memoryId}`, {
+			await apiClient(`/api/memories/${memoryId}`, {
 				method: "PUT",
-				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ content: newContent })
 			})
-			if (!res.ok) {
-				const errorData = await res.json()
-				throw new Error(errorData.error || "Failed to update memory")
-			}
 			toast.success("Memory updated!", { id: toastId })
 			setSelectedMemory(null) // Close panel
 			await fetchData() // Refresh data
@@ -786,13 +761,9 @@ export default function MemoriesPage() {
 	const handleDeleteMemory = async (memoryId) => {
 		const toastId = toast.loading("Deleting memory...")
 		try {
-			const res = await fetch(`/api/memories/${memoryId}`, {
+			await apiClient(`/api/memories/${memoryId}`, {
 				method: "DELETE"
 			})
-			if (!res.ok) {
-				const errorData = await res.json()
-				throw new Error(errorData.error || "Failed to delete memory")
-			}
 			toast.success("Memory deleted.", { id: toastId })
 			setSelectedMemory(null) // Close panel
 			await fetchData() // Refresh data
