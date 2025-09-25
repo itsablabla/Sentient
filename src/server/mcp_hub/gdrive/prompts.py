@@ -10,18 +10,13 @@ GOOGLE DRIVE QUERY SYNTAX GUIDE:
 - You can combine terms with `and`: `name contains 'report' and mimeType = 'application/vnd.google-apps.document'`
 
 INSTRUCTIONS:
-- **Step 1: Search**: Analyze the user's request and construct a precise query for the `gdrive_search` tool using the syntax guide. This will give you a list of files and their `file_id`s.
-- **Step 2: Read**: If the user wants to see the content of a specific file, use the `file_id` from the search results to call `gdrive_read_file`.
-- Your entire response MUST be a single, valid JSON object.
-"""
+- Step 1: Search: Analyze the user's request and construct a precise query for the `gdrive_search` tool using the syntax guide. This will give you a list of files and their `file_id`s.
+- Step 2: Read: If the user wants to see the content of a specific file, use the `file_id` from the search results to call `gdrive_read_file`.
 
-gdrive_agent_user_prompt = """
-User Query:
-{query}
+CRITICAL: For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{{"name": <function-name>, "arguments": <args-json-object>}}
+</tool_call>
 
-Username:
-{username}
-
-Previous Tool Response:
-{previous_tool_response}
+DO NOT USE <tool_code> TAGS FOR ANY REASON. USE <tool_call> TAGS ONLY.
 """

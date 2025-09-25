@@ -3,6 +3,7 @@
 import React from "react"
 import { cn } from "@utils/cn"
 import { Tooltip } from "react-tooltip"
+import { Button } from "@components/ui/button"
 
 const ScheduleEditor = ({ schedule, setSchedule }) => {
 	const handleTypeChange = (type) => {
@@ -54,32 +55,36 @@ const ScheduleEditor = ({ schedule, setSchedule }) => {
 	}
 
 	return (
-		<div className="bg-neutral-800/50 p-4 rounded-lg space-y-4 border border-neutral-700/80">
+		<div className="bg-neutral-900/60 backdrop-blur-sm p-4 rounded-xl space-y-4 border border-neutral-700/50">
 			<div className="flex items-center gap-2">
 				{[
 					{ label: "Run Once", value: "once" },
 					{ label: "Recurring", value: "recurring" },
 					{ label: "Triggered", value: "triggered" }
 				].map(({ label, value }) => (
-					<button
+					<Button
 						key={value}
 						type="button"
 						onClick={() => handleTypeChange(value)}
-						className={cn(
-							"px-4 py-1.5 rounded-full text-sm font-medium transition-colors",
+						variant={
 							(schedule.type || "once") === value
-								? "bg-brand-orange text-brand-black font-semibold"
-								: "bg-neutral-700 hover:bg-neutral-600"
+								? "default"
+								: "secondary"
+						}
+						className={cn(
+							"rounded-full",
+							(schedule.type || "once") === value &&
+								"bg-brand-orange text-brand-black font-semibold"
 						)}
 					>
 						{label}
-					</button>
+					</Button>
 				))}
 			</div>
 
 			{(schedule.type === "once" || !schedule.type) && (
 				<div>
-					<label className="text-xs text-gray-400 block mb-1">
+					<label className="text-sm font-medium text-neutral-400 block mb-2">
 						Run At (optional, local time)
 					</label>
 					<input
@@ -87,9 +92,9 @@ const ScheduleEditor = ({ schedule, setSchedule }) => {
 						value={getLocalDateTimeString(schedule.run_at)}
 						step="1" // Ensures seconds are included in the value
 						onChange={handleRunAtChange}
-						className="w-full p-2 bg-neutral-700 border border-neutral-600 rounded-md focus:border-brand-orange focus:ring-brand-orange/50"
+						className="w-full p-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/80 [color-scheme:dark]"
 					/>
-					<p className="text-xs text-gray-500 mt-1">
+					<p className="text-xs text-neutral-500 mt-2">
 						If left blank, the task will be planned immediately.
 					</p>
 				</div>
@@ -98,7 +103,7 @@ const ScheduleEditor = ({ schedule, setSchedule }) => {
 			{schedule.type === "triggered" && (
 				<div className="space-y-4">
 					<div>
-						<label className="text-xs text-gray-400 block mb-1">
+						<label className="text-sm font-medium text-neutral-400 block mb-2">
 							Source Service
 						</label>
 						<select
@@ -109,7 +114,7 @@ const ScheduleEditor = ({ schedule, setSchedule }) => {
 									source: e.target.value
 								})
 							}
-							className="w-full p-2 bg-neutral-700 border border-neutral-600 rounded-md focus:border-brand-orange focus:ring-brand-orange/50"
+							className="w-full p-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/80"
 						>
 							<option value="gmail">Gmail</option>
 							<option value="slack">Slack</option>
@@ -117,7 +122,7 @@ const ScheduleEditor = ({ schedule, setSchedule }) => {
 						</select>
 					</div>
 					<div>
-						<label className="text-xs text-gray-400 block mb-1">
+						<label className="text-sm font-medium text-neutral-400 block mb-2">
 							Trigger Event
 						</label>
 						<input
@@ -130,11 +135,11 @@ const ScheduleEditor = ({ schedule, setSchedule }) => {
 								})
 							}
 							placeholder="e.g., new_email, new_message"
-							className="w-full p-2 bg-neutral-700 border border-neutral-600 rounded-md focus:border-brand-orange focus:ring-brand-orange/50"
+							className="w-full p-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/80"
 						/>
 					</div>
 					<div>
-						<label className="text-xs text-gray-400 block mb-1">
+						<label className="text-sm font-medium text-neutral-400 block mb-2">
 							Filter Conditions (JSON)
 						</label>
 						<textarea
@@ -152,10 +157,10 @@ const ScheduleEditor = ({ schedule, setSchedule }) => {
 								}
 							}}
 							rows={4}
-							className="w-full p-2 bg-neutral-700 border border-neutral-600 rounded-md focus:border-brand-orange focus:ring-brand-orange/50 font-mono text-xs"
+							className="w-full p-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/80 font-mono"
 							placeholder={`{\n  "from": "boss@example.com",\n  "subject_contains": "Urgent"\n}`}
 						/>
-						<p className="text-xs text-gray-500 mt-1">
+						<p className="text-xs text-neutral-500 mt-2">
 							Example: {`{"from": "user@example.com"}`}
 						</p>
 					</div>
@@ -165,7 +170,7 @@ const ScheduleEditor = ({ schedule, setSchedule }) => {
 			{schedule.type === "recurring" && (
 				<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 					<div>
-						<label className="text-xs text-gray-400 block mb-1">
+						<label className="text-sm font-medium text-neutral-400 block mb-2">
 							Frequency
 						</label>
 						<select
@@ -176,14 +181,14 @@ const ScheduleEditor = ({ schedule, setSchedule }) => {
 									frequency: e.target.value
 								})
 							}
-							className="w-full p-2 bg-neutral-700 border border-neutral-600 rounded-md focus:border-brand-orange focus:ring-brand-orange/50"
+							className="w-full p-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/80"
 						>
 							<option value="daily">Daily</option>
 							<option value="weekly">Weekly</option>
 						</select>
 					</div>
 					<div>
-						<label className="text-xs text-gray-400 block mb-1">
+						<label className="text-sm font-medium text-neutral-400 block mb-2">
 							Time (Local)
 						</label>
 						<input
@@ -195,12 +200,12 @@ const ScheduleEditor = ({ schedule, setSchedule }) => {
 									time: e.target.value
 								})
 							}
-							className="w-full p-2 bg-neutral-700 border border-neutral-600 rounded-md focus:border-brand-orange focus:ring-brand-orange/50"
+							className="w-full p-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/80 [color-scheme:dark]"
 						/>
 					</div>
 					{schedule.frequency === "weekly" && (
 						<div className="md:col-span-2">
-							<label className="text-xs text-gray-400 block mb-2">
+							<label className="text-sm font-medium text-neutral-400 block mb-2">
 								Days
 							</label>
 							<div className="flex flex-wrap gap-2">
@@ -213,19 +218,25 @@ const ScheduleEditor = ({ schedule, setSchedule }) => {
 									"Saturday",
 									"Sunday"
 								].map((day) => (
-									<button
+									<Button
 										type="button"
 										key={day}
 										onClick={() => handleDayToggle(day)}
-										className={cn(
-											"px-3 py-1.5 rounded-full text-xs font-semibold transition-colors",
+										variant={
 											(schedule.days || []).includes(day)
-												? "bg-brand-orange text-brand-black"
-												: "bg-neutral-700 hover:bg-neutral-600"
+												? "default"
+												: "secondary"
+										}
+										className={cn(
+											"rounded-full text-xs font-semibold",
+											(schedule.days || []).includes(
+												day
+											) &&
+												"bg-brand-orange text-brand-black"
 										)}
 									>
 										{day.substring(0, 3)}
-									</button>
+									</Button>
 								))}
 							</div>
 						</div>

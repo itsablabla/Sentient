@@ -40,7 +40,9 @@ celery_app = Celery(
     backend=CELERY_RESULT_BACKEND,
     include=[
         'workers.executor.tasks',
-        'workers.tasks'
+        'workers.tasks',
+        'workers.long_form_tasks',
+        'workers.retention_tasks' # Add the new module
     ]
 )
 
@@ -51,13 +53,22 @@ celery_app.conf.update(
             'task': 'run_due_tasks',
             'schedule': 300.0,
         },
-        # 'schedule-trigger-polling-every-minute': {
-        #     'task': 'schedule_trigger_polling',
-        #     'schedule': 60.0, # Runs every minute for fast triggers
-        # },
         'summarize-old-conversations-hourly': {
             'task': 'summarize_old_conversations',
             'schedule': 3600.0, # Run every hour
+        },
+        'daily-retention-campaigns': {
+            'task': 'run_daily_retention_campaigns',
+            'schedule': crontab(hour=14, minute=0), # Run daily at 14:00 UTC
+        },
+        'weekly-digest-campaign': {
+            'task': 'run_weekly_digest_campaign',
+            'schedule': crontab(day_of_week='sunday', hour=18, minute=0), # Run every Sunday at 18:00 UTC
+        },
+        'memory-lane-campaign': {
+            'task': 'run_memory_lane_campaign',
+            # Run on Mon, Wed, Fri at 16:00 UTC
+            'schedule': crontab(day_of_week='mon,wed,fri', hour=16, minute=0),
         }
     }
 )

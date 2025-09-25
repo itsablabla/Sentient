@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from fastmcp import FastMCP, Context
 from fastmcp.utilities.logging import configure_logging, get_logger
 
-from . import auth, utils, db
+from . import auth, utils, db, prompts
 
 # --- Environment and Logging Setup ---
 ENVIRONMENT = os.getenv('ENVIRONMENT', 'dev-local')
@@ -73,6 +73,10 @@ async def _execute_tool(ctx: Context, func, **kwargs) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error executing tool '{func.__name__}': {e}", exc_info=True)
         return {"status": "failure", "error": str(e)}
+
+@mcp.resource("prompt://tasks-agent-system")
+def get_tasks_system_prompt() -> str:
+    return prompts.memory_agent_system_prompt
 
 # --- Tool Definitions ---
 @mcp.tool()

@@ -1,22 +1,19 @@
 import os
-import asyncio
 from typing import Dict, Any, Optional, List
-import json
 
 from dotenv import load_dotenv
 from fastmcp import FastMCP, Context
-from fastmcp.exceptions import ToolError
 from json_extractor import JsonExtractor
-from celery import chord, group
 from datetime import datetime
-
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from main.llm import run_agent as run_main_agent
 from . import auth, prompts
 from main.dependencies import mongo_manager # This is the main server's mongo manager
-from main.llm import run_agent
-from main.config import INTEGRATIONS_CONFIG
-from main.tasks.utils import clean_llm_output
-from workers.tasks import refine_and_plan_ai_task
-from workers.executor.tasks import run_single_item_worker, aggregate_results_callback
+from main.llm import LLMProviderDownError
+from workers.long_form_tasks import start_long_form_task
+from workers.tasks import generate_plan_from_context
+from workers.utils.text_utils import clean_llm_output
+from .prompts import TASK_CREATION_PROMPT
 
 from fastmcp.utilities.logging import configure_logging, get_logger
 
@@ -41,41 +38,171 @@ mcp = FastMCP(
 def get_tasks_system_prompt() -> str:
     return prompts.tasks_agent_system_prompt
 
-@mcp.prompt(name="tasks_user_prompt_builder")
-def build_tasks_user_prompt(query: str, username: str, previous_tool_response: str = "{}") -> str:
-    return prompts.tasks_agent_user_prompt.format(query=query, username=username, previous_tool_response=previous_tool_response)
-
 @mcp.tool()
-async def create_task_from_prompt(ctx: Context, prompt: str) -> Dict[str, Any]:
+async def create_task(ctx: Context, prompt: str, auto_approve_subtasks: bool = False) -> Dict[str, Any]:
     """
-    Creates a new task from a natural language `prompt`.
-    An internal AI analyzes the prompt to extract the task description, priority, and schedule, then creates the task and queues it for planning and execution.
+    Intelligently creates a task that needs to be executed IMMEDIATELY.
+    It determines if the task is simple (one-shot) or complex (long-form) and creates the appropriate task type.
+    Use this for any immediate action that is not scheduled for the future.
     """
     try:
         user_id = auth.get_user_id_from_context(ctx)
 
-        # Create a placeholder task with the raw prompt
+        # 1. Get user context for the LLM prompt
+        user_profile = await mongo_manager.get_user_profile(user_id)
+        personal_info = user_profile.get("userData", {}).get("personalInfo", {}) if user_profile else {}
+        user_name = personal_info.get("name", "User")
+        user_timezone_str = personal_info.get("timezone", "UTC")
+        try:
+            user_timezone = ZoneInfo(user_timezone_str)
+        except ZoneInfoNotFoundError:
+            user_timezone = ZoneInfo("UTC")
+        current_time_str = datetime.now(user_timezone).strftime('%Y-%m-%d %H:%M:%S %Z')
+
+        # 2. Call LLM to parse prompt into structured data
+        system_prompt = TASK_CREATION_PROMPT.format(
+            user_name=user_name,
+            user_timezone=user_timezone_str,
+            current_time=current_time_str
+        )
+        messages = [{'role': 'user', 'content': prompt}]
+
+        response_str = ""
+        for chunk in run_main_agent(system_message=system_prompt, function_list=[], messages=messages):
+            if isinstance(chunk, list) and chunk and chunk[-1].get("role") == "assistant":
+                response_str = chunk[-1].get("content", "")
+
+        if not response_str:
+            raise Exception("LLM failed to generate task details.")
+
+        parsed_data = JsonExtractor.extract_valid_json(clean_llm_output(response_str))
+        if not parsed_data or not isinstance(parsed_data, dict):
+            raise Exception(f"LLM returned invalid JSON for task details: {response_str}")
+
+        # 3. Triage based on parsed data
+        task_type_from_llm = parsed_data.get("task_type")
+
+        if task_type_from_llm == "long_form":
+            task_type = "long_form"
+        else:
+            task_type = "single" # Default to single for immediate tasks from chat
+
         task_data = {
-            "name": prompt,
-            "description": prompt, # The refiner will use this to generate a better name and description
-            "priority": 1,  # Default priority
-            "schedule": None,
-            "assignee": "ai"
+            "name": parsed_data.get("name", prompt),
+            "description": parsed_data.get("description", prompt),
+            "task_type": task_type,
+            "auto_approve_subtasks": auto_approve_subtasks,
+            "orchestrator_state": {
+                "main_goal": parsed_data.get("description", prompt),
+                "current_state": "CREATED",
+            } if task_type == "long_form" else None,
+            "original_context": {
+                "source": "mcp_create_task",
+                "prompt": prompt
+            }
         }
-
         task_id = await mongo_manager.add_task(user_id, task_data)
-
         if not task_id:
-            raise Exception("Failed to save the task to the database.")
-        
-        # Asynchronously trigger the refinement and planning process
-        refine_and_plan_ai_task.delay(task_id, user_id)
+            raise Exception("Failed to create the task in the database.")
 
-        # Truncate prompt for a cleaner success message
-        short_prompt = prompt[:50] + '...' if len(prompt) > 50 else prompt
-        return {"status": "success", "result": f"Task '{short_prompt}' has been created and is being planned."}
+        if task_type == "long_form":
+            start_long_form_task.delay(task_id, user_id)
+        else: # single
+            generate_plan_from_context.delay(task_id, user_id)
+
+        short_name = parsed_data.get("name", prompt)[:50] + '...' if len(prompt) > 50 else parsed_data.get("name", prompt)
+        return {"status": "success", "result": f"Task '{short_name}' has been created and is being planned."}
     except Exception as e:
-        logger.error(f"Error in create_task_from_prompt: {e}", exc_info=True)
+        logger.error(f"Error in create_task: {e}", exc_info=True)
+        return {"status": "failure", "error": str(e)}
+
+@mcp.tool()
+async def create_workflow(ctx: Context, prompt: str) -> Dict[str, Any]:
+    """
+    Use this tool for any task that runs on a SCHEDULE (e.g., 'tomorrow at 9am', 'every Friday') or is based on a TRIGGER (e.g., 'when a new email arrives').
+    An internal AI will parse the prompt to determine the exact schedule or trigger and create the appropriate task or workflow.
+    """
+    try:
+        user_id = auth.get_user_id_from_context(ctx)
+
+        # 1. Get user context for the LLM prompt
+        user_profile = await mongo_manager.get_user_profile(user_id)
+        personal_info = user_profile.get("userData", {}).get("personalInfo", {}) if user_profile else {}
+        user_name = personal_info.get("name", "User")
+        user_timezone_str = personal_info.get("timezone", "UTC")
+        try:
+            user_timezone = ZoneInfo(user_timezone_str)
+        except ZoneInfoNotFoundError:
+            user_timezone = ZoneInfo("UTC")
+        current_time_str = datetime.now(user_timezone).strftime('%Y-%m-%d %H:%M:%S %Z')
+
+        # 2. Call LLM to parse prompt into structured data
+        system_prompt = prompts.TASK_CREATION_PROMPT.format(
+            user_name=user_name,
+            user_timezone=user_timezone_str,
+            current_time=current_time_str
+        )
+        messages = [{'role': 'user', 'content': prompt}]
+
+        response_str = ""
+        for chunk in run_agent(system_message=system_prompt, function_list=[], messages=messages):
+            if isinstance(chunk, list) and chunk and chunk[-1].get("role") == "assistant":
+                response_str = chunk[-1].get("content", "")
+
+        if not response_str:
+            raise Exception("LLM failed to generate task details.")
+
+        parsed_data = JsonExtractor.extract_valid_json(clean_llm_output(response_str))
+        if not parsed_data or not isinstance(parsed_data, dict):
+            raise Exception(f"LLM returned invalid JSON for task details: {response_str}")
+
+        # 3. Triage the parsed data to create the correct task type
+        schedule = parsed_data.get("schedule")
+        is_immediate_one_shot = schedule and schedule.get("type") == "once" and schedule.get("run_at") is None
+
+        if is_immediate_one_shot:
+            # This is an immediate task, so it should be a long-form task.
+            task_data = {
+                "name": parsed_data.get("name", prompt),
+                "description": parsed_data.get("description", prompt),
+                "task_type": "long_form",
+                "auto_approve_subtasks": False,
+                "orchestrator_state": {
+                    "main_goal": parsed_data.get("description", prompt),
+                    "current_state": "CREATED",
+                },
+                "original_context": {
+                    "source": "mcp_workflow_redirect",
+                    "prompt": prompt
+                }
+            }
+            task_id = await mongo_manager.add_task(user_id, task_data)
+            if not task_id:
+                raise Exception("Failed to create the long-form task in the database.")
+            start_long_form_task.delay(task_id, user_id)
+            message = f"Task '{task_data['name'][:50]}' has been created and is being planned by the orchestrator."
+        else:
+            # This is a scheduled, recurring, or triggered task.
+            task_data = {
+                "name": parsed_data.get("name", prompt),
+                "description": parsed_data.get("description", prompt),
+                "priority": parsed_data.get("priority", 1),
+                "schedule": schedule,
+                "task_type": schedule.get("type") if schedule else "single",
+                "original_context": {"source": "chat_prompt", "prompt": prompt}
+            }
+            task_id = await mongo_manager.add_task(user_id, task_data)
+            if not task_id:
+                raise Exception("Failed to save the parsed task to the database.")
+            generate_plan_from_context.delay(task_id, user_id)
+            message = f"Task '{task_data['name'][:50]}' has been created and is being planned."
+
+        return {"status": "success", "result": message}
+    except LLMProviderDownError as e:
+        logger.error(f"LLM provider down during task creation from prompt for user {user_id}: {e}", exc_info=True)
+        return {"status": "failure", "error": "Sorry, our AI provider is currently down. Please try again later."}
+    except Exception as e:
+        logger.error(f"Error in create_workflow: {e}", exc_info=True)
         return {"status": "failure", "error": str(e)}
 
 @mcp.tool()
@@ -116,7 +243,7 @@ async def search_tasks(
                 {"created_at": date_filter, "next_execution_at": None}
             ]
 
-        cursor = mongo_manager.task_collection.find(mongo_query).sort([("priority", 1), ("created_at", -1)]).limit(20)
+        cursor = mongo_manager.tasks_collection.find(mongo_query).sort([("priority", 1), ("created_at", -1)]).limit(20)
         tasks = await cursor.to_list(length=20)
 
         return {"status": "success", "result": {"tasks": tasks}}

@@ -5,12 +5,19 @@ class TaskStep(BaseModel):
     tool: str
     description: str
 
-class AddTaskRequest(BaseModel):
-    prompt: Optional[str] = None
-    goal: Optional[str] = None
-    items: Optional[List[Any]] = None
-    is_swarm: bool = False
+class Answer(BaseModel):
+    question_id: str
+    answer_text: str
 
+class AddTaskRequest(BaseModel):
+    prompt: str
+    auto_approve_subtasks: Optional[bool] = False
+
+class ClarificationAnswerRequest(BaseModel):
+    request_id: str
+    answer: str
+class LongFormTaskActionRequest(BaseModel):
+    action: str # "pause" or "resume"
 class UpdateTaskRequest(BaseModel):
     taskId: str
     name: Optional[str] = None
@@ -31,6 +38,10 @@ class TaskActionRequest(BaseModel):
 class TaskChatRequest(BaseModel):
     taskId: str
     message: str
+
+class AnswerClarificationRequest(BaseModel):
+    task_id: str
+    answers: List[Answer]
 
 class ProgressUpdateRequest(BaseModel):
     user_id: str

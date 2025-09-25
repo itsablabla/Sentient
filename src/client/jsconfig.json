@@ -3,7 +3,11 @@
 		"paths": {
 			"@*": ["./*"],
 			"@components/*": ["./components/*"],
-			"@hooks/*": ["./hooks/*"]
+			"@hooks/*": ["./hooks/*"],
+			"@stores/*": ["./stores/*"],
+			"@utils/*": ["./utils/*"],
+			"@lib/*": ["./lib/*"],
+			"@app/*": ["./app/*"]
 		}
 	}
 }

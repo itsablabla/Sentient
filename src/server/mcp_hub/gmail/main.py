@@ -1,8 +1,6 @@
 import os
 from typing import Dict, Any, List, Optional
-import datetime
-
-import datetime
+import datetime, inspect
 import re
 import asyncio
 import re
@@ -47,23 +45,15 @@ def get_gmail_system_prompt() -> str:
     """Provides the system prompt for the GMail agent."""
     return prompts.gmail_agent_system_prompt
 
-@mcp.prompt(name="gmail_user_prompt_builder")
-def build_gmail_user_prompt(query: str, username: str, previous_tool_response: str = "{}") -> Message:
-    """Builds a formatted user prompt for the GMail agent."""
-    content = prompts.gmail_agent_user_prompt.format(
-        query=query,
-        username=username,
-        previous_tool_response=previous_tool_response
-    )
-    return Message(role="user", content=content)
-
-
 # --- Tool Helper ---
 async def _execute_tool(ctx: Context, action_name: str, **kwargs) -> Dict[str, Any]:
     """Helper to handle auth and execution for all tools using Composio."""
     try:
         user_id = auth.get_user_id_from_context(ctx)
         connection_id = await auth.get_composio_connection_id(user_id, "gmail")
+        
+        tool_name = inspect.stack()[1].function
+        logger.info(f"Executing tool: {tool_name} with parameters: {kwargs}")
 
         # NEW: Fetch user info including privacy filters
         # Composio's execute method is synchronous, so we use asyncio.to_thread
@@ -162,11 +152,10 @@ async def sendEmail(ctx: Context, to: str, subject: str, body: str) -> Dict[str,
     return await _execute_tool(ctx, "GMAIL_SEND_EMAIL", recipient_email=to, subject=subject, body=body)
 
 @mcp.tool()
-async def replyToEmail(ctx: Context, message_id: str, body: str, reply_all: bool = False) -> Dict[str, Any]:
-    """Send a reply to an existing email message, either to the sender only or to all recipients."""
-    logger.info(f"Executing tool: replyToEmail to message_id='{message_id}'")
-    # Composio's reply_to_email expects thread_id, not message_id.
-    return {"status": "failure", "error": "Replying directly by message_id is not supported. Please find the thread_id and use that."}
+async def replyToEmail(ctx: Context, thread_id: str, to: str, body: str) -> Dict[str, Any]:
+    """Reply to an email within a specific thread. You must provide the thread_id, recipient's email, and the message body."""
+    logger.info(f"Executing tool: replyToEmail in thread_id='{thread_id}'")
+    return await _execute_tool(ctx, "GMAIL_REPLY_TO_THREAD", thread_id=thread_id, recipient_email=to, message_body=body)
 
 @mcp.tool()
 async def getLatestEmails(ctx: Context, max_results: int = 10, inbox_type: str = "primary") -> Dict[str, Any]:
@@ -209,6 +198,12 @@ async def listDrafts(ctx: Context) -> Dict[str, Any]:
     return await _execute_tool(ctx, "GMAIL_LIST_DRAFTS")
 
 @mcp.tool()
+async def sendDraft(ctx: Context, draft_id: str) -> Dict[str, Any]:
+    """Sends an existing draft email."""
+    logger.info(f"Executing tool: sendDraft for draft_id='{draft_id}'")
+    return await _execute_tool(ctx, "GMAIL_SEND_DRAFT", draft_id=draft_id)
+
+@mcp.tool()
 async def markAsRead(ctx: Context, message_id: str) -> Dict[str, Any]:
     """Mark an email message as read."""
     logger.info(f"Executing tool: markAsRead for message_id='{message_id}'")
@@ -231,18 +226,6 @@ async def searchWithAttachments(ctx: Context, max_results: int = 5) -> Dict[str,
     """Search for email messages that have file attachments."""
     logger.info(f"Executing tool: searchWithAttachments with max_results={max_results}")
     return await _execute_tool(ctx, "GMAIL_FETCH_EMAILS", query="has:attachment", max_results=max_results)
-
-@mcp.tool()
-async def searchInFolder(ctx: Context, folder_name: str, max_results: int = 10) -> Dict[str, Any]:
-    """Search for email messages within a specific Gmail folder or label."""
-    logger.info(f"Executing tool: searchInFolder for folder='{folder_name}'")
-    return await _execute_tool(ctx, "GMAIL_FETCH_EMAILS", query=f"in:{folder_name}", max_results=max_results)
-
-@mcp.tool()
-async def cancelScheduled(ctx: Context, message_id: str) -> Dict[str, Any]:
-    """Cancel a scheduled email. This is done by moving the email to trash."""
-    logger.info(f"Executing tool: cancelScheduled for message_id='{message_id}'")
-    return await _execute_tool(ctx, "GMAIL_MOVE_TO_TRASH", message_id=message_id)
 
 @mcp.tool()
 async def catchup(ctx: Context, inbox_type: str = "primary") -> Dict[str, Any]:
@@ -283,6 +266,15 @@ async def listLabels(ctx: Context) -> Dict[str, Any]:
     return await _execute_tool(ctx, "GMAIL_LIST_LABELS")
 
 @mcp.tool()
+async def getContacts(ctx: Context, person_fields: str = "emailAddresses,names") -> Dict[str, Any]:
+    """
+    Fetches contacts from the user's Google account.
+    You can specify which fields to retrieve using person_fields (comma-separated, e.g., 'emailAddresses,names,phoneNumbers').
+    """
+    logger.info(f"Executing tool: getContacts with person_fields='{person_fields}'")
+    return await _execute_tool(ctx, "GMAIL_GET_CONTACTS", person_fields=person_fields)
+
+@mcp.tool()
 async def removeLabels(ctx: Context, message_id: str, label_ids: List[str]) -> Dict[str, Any]:
     """Remove one or more labels from a specific email message."""
     logger.info(f"Executing tool: removeLabels from message_id='{message_id}'")
@@ -299,28 +291,6 @@ async def markAsUnread(ctx: Context, message_id: str) -> Dict[str, Any]:
     """Mark an email message as unread."""
     logger.info(f"Executing tool: markAsUnread for message_id='{message_id}'")
     return await _execute_tool(ctx, "GMAIL_ADD_LABEL_TO_EMAIL", message_id=message_id, add_label_ids=["UNREAD"])
-
-@mcp.tool()
-async def restoreFromTrash(ctx: Context, message_id: str) -> Dict[str, Any]:
-    """Restore an email message from the trash to the inbox."""
-    logger.info(f"Executing tool: restoreFromTrash for message_id='{message_id}'")
-    return await _execute_tool(ctx, "GMAIL_ADD_LABEL_TO_EMAIL", message_id=message_id, remove_label_ids=["TRASH"])
-
-@mcp.tool()
-async def searchByDate(ctx: Context, before: Optional[str] = None, after: Optional[str] = None, max_results: int = 10) -> Dict[str, Any]:
-    """Search for email messages within a specific date range (YYYY/MM/DD format)."""
-    logger.info(f"Executing tool: searchByDate with before='{before}', after='{after}'")
-    query_parts = []
-    if before: query_parts.append(f"before:{before}")
-    if after: query_parts.append(f"after:{after}")
-    if not query_parts: return {"status": "failure", "error": "Either 'before' or 'after' date must be provided."}
-    return await _execute_tool(ctx, "GMAIL_FETCH_EMAILS", query=" ".join(query_parts), max_results=max_results)
-
-@mcp.tool()
-async def searchBySize(ctx: Context, size_mb: int, comparison: str = "larger", max_results: int = 5) -> Dict[str, Any]:
-    """Search for large email messages above a specified size in MB."""
-    logger.info(f"Executing tool: searchBySize with size_mb={size_mb}")
-    return await _execute_tool(ctx, "GMAIL_FETCH_EMAILS", query=f"size:{size_mb}m", max_results=max_results)
 
 # --- Server Execution ---
 if __name__ == "__main__":

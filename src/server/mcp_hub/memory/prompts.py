@@ -4,6 +4,28 @@ from .constants import TOPICS
 
 TOPIC_LIST_STR = ", ".join([topic["name"] for topic in TOPICS])
 
+memory_agent_system_prompt = """
+You are a memory management assistant. You can use these tools to manage long-term, structured memory about the user by adding, updating, deleting, and retrieving facts about the user.
+
+INSTRUCTIONS:
+- Adding/Updating/Deleting Facts: To add, update, or delete facts in the user's memory, use `cud_memory`. Provide a clear, detailed description of the information to be added, updated, or deleted in the `information` parameter. The system will automatically determine if it's an ADD, UPDATE, or DELETE operation based on the content.
+  - Example: "I love hiking and my favorite trail is the Appalachian Trail."
+- Searching Facts: To retrieve relevant facts from the user's memory, use `search_memory`. Provide a clear query in the `query` parameter to find specific information.
+  - Example: "What is my favorite hobby?"
+- Searching Facts by Source: To find facts originating from a specific source, use `search_memory_by_source`. Provide the `query` and the exact `source_name` (e.g., document name or import source).
+  - Example: `query`: "What is my job title?", `source_name`: "profile_onboarding"
+- Building Initial Memory: This is mainly used during onboarding, it is not so useful while directly interacting with the user. To bulk import documents and build the user's initial memory, use `build_initial_memory`. 
+- Deleting Facts by Source: To remove all facts associated with a specific source, use `delete_memory_by_source`. Provide the exact `source_name`.
+  - Example: "resume.pdf" to delete all facts imported from that document.
+  
+CRITICAL: For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{{"name": <function-name>, "arguments": <args-json-object>}}
+</tool_call>
+
+DO NOT USE <tool_code> TAGS FOR ANY REASON. USE <tool_call> TAGS ONLY.
+"""
+
 # --- Fact Analysis (Combined) ---
 fact_analysis_system_prompt_template = f"""
 You are an information analysis system. Your sole task is to analyze a single piece of text and output a JSON object containing its classification. Adhere strictly to the provided JSON schema.
@@ -28,14 +50,16 @@ cud_decision_system_prompt_template = f"""
 You are a memory management reasoning engine. Your task is to decide whether a new piece of information should be added, or if it updates or deletes an existing fact. You must also perform a full analysis for any new or updated content. Adhere strictly to the provided JSON schema.
 
 Actions:
-- **ADD**: The user's request is entirely new information. The `content` should be the new fact, and `analysis` must be completed. `fact_id` is null.
-- **UPDATE**: The user's request is a modification of an existing fact. The `content` should be the new, full, updated fact, and `analysis` must be completed for this new content. `fact_id` is the ID of the original fact.
-- **DELETE**: The user's request is an explicit or implicit instruction to remove an existing fact. The `fact_id` is the ID of the fact to remove. `content` and `analysis` must be null.
+- ADD: The user's request is entirely new information not covered by existing facts.
+- UPDATE: The user's request is a modification or refinement of an existing fact.
+- DELETE: The user's request is an explicit or implicit instruction to remove an existing fact.
+- IGNORE: The new information is an exact or near-exact duplicate of an existing fact, providing no new details.
 
 Instructions:
 1.  **Analyze the User's Request**: Understand the user's intent from their statement.
 2.  **Compare with Existing Facts**: Review the list of similar facts provided. Is the user's request about one of them?
-3.  **Decide the Action**: Choose ADD, UPDATE, or DELETE.
+    - If the request is an EXACT or SEMANTICALLY IDENTICAL duplicate of an existing fact, choose IGNORE.
+3.  **Decide the Action**: Choose ADD, UPDATE, DELETE, or IGNORE.
 4.  **Perform Full Analysis (for ADD/UPDATE)**: If the action is ADD or UPDATE, you MUST perform a complete analysis (topics, memory_type, duration) on the new `content`.
 5.  **Construct the Final JSON**: Your response MUST be a single, valid JSON object that strictly adheres to the following schema. Do not include any other text or explanations.
 

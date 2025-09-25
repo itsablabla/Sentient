@@ -15,7 +15,12 @@ export async function GET() {
 				{ status: 500 }
 			)
 		}
-		return NextResponse.json({ accessToken: token })
+		return NextResponse.json(
+			{ accessToken: token },
+			{
+				headers: { "Cache-Control": "no-store, max-age=0" }
+			}
+		)
 	}
 	try {
 		const tokenResult = await auth0.getAccessToken()
@@ -27,9 +32,23 @@ export async function GET() {
 				{ status: 401 }
 			)
 		}
-		return NextResponse.json({ accessToken: token })
+		return NextResponse.json(
+			{ accessToken: token },
+			{
+				headers: { "Cache-Control": "no-store, max-age=0" }
+			}
+		)
 	} catch (error) {
 		console.error("Error in /api/auth/token:", error)
+		// If the error is specifically because of a missing session,
+		// return a 401 Unauthorized status, which is more appropriate
+		// and allows the client to handle it by redirecting to login.
+		if (error.code === "missing_session") {
+			return NextResponse.json(
+				{ message: error.message },
+				{ status: 401 }
+			)
+		}
 		return NextResponse.json(
 			{ message: "Internal Server Error", error: error.message },
 			{ status: 500 }

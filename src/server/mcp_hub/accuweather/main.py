@@ -12,7 +12,6 @@ if ENVIRONMENT == 'dev-local':
         load_dotenv(dotenv_path=dotenv_path)
 from fastmcp import FastMCP, Context
 from fastmcp.exceptions import ToolError
-from fastmcp.prompts.prompt import Message
 from fastmcp.utilities.logging import configure_logging, get_logger
 
 from . import auth, prompts, utils
@@ -30,13 +29,6 @@ mcp = FastMCP(
 @mcp.resource("prompt://weather-agent-system")
 def get_weather_system_prompt() -> str:
     return prompts.weather_agent_system_prompt
-
-@mcp.prompt(name="weather_user_prompt_builder")
-def build_weather_user_prompt(query: str, username: str, previous_tool_response: str = "{}") -> Message:
-    content = prompts.weather_agent_user_prompt.format(
-        query=query, username=username, previous_tool_response=previous_tool_response
-    )
-    return Message(role="user", content=content)
 
 # --- Tool Definitions ---
 

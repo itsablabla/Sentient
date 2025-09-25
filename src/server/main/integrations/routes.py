@@ -15,7 +15,7 @@ from typing import Tuple
 from main.integrations.models import (ManualConnectRequest, OAuthConnectRequest, DisconnectRequest,
                                       ComposioInitiateRequest, ComposioFinalizeRequest)
 from main.dependencies import mongo_manager, auth_helper
-from main.auth.utils import aes_encrypt, PermissionChecker
+from main.auth.utils import aes_encrypt
 from main.config import (
     INTEGRATIONS_CONFIG,
     GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
@@ -25,8 +25,8 @@ from main.config import (
     SLACK_CLIENT_SECRET, NOTION_CLIENT_ID, NOTION_CLIENT_SECRET,
 )
 from workers.tasks import execute_triggered_task
-from workers.proactive.utils import event_pre_filter
 from main.plans import PRO_ONLY_INTEGRATIONS
+from .utils import waha_request_from_main
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ async def get_integration_sources(user_id: str = Depends(auth_helper.get_current
         # Add public config needed by the client for OAuth flow
         if source_info["auth_type"] == "oauth":
             # List of Google services that still use the standard OAuth flow
-            google_oauth_services = ["gpeople"]
+            google_oauth_services = ["gpeople", "gslides"]
             if name in google_oauth_services:
                  source_info["client_id"] = GOOGLE_CLIENT_ID
             elif name == 'github':
@@ -109,6 +109,7 @@ async def connect_manual_integration(
         update_payload = {
             f"userData.integrations.{service_name}.credentials": encrypted_creds,
             f"userData.integrations.{service_name}.connected": True,
+            f"userData.integrations.{service_name}.connected_at": datetime.datetime.now(datetime.timezone.utc),
             f"userData.integrations.{service_name}.auth_type": "manual"
         }
         success = await mongo_manager.update_user_profile(user_id, update_payload)
@@ -162,12 +163,6 @@ async def connect_oauth_integration(
             "redirect_uri": request.redirect_uri
         }
         request_headers = {"Accept": "application/json"}
-
-        # 🔍 DEBUG: Log the exact payload being sent to GitHub
-        print(f"[DEBUG] GitHub OAuth request to {token_url}")
-        print(f"[DEBUG] Headers: {request_headers}")
-        print(f"[DEBUG] Payload: {token_payload}")
-        print(f"[DEBUG] redirect_uri from frontend: {request.redirect_uri}")
 
     elif service_name == 'slack':
         token_url = "https://slack.com/api/oauth.v2.access"
@@ -247,25 +242,13 @@ async def connect_oauth_integration(
         update_payload = {
             f"userData.integrations.{service_name}.credentials": encrypted_creds,
             f"userData.integrations.{service_name}.connected": True,
+            f"userData.integrations.{service_name}.connected_at": datetime.datetime.now(datetime.timezone.utc),
             f"userData.integrations.{service_name}.auth_type": "oauth"
         }
         success = await mongo_manager.update_user_profile(user_id, update_payload)
         if not success:
             raise HTTPException(status_code=500, detail="Failed to save integration credentials.")
         
-        if service_name in ['gmail', 'gcalendar']:
-            await mongo_manager.update_polling_state(
-                user_id,
-                service_name,
-                "triggers",
-                {
-                    "is_enabled": True,
-                    "is_currently_polling": False,
-                    "next_scheduled_poll_time": datetime.datetime.now(datetime.timezone.utc), # Poll immediately
-                    "last_successful_poll_timestamp_unix": None,
-                }
-            )
-
         return JSONResponse(content={"message": f"{service_name} connected successfully."})
 
     except httpx.HTTPStatusError as e:
@@ -375,16 +358,21 @@ async def finalize_composio_connection(
                 "gcalendar": "GOOGLECALENDAR_GOOGLE_CALENDAR_EVENT_SYNC_TRIGGER",
                 "gmail": "GMAIL_NEW_GMAIL_MESSAGE"
             }
-            trigger_config = {"calendarId": "primary"} if service_name == "gcalendar" else {}
+            trigger_config = {}
+            if service_name == "gcalendar":
+                # Google Calendar trigger requires specifying which calendar to watch.
+                trigger_config = {"calendarId": "primary"}
+            elif service_name == "gmail":
+                trigger_config = {"labelIds": "INBOX"}
             try:
                 logger.info(f"Setting up Composio trigger for {service_name} for user {user_id}")
                 trigger = await asyncio.to_thread(
                     composio.triggers.create,
                     slug=slug_map[service_name],
-                    user_id=user_id,
+                    connected_account_id=connected_account_id,
                     trigger_config=trigger_config
                 )
-                trigger_id = trigger.id
+                trigger_id = trigger.trigger_id
                 logger.info(f"Successfully created Composio trigger {trigger_id} for {service_name} for user {user_id}")
             except Exception as e:
                 logger.error(f"Failed to create Composio trigger for {service_name} for user {user_id}: {e}", exc_info=True)
@@ -393,6 +381,7 @@ async def finalize_composio_connection(
         update_payload = {
             f"userData.integrations.{service_name}.connection_id": connected_account.id,
             f"userData.integrations.{service_name}.connected": True,
+            f"userData.integrations.{service_name}.connected_at": datetime.datetime.now(datetime.timezone.utc),
             f"userData.integrations.{service_name}.auth_type": "composio"
         }
         if trigger_id:
@@ -415,27 +404,33 @@ async def composio_webhook(request: Request):
     """
     try:
         payload = await request.json()
-        user_id = payload.get("userId")
-        trigger_slug = payload.get("triggerSlug")
-        event_data = payload.get("payload")
+        # Correctly parse the payload based on the provided sample structure
+        event_data = payload.get("data")
+        if not event_data:
+            raise HTTPException(status_code=400, detail="Webhook payload missing 'data' object.")
 
-        if not all([user_id, trigger_slug, event_data]):
-            raise HTTPException(status_code=400, detail="Missing required fields in webhook payload.")
+        user_id = event_data.get("user_id")
+        trigger_type = payload.get("type")
 
+        if not all([user_id, trigger_type, event_data]):
+            raise HTTPException(status_code=400, detail="Missing required fields (user_id, type) in webhook payload.")
+
+        # Map from Composio's trigger type to our internal service_name and event_type
+        # Using lowercase to match the sample payload
         service_name_map = {
-            "GOOGLECALENDAR_GOOGLE_CALENDAR_EVENT_SYNC_TRIGGER": "gcalendar",
-            "GMAIL_NEW_GMAIL_MESSAGE": "gmail"
+            "googlecalendar_google_calendar_event_sync_trigger": "gcalendar",
+            "gmail_new_gmail_message": "gmail"
         }
         event_type_map = {
-            "GOOGLECALENDAR_GOOGLE_CALENDAR_EVENT_SYNC_TRIGGER": "new_event",
-            "GMAIL_NEW_GMAIL_MESSAGE": "new_email"
+            "googlecalendar_google_calendar_event_sync_trigger": "new_event",
+            "gmail_new_gmail_message": "new_email"
         }
 
-        service_name = service_name_map.get(trigger_slug)
-        event_type = event_type_map.get(trigger_slug)
+        service_name = service_name_map.get(trigger_type)
+        event_type = event_type_map.get(trigger_type)
 
         if not service_name:
-            logger.warning(f"Received webhook for unhandled trigger slug: {trigger_slug}")
+            logger.warning(f"Received webhook for unhandled trigger type: {trigger_type}")
             return JSONResponse(content={"status": "ignored", "reason": "unhandled trigger"})
 
         logger.info(f"Received Composio trigger for user '{user_id}' - Service: '{service_name}', Event: '{event_type}'")
@@ -446,17 +441,7 @@ async def composio_webhook(request: Request):
             logger.error(f"Webhook received for non-existent user '{user_id}'. Ignoring.")
             return JSONResponse(content={"status": "ignored", "reason": "user not found"})
 
-        user_email = user_profile.get("userData", {}).get("personalInfo", {}).get("email")
-
-        # 1. Apply user-defined privacy filters
-        # (This logic would be similar to the one in the old poller service.py)
-
-        # 2. Apply system-wide pre-filter
-        if not event_pre_filter(event_data, service_name, user_email):
-            logger.info(f"Event for user '{user_id}' was discarded by the pre-filter.")
-            return JSONResponse(content={"status": "ignored", "reason": "pre-filter discard"})
-
-        # 3. Dispatch to Celery worker
+        # 3. Dispatch to a Celery task that handles finding and running all matching triggered workflows.
         execute_triggered_task.delay(
             user_id=user_id,
             source=service_name,
@@ -469,3 +454,95 @@ async def composio_webhook(request: Request):
         logger.error(f"Error processing Composio webhook: {e}", exc_info=True)
         # Return a 200 to Composio to prevent retries on our internal errors.
         return JSONResponse(content={"status": "error", "detail": str(e)}, status_code=200)
+
+# --- NEW WHATSAPP FULL CONTROL ROUTES ---
+
+@router.post("/whatsapp/connect/initiate", summary="Start a WAHA session and get a QR code")
+async def initiate_whatsapp_connection(
+    user_id_and_plan: Tuple[str, str] = Depends(auth_helper.get_current_user_id_and_plan)
+):
+    user_id, plan = user_id_and_plan
+    service_name = "whatsapp"
+    service_config = INTEGRATIONS_CONFIG.get(service_name)
+
+    # --- Check Plan Limit ---
+    if service_name in PRO_ONLY_INTEGRATIONS and plan == "free":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"The {service_config.get('display_name', service_name)} integration is a Pro feature. Please upgrade your plan."
+        )
+
+    try:
+
+        # Step 1: Start the session for the user
+        # --- MODIFICATION START (v2) ---
+        # The user_id from Auth0 (e.g., 'google-oauth2|123...') contains invalid characters ('|')
+        # for a WAHA session name. We must sanitize it first.
+        sanitized_session_name = user_id.replace("|", "_")
+
+        create_payload = {
+            "name": sanitized_session_name,
+            "start": True
+        }
+        try:
+            await waha_request_from_main("POST", "/api/sessions", session=sanitized_session_name, json_data=create_payload)
+        except HTTPException as e:
+            if e.status_code == 422 and "already exists" in e.detail:
+                logger.info(f"WAHA session '{sanitized_session_name}' already exists. Proceeding to get QR code.")
+                # Session exists, we can ignore this error and continue.
+            else:
+                raise # Re-raise other HTTP exceptions
+
+        await asyncio.sleep(1)  # Give it a moment to initialize
+        status_res = await waha_request_from_main("GET", "/api/sessions/{session}", session=sanitized_session_name)
+        session_status = status_res.get("status")
+        if session_status not in ["STARTING", "SCAN_QR_CODE", "WORKING"]:
+            raise HTTPException(status_code=500, detail=f"Failed to start WhatsApp session. Status: {session_status}")
+
+        # Step 2: Get the QR code
+        await asyncio.sleep(5) 
+        qr_result = await waha_request_from_main("GET", "/api/{session}/auth/qr", session=sanitized_session_name, params={"format": "image"}) # noqa
+        return JSONResponse(content=qr_result)
+
+    except Exception as e:
+        logger.error(f"Error initiating WhatsApp connection for {user_id}: {e}", exc_info=True)
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/whatsapp/connect/status", summary="Check the status of a WAHA session")
+async def get_whatsapp_connection_status(user_id: str = Depends(auth_helper.get_current_user_id)):
+    try:
+        sanitized_session_name = user_id.replace("|", "_")
+        status_result = await waha_request_from_main("GET", "/api/sessions/{session}", session=sanitized_session_name)
+        session_status = status_result.get("status", "UNKNOWN")
+
+        if session_status == "WORKING":
+            await mongo_manager.update_user_profile(user_id, {"userData.integrations.whatsapp.connected": True})
+        
+        return JSONResponse(content={"status": session_status})
+    except HTTPException as e:
+        # If the session is not found (404), it's not an error, just means it's not connected.
+        if e.status_code == 404:
+            return JSONResponse(content={"error": "Session not found. Please try connecting again."}, status_code=404)
+        logger.error(f"Error checking WhatsApp status for {user_id}: {e.detail}", exc_info=True)
+        raise e
+    except Exception as e:
+        logger.error(f"Error checking WhatsApp status for {user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/whatsapp/disconnect", summary="Delete a WAHA session")
+async def disconnect_whatsapp_connection(user_id: str = Depends(auth_helper.get_current_user_id)):
+    try:
+        sanitized_session_name = user_id.replace("|", "_")
+        await waha_request_from_main("DELETE", "/api/sessions/{session}", session=sanitized_session_name)
+        await mongo_manager.update_user_profile(user_id, {"userData.integrations.whatsapp.connected": False})
+        return JSONResponse(content={"message": "WhatsApp session disconnected successfully."})
+    except Exception as e:
+        # Even if deleting fails (e.g., session was already deleted), mark as disconnected.
+        await mongo_manager.update_user_profile(user_id, {"userData.integrations.whatsapp.connected": False})
+        logger.error(f"Error disconnecting WhatsApp for {user_id}: {e}", exc_info=True)
+        if isinstance(e, HTTPException):
+            # It's okay if deleting fails, the main goal is to mark as disconnected.
+            return JSONResponse(content={"message": "WhatsApp session disconnected."})
+        raise HTTPException(status_code=500, detail=str(e))

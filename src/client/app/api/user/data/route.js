@@ -7,7 +7,7 @@ const appServerUrl =
 		? process.env.INTERNAL_APP_SERVER_URL
 		: process.env.NEXT_PUBLIC_APP_SERVER_URL
 
-export const GET = withAuth(async function GET(request, { authHeader }) {
+export const POST = withAuth(async function POST(request, { authHeader }) {
 	try {
 		const response = await fetch(`${appServerUrl}/api/get-user-data`, {
 			method: "POST",
@@ -22,7 +22,9 @@ export const GET = withAuth(async function GET(request, { authHeader }) {
 			)
 		}
 
-		return NextResponse.json(data)
+		return NextResponse.json(data, {
+			headers: { "Cache-Control": "no-store, max-age=0" }
+		})
 	} catch (error) {
 		console.error("API Error in /user/data:", error)
 		return NextResponse.json(

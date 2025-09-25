@@ -1,20 +1,24 @@
 import datetime
 import uuid
 import json
-import traceback
 import secrets
-import asyncio
+import asyncio, datetime
 from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, Depends, HTTPException, status, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, status, Request, WebSocket, WebSocketDisconnect, Query
 from fastapi.responses import JSONResponse
 import logging
 
 from main.models import OnboardingRequest
+from main.memories.db import get_db_pool as get_memories_pg_pool
+from mcp_hub.memory.utils import _get_normalized_embedding
+from pgvector.asyncpg import register_vector
 from main.auth.utils import PermissionChecker, AuthHelper
 from main.config import AUTH0_AUDIENCE
-from main.dependencies import mongo_manager, auth_helper, websocket_manager as main_websocket_manager
+from main.dependencies import mongo_manager, auth_helper, websocket_manager as main_websocket_manager # noqa: E501
 from pydantic import BaseModel
 from workers.tasks import cud_memory_task
+from main.settings.google_sheets_utils import update_onboarding_data_in_sheet, update_plan_in_sheet, get_user_properties_from_sheet
+from main.notifications.whatsapp_client import check_phone_number_exists, send_whatsapp_message
 
 # Google API libraries for validation
 from google.oauth2 import service_account
@@ -29,6 +33,15 @@ class UpdatePrivacyFiltersRequest(BaseModel):
 
 logger = logging.getLogger(__name__)
 
+def _serialize_datetimes(data: Any) -> Any:
+    """Recursively converts datetime objects in a dictionary or list to ISO 8601 strings."""
+    if isinstance(data, dict):
+        return {k: _serialize_datetimes(v) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_serialize_datetimes(i) for i in data]
+    if isinstance(data, datetime.datetime):
+        return data.isoformat()
+    return data
 router = APIRouter(
     prefix="/api",
     tags=["Miscellaneous API"]
@@ -37,8 +50,20 @@ router = APIRouter(
 @router.post("/onboarding", status_code=status.HTTP_200_OK, summary="Save Onboarding Data")
 async def save_onboarding_data_endpoint(
     request_body: OnboardingRequest, 
-    user_id: str = Depends(PermissionChecker(required_permissions=["write:profile"]))
+    payload: dict = Depends(auth_helper.get_decoded_payload_with_claims)
 ):
+    user_id = payload.get("sub")
+    user_email = payload.get("email")
+    plan = payload.get("plan", "free")
+    
+    # --- IDEMPOTENCY CHECK ---
+    # First, check if onboarding is already marked as complete to prevent re-processing.
+    existing_profile = await mongo_manager.get_user_profile(user_id)
+    if existing_profile and existing_profile.get("userData", {}).get("onboardingComplete", False):
+        logger.warning(f"User {user_id} attempted to submit onboarding data again, but it's already complete. Ignoring request.")
+        return JSONResponse(content={"message": "Onboarding already completed.", "status": 200})
+    # --- END CHECK ---
+
     logger.info(f"[{datetime.datetime.now()}] [ONBOARDING] User {user_id}, Data keys: {list(request_body.data.keys())}")
     try:
         default_privacy_filters = {
@@ -87,6 +112,31 @@ async def save_onboarding_data_endpoint(
         if personal_info:
             user_data_to_set["personalInfo"] = personal_info
 
+        # --- NEW: Process WhatsApp number from onboarding data ---
+        onboarding_chat_id = None # Variable to hold the chat ID for the feedback message
+        whatsapp_number = onboarding_data.get("whatsapp_notifications_number", "").strip()
+        if whatsapp_number:
+            try:
+                validation_result = await check_phone_number_exists(whatsapp_number)
+                if validation_result and validation_result.get("numberExists"):
+                    chat_id = validation_result.get("chatId")
+                    if chat_id:
+                        onboarding_chat_id = chat_id
+                        user_data_to_set["notificationPreferences"] = {
+                            "whatsapp": {
+                                "number": whatsapp_number,
+                                "chatId": chat_id,
+                                "enabled": True # Enable by default
+                            }
+                        }
+                        logger.info(f"WhatsApp number for user {user_id} validated and set for notifications during onboarding.")
+                    else:
+                        logger.warning(f"Could not get chatId for {whatsapp_number} during onboarding for user {user_id}.")
+                else:
+                    logger.warning(f"WhatsApp number {whatsapp_number} provided by user {user_id} during onboarding is not valid.")
+            except Exception as e:
+                logger.error(f"Error validating WhatsApp number during onboarding for user {user_id}: {e}")
+
         # Create the final update payload for MongoDB
         # We construct the payload carefully to avoid replacing the entire userData object
         update_payload = {}
@@ -98,6 +148,25 @@ async def save_onboarding_data_endpoint(
         if not success:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to save onboarding data.")
 
+        # --- Update Google Sheet ---
+        try:
+            if user_email:
+                await update_onboarding_data_in_sheet(user_email, onboarding_data, plan)
+            else:
+                logger.warning(f"Could not update Google Sheet for user {user_id} because no email was found in their token.")
+        except Exception as e:
+            logger.error(f"Non-critical error: Failed to update Google Sheet during onboarding for user {user_id}. Error: {e}")
+
+        # --- Send conditional WhatsApp message ---
+        if onboarding_data.get("needs-pa") == "yes" and onboarding_chat_id:
+            try:
+                feedback_message = "Hi there, I am Sarthak from team Sentient. Thanks for signing up, are you okay with giving feedback and helping us improve the platform to better suit your needs?"
+                # Call the WhatsApp sender directly, bypassing in-app notifications
+                await send_whatsapp_message(onboarding_chat_id, feedback_message)
+                logger.info(f"Sent onboarding feedback request to user {user_id} on WhatsApp.")
+            except Exception as e:
+                logger.error(f"Failed to send onboarding feedback WhatsApp message for user {user_id}: {e}")
+
         # --- Dispatch facts to memory ---
         try:
             fact_templates = {
@@ -105,7 +174,9 @@ async def save_onboarding_data_endpoint(
                 "location": "The user's location is at latitude {latitude}, longitude {longitude}.",
                 "timezone": "The user's timezone is {}",
                 "professional-context": "Professionally, the user has shared: {}",
-                "personal-context": "Personally, the user is interested in: {}",
+                "working-hours": "The user's usual working hours are: {}",
+                "key-people": "The user has mentioned these key people to remember: {}",
+                "personal-context": "The user has shared these personal details to keep track of: {}",
             }
             onboarding_facts = []
             for key, value in onboarding_data.items():
@@ -151,28 +222,37 @@ async def check_user_profile_endpoint(user_id: str = Depends(PermissionChecker(r
 @router.post("/get-user-data", summary="Get User Profile's userData field")
 async def get_user_data_endpoint(payload: dict = Depends(auth_helper.get_decoded_payload_with_claims)):
     user_id = payload.get("sub")
+    user_email = payload.get("email")
     profile_doc = await mongo_manager.get_user_profile(user_id)
-    
-    user_email_from_token = payload.get("email")
-    stored_email = profile_doc.get("userData", {}).get("personalInfo", {}).get("email") if profile_doc else None
 
-    if user_email_from_token and (not profile_doc or stored_email != user_email_from_token):
-        logger.info(f"Updating stored email for user {user_id}.")
-        await mongo_manager.update_user_profile(user_id, {"userData.personalInfo.email": user_email_from_token})
-        # Add user's plan to their profile for easier access by workers
-        await mongo_manager.update_user_profile(user_id, {"userData.plan": payload.get("plan", "free")})
+    token_plan = payload.get("plan", "free")
 
-        # Re-fetch the profile after update if it was missing before
-        if not profile_doc:
-            profile_doc = await mongo_manager.get_user_profile(user_id)
+    # Check if profile exists and if plan is up-to-date
+    profile_exists = profile_doc is not None
+
+    stored_plan = profile_doc.get("userData", {}).get("plan") if profile_exists else None
+
+    # This condition covers both creating a new profile and updating an existing one's plan.
+    if not profile_exists or stored_plan != token_plan:
+        logger.info(f"Updating plan for user {user_id} to '{token_plan}'. Profile exists: {profile_exists}")
+        await mongo_manager.update_user_profile(user_id, {"userData.plan": token_plan})
+
+        if user_email and stored_plan != token_plan: # Only update if the plan actually changed
+            try:
+                await update_plan_in_sheet(user_email, token_plan)
+            except Exception as e:
+                logger.error(f"Failed to update plan in GSheet for {user_email}: {e}")
+
+        # Re-fetch the profile after update to ensure we return the latest data
+        profile_doc = await mongo_manager.get_user_profile(user_id)
 
     if profile_doc and "userData" in profile_doc:
-        return JSONResponse(content={"data": profile_doc["userData"], "status": 200})
-    print(f"[{datetime.datetime.now()}] [GET_USER_DATA] No profile/userData for {user_id}. Creating basic entry.")
-    await mongo_manager.update_user_profile(user_id, {
-        "userData.plan": payload.get("plan", "free"),
-        "userData.personalInfo.email": user_email_from_token
-    })
+        response_data = profile_doc["userData"]
+        serializable_data = _serialize_datetimes(response_data)
+        return JSONResponse(content={"data": serializable_data, "status": 200})
+
+    # Fallback in case re-fetch fails or returns an empty doc
+    logger.warning(f"Could not retrieve or create userData for user {user_id}. Returning empty data.")
     return JSONResponse(content={"data": {}, "status": 200})
 
 @router.websocket("/ws/notifications")
@@ -184,18 +264,18 @@ async def notifications_websocket_endpoint(websocket: WebSocket):
         if not authenticated_user_id: return
 
         await main_websocket_manager.connect_notifications(websocket, authenticated_user_id)
-        print(f"[{datetime.datetime.now()}] [NOTIF_WS] User {authenticated_user_id} connected to notifications WebSocket.")
+        logger.info(f"User {authenticated_user_id} connected to notifications WebSocket.")
         while True:
             data = await websocket.receive_text() 
             message_payload = json.loads(data)
             if message_payload.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
     except WebSocketDisconnect:
-        print(f"[{datetime.datetime.now()}] [NOTIF_WS] Client disconnected (User: {authenticated_user_id or 'unknown'}).")
+        logger.info(f"Client disconnected from notifications WebSocket (User: {authenticated_user_id or 'unknown'}).")
     finally:
         if authenticated_user_id: 
             await main_websocket_manager.disconnect_notifications(websocket)
-            print(f"[{datetime.datetime.now()}] [NOTIF_WS] User {authenticated_user_id} notification WebSocket cleanup complete.")
+            logger.info(f"User {authenticated_user_id} notification WebSocket cleanup complete.")
 
 # === Utility Endpoints (Token introspection, etc.) ===
 @router.post("/utils/get-role", summary="Get User Role from Token Claims")
@@ -237,3 +317,104 @@ async def update_privacy_filters_endpoint(
         raise HTTPException(status_code=500, detail="Failed to update privacy filters.")
         
     return JSONResponse(content={"message": "Privacy filters updated successfully."})
+
+@router.get("/user/properties", summary="Get user properties for analytics from GSheet")
+async def get_user_properties(
+    payload: dict = Depends(auth_helper.get_decoded_payload_with_claims)
+):
+    user_email = payload.get("email")
+    if not user_email:
+        raise HTTPException(status_code=400, detail="User email not found in token.")
+
+    properties = await get_user_properties_from_sheet(user_email)
+
+    return JSONResponse(content=properties)
+
+@router.get("/search/interactive", summary="Interactive search for tasks, chats, and memories")
+async def interactive_search(
+    query: str = Query(..., min_length=3),
+    user_id: str = Depends(auth_helper.get_current_user_id)
+):
+    query_lower = query.lower()
+    results = []
+
+    # --- Search Tasks ---
+    # Note: We fetch all tasks and filter in-memory because the 'name' and 'description' fields
+    # may be encrypted in the database. A direct DB text search would be on ciphertext.
+    # The `get_all_tasks_for_user` method handles decryption automatically.
+    # This is acceptable for a single user's data but would not scale to large datasets.
+    all_tasks = await mongo_manager.get_all_tasks_for_user(user_id)
+    tasks = []
+    for task in all_tasks:
+        # The get_all_tasks_for_user already decrypts, so we can search the content.
+        name = task.get("name", "") or ""
+        desc = task.get("description", "") or ""
+        if query_lower in name.lower() or query_lower in desc.lower():
+            tasks.append(task)
+        if len(tasks) >= 5: # Limit results
+            break
+
+    # --- Search Messages ---
+    # Similar to tasks, we fetch recent messages and then filter decrypted content.
+    # The `get_message_history` method handles decryption automatically.
+    all_messages = await mongo_manager.get_message_history(user_id, limit=200) # Search last 200 messages
+    messages = []
+    for msg in all_messages:
+        content = msg.get("content", "") or ""
+        if query_lower in content.lower():
+            messages.append(msg)
+        if len(messages) >= 5: # Limit results
+            break
+
+    # --- Search Memories (Postgres with pgvector) ---
+    memories = []
+    try:
+        pool = await get_memories_pg_pool()
+        async with pool.acquire() as conn:
+            await register_vector(conn)
+            query_embedding = _get_normalized_embedding(query, task_type="RETRIEVAL_QUERY")
+
+            # MODIFIED: Add a keyword search (ILIKE) and a similarity threshold to the WHERE clause.
+            memories_records = await conn.fetch(
+                """
+                SELECT id, content, created_at, 1 - (embedding <=> $2) AS similarity
+                FROM facts
+                WHERE user_id = $1 AND content ILIKE $3
+                ORDER BY similarity DESC
+                LIMIT 5;
+                """,
+                user_id, query_embedding, f'%{query}%'
+            )
+        memories = [dict(record) for record in memories_records]
+        print(memories)
+    except Exception as e:
+        logger.error(f"Error during memory search for user {user_id}: {e}", exc_info=True)
+        # Don't fail the whole search if memory search fails
+
+    # --- Combine and Format Results ---
+    for task in tasks:
+        results.append({"type": "task", "task_id": task["task_id"], "name": task.get("name"), "timestamp": task["created_at"]})
+    for msg in messages:
+        # msg['timestamp'] is an ISO string from get_message_history, convert it back to an offset-aware datetime for sorting
+        ts = datetime.datetime.fromisoformat(msg["timestamp"].replace("Z", "+00:00"))
+        results.append({"type": "chat", "message_id": msg["message_id"], "content": msg["content"], "timestamp": ts})
+    for mem in memories:
+        results.append({"type": "memory", "id": mem["id"], "content": mem["content"], "timestamp": mem["created_at"]})
+
+    # --- NORMALIZE TIMESTAMPS ---
+    # Ensure all datetime objects are offset-aware before sorting to prevent comparison errors.
+    for r in results:
+        ts = r.get("timestamp")
+        if isinstance(ts, datetime.datetime) and ts.tzinfo is None:
+            # If a datetime object is naive, assume it's UTC.
+            r["timestamp"] = ts.replace(tzinfo=datetime.timezone.utc)
+
+    # Sort all combined results by timestamp
+    results.sort(key=lambda x: x["timestamp"], reverse=True)
+
+    # Ensure all timestamps are ISO strings for the final JSON response
+    for r in results:
+        if isinstance(r['timestamp'], datetime.datetime):
+            r['timestamp'] = r['timestamp'].isoformat()
+
+    return {"results": results[:15]} # Limit total results

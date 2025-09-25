@@ -1,7 +1,7 @@
 import os
 import asyncio
 import json
-import datetime
+import datetime, inspect
 from typing import Dict, Any, List, Optional
 
 from dotenv import load_dotenv
@@ -40,20 +40,11 @@ def get_gcal_system_prompt() -> str:
     """Provides the system prompt for the GCal agent."""
     return prompts.gcal_agent_system_prompt
 
-@mcp.prompt(name="gcal_user_prompt_builder")
-def build_gcal_user_prompt(query: str, username: str, previous_tool_response: str = "{}") -> Message:
-    """Builds a formatted user prompt for the GCal agent."""
-    content = prompts.gcal_agent_user_prompt.format(
-        query=query,
-        username=username,
-        previous_tool_response=previous_tool_response
-    )
-    return Message(role="user", content=content)
-
-
 # --- Helper for Tool Execution ---
 async def _execute_tool(ctx: Context, action_name: str, **kwargs) -> Dict[str, Any]:
     """Helper to handle auth and execution for all tools using Composio."""
+    tool_name = inspect.stack()[1].function
+    logger.info(f"Executing tool: {tool_name} with parameters: {kwargs}")
     try:
         user_id = auth.get_user_id_from_context(ctx)
         connection_id = await auth.get_composio_connection_id(user_id, "gcalendar")
@@ -139,7 +130,18 @@ async def insert_calendar_into_list(ctx: Context, id: str, background_color: Opt
 @mcp.tool()
 async def create_event(ctx: Context, start_datetime: str, summary: Optional[str] = None, attendees: Optional[List[Dict]] = None, calendar_id: str = "primary", create_meeting_room: Optional[bool] = None, description: Optional[str] = None, eventType: str = "default", event_duration_hour: Optional[int] = None, event_duration_minutes: int = 30, guestsCanInviteOthers: Optional[bool] = None, guestsCanSeeOtherGuests: Optional[bool] = None, guests_can_modify: Optional[bool] = None, location: Optional[str] = None, recurrence: Optional[List[str]] = None, send_updates: Optional[bool] = None, timezone: Optional[str] = None, transparency: str = "opaque", visibility: str = "default") -> Dict:
     """Creates an event on a google calendar."""
-    params = {"start_datetime": start_datetime, "summary": summary, "attendees": attendees, "calendar_id": calendar_id, "create_meeting_room": create_meeting_room, "description": description, "eventType": eventType, "event_duration_hour": event_duration_hour, "event_duration_minutes": event_duration_minutes, "guestsCanInviteOthers": guestsCanInviteOthers, "guestsCanSeeOtherGuests": guestsCanSeeOtherGuests, "guests_can_modify": guests_can_modify, "location": location, "recurrence": recurrence, "send_updates": send_updates, "timezone": timezone, "transparency": transparency, "visibility": visibility}
+    # WORKAROUND for Composio inconsistency: convert attendees to list of strings
+    attendees_to_send = attendees
+    if attendees and isinstance(attendees, list):
+        processed_attendees = []
+        for attendee in attendees:
+            if isinstance(attendee, dict) and 'email' in attendee:
+                processed_attendees.append(attendee['email'])
+            elif isinstance(attendee, str):
+                processed_attendees.append(attendee)
+        attendees_to_send = processed_attendees
+
+    params = {"start_datetime": start_datetime, "summary": summary, "attendees": attendees_to_send, "calendar_id": calendar_id, "create_meeting_room": create_meeting_room, "description": description, "eventType": eventType, "event_duration_hour": event_duration_hour, "event_duration_minutes": event_duration_minutes, "guestsCanInviteOthers": guestsCanInviteOthers, "guestsCanSeeOtherGuests": guestsCanSeeOtherGuests, "guests_can_modify": guests_can_modify, "location": location, "recurrence": recurrence, "send_updates": send_updates, "timezone": timezone, "transparency": transparency, "visibility": visibility}
     return await _execute_tool(ctx, "GOOGLECALENDAR_CREATE_EVENT", **params)
 
 @mcp.tool()
@@ -155,7 +157,7 @@ async def duplicate_calendar(ctx: Context, summary: str) -> Dict:
     return await _execute_tool(ctx, "GOOGLECALENDAR_DUPLICATE_CALENDAR", **params)
 
 @mcp.tool()
-async def get_event_instances(ctx: Context, calendarId: str, eventId: str, maxAttendees: Optional[int] = None, maxResults: Optional[int] = None, originalStart: Optional[str] = None, pageToken: Optional[str] = None, showDeleted: Optional[bool] = None, timeMax: Optional[str] = None, timeMin: Optional[str] = None, timeZone: Optional[str] = None) -> Dict:
+async def get_event_instances(ctx: Context, eventId: str, calendarId: str = "primary", maxAttendees: Optional[int] = None, maxResults: Optional[int] = None, originalStart: Optional[str] = None, pageToken: Optional[str] = None, showDeleted: Optional[bool] = None, timeMax: Optional[str] = None, timeMin: Optional[str] = None, timeZone: Optional[str] = None) -> Dict:
     """Returns instances of the specified recurring event."""
     params = {"calendarId": calendarId, "eventId": eventId, "maxAttendees": maxAttendees, "maxResults": maxResults, "originalStart": originalStart, "pageToken": pageToken, "showDeleted": showDeleted, "timeMax": timeMax, "timeMin": timeMin, "timeZone": timeZone}
     return await _execute_tool(ctx, "GOOGLECALENDAR_EVENTS_INSTANCES", **params)
@@ -163,7 +165,7 @@ async def get_event_instances(ctx: Context, calendarId: str, eventId: str, maxAt
 @mcp.tool()
 async def list_events(
     ctx: Context,
-    calendarId: str,
+    calendarId: str = "primary",
     alwaysIncludeEmail: Optional[bool] = None,
     eventTypes: Optional[str] = None,
     iCalUID: Optional[str] = None,
@@ -238,19 +240,35 @@ async def patch_calendar(ctx: Context, calendar_id: str, summary: str, descripti
 @mcp.tool()
 async def patch_event(ctx: Context, calendar_id: str, event_id: str, attendees: Optional[List[Dict]] = None, conference_data_version: Optional[int] = None, description: Optional[str] = None, end_time: Optional[str] = None, location: Optional[str] = None, max_attendees: Optional[int] = None, rsvp_response: Optional[str] = None, send_updates: Optional[str] = None, start_time: Optional[str] = None, summary: Optional[str] = None, supports_attachments: Optional[bool] = None, timezone: Optional[str] = None) -> Dict:
     """Updates specified fields of an existing event in a google calendar using patch semantics."""
-    params = {"calendar_id": calendar_id, "event_id": event_id, "attendees": attendees, "conference_data_version": conference_data_version, "description": description, "end_time": end_time, "location": location, "max_attendees": max_attendees, "rsvp_response": rsvp_response, "send_updates": send_updates, "start_time": start_time, "summary": summary, "supports_attachments": supports_attachments, "timezone": timezone}
-    return await _execute_tool(ctx, "GOOGLECALENDAR_PATCH_EVENT", **params)
+    # WORKAROUND for Composio inconsistency: convert attendees to list of strings
+    attendees_to_send = attendees
+    if attendees and isinstance(attendees, list):
+        processed_attendees = []
+        for attendee in attendees:
+            if isinstance(attendee, dict) and 'email' in attendee:
+                processed_attendees.append(attendee['email'])
+            elif isinstance(attendee, str):
+                processed_attendees.append(attendee)
+        attendees_to_send = processed_attendees
 
-@mcp.tool()
-async def sync_events(ctx: Context, calendar_id: str = "primary", event_types: Optional[List[str]] = None, max_results: Optional[int] = None, pageToken: Optional[str] = None, single_events: Optional[bool] = None, sync_token: Optional[str] = None) -> Dict:
-    """Synchronizes google calendar events."""
-    params = {"calendar_id": calendar_id, "event_types": event_types, "max_results": max_results, "pageToken": pageToken, "single_events": single_events, "sync_token": sync_token}
-    return await _execute_tool(ctx, "GOOGLECALENDAR_SYNC_EVENTS", **params)
+    params = {"calendar_id": calendar_id, "event_id": event_id, "attendees": attendees_to_send, "conference_data_version": conference_data_version, "description": description, "end_time": end_time, "location": location, "max_attendees": max_attendees, "rsvp_response": rsvp_response, "send_updates": send_updates, "start_time": start_time, "summary": summary, "supports_attachments": supports_attachments, "timezone": timezone}
+    return await _execute_tool(ctx, "GOOGLECALENDAR_PATCH_EVENT", **params)
 
 @mcp.tool()
 async def update_event(ctx: Context, event_id: str, start_datetime: str, attendees: Optional[List[Dict]] = None, calendar_id: str = "primary", create_meeting_room: Optional[bool] = None, description: Optional[str] = None, eventType: str = "default", event_duration_hour: Optional[int] = None, event_duration_minutes: int = 30, guestsCanInviteOthers: Optional[bool] = None, guestsCanSeeOtherGuests: Optional[bool] = None, guests_can_modify: Optional[bool] = None, location: Optional[str] = None, recurrence: Optional[List[str]] = None, send_updates: Optional[bool] = None, summary: Optional[str] = None, timezone: Optional[str] = None, transparency: str = "opaque", visibility: str = "default") -> Dict:
     """Updates an existing event by `event id` in a google calendar."""
-    params = {"event_id": event_id, "start_datetime": start_datetime, "attendees": attendees, "calendar_id": calendar_id, "create_meeting_room": create_meeting_room, "description": description, "eventType": eventType, "event_duration_hour": event_duration_hour, "event_duration_minutes": event_duration_minutes, "guestsCanInviteOthers": guestsCanInviteOthers, "guestsCanSeeOtherGuests": guestsCanSeeOtherGuests, "guests_can_modify": guests_can_modify, "location": location, "recurrence": recurrence, "send_updates": send_updates, "summary": summary, "timezone": timezone, "transparency": transparency, "visibility": visibility}
+    # WORKAROUND for Composio inconsistency: convert attendees to list of strings
+    attendees_to_send = attendees
+    if attendees and isinstance(attendees, list):
+        processed_attendees = []
+        for attendee in attendees:
+            if isinstance(attendee, dict) and 'email' in attendee:
+                processed_attendees.append(attendee['email'])
+            elif isinstance(attendee, str):
+                processed_attendees.append(attendee)
+        attendees_to_send = processed_attendees
+
+    params = {"event_id": event_id, "start_datetime": start_datetime, "attendees": attendees_to_send, "calendar_id": calendar_id, "create_meeting_room": create_meeting_room, "description": description, "eventType": eventType, "event_duration_hour": event_duration_hour, "event_duration_minutes": event_duration_minutes, "guestsCanInviteOthers": guestsCanInviteOthers, "guestsCanSeeOtherGuests": guestsCanSeeOtherGuests, "guests_can_modify": guests_can_modify, "location": location, "recurrence": recurrence, "send_updates": send_updates, "summary": summary, "timezone": timezone, "transparency": transparency, "visibility": visibility}
     return await _execute_tool(ctx, "GOOGLECALENDAR_UPDATE_EVENT", **params)
 
 @mcp.tool()
@@ -260,22 +278,10 @@ async def update_calendar_list_entry(ctx: Context, calendar_id: str, backgroundC
     return await _execute_tool(ctx, "GOOGLECALENDAR_CALENDAR_LIST_UPDATE", **params)
 
 @mcp.tool()
-async def clear_calendar(ctx: Context, calendar_id: str) -> Dict:
-    """Clears a primary calendar."""
-    params = {"calendar_id": calendar_id}
-    return await _execute_tool(ctx, "GOOGLECALENDAR_CLEAR_CALENDAR", **params)
-
-@mcp.tool()
 async def move_event(ctx: Context, calendar_id: str, destination: str, event_id: str, send_updates: Optional[str] = None) -> Dict:
     """Moves an event to another calendar."""
     params = {"calendar_id": calendar_id, "destination": destination, "event_id": event_id, "send_updates": send_updates}
     return await _execute_tool(ctx, "GOOGLECALENDAR_EVENTS_MOVE", **params)
-
-@mcp.tool()
-async def watch_events(ctx: Context, address: str, calendarId: str, id: str, params: Optional[Dict] = None, payload: Optional[bool] = None, token: Optional[str] = None, type: str = "web_hook") -> Dict:
-    """Watch for changes to events resources."""
-    params = {"address": address, "calendarId": calendarId, "id": id, "params": params, "payload": payload, "token": token, "type": type}
-    return await _execute_tool(ctx, "GOOGLECALENDAR_EVENTS_WATCH", **params)
 
 @mcp.tool()
 async def find_free_slots(ctx: Context, items: List[str] = ["primary"], time_max: Optional[str] = None, time_min: Optional[str] = None, timezone: str = "UTC", calendar_expansion_max: int = 50, group_expansion_max: int = 100) -> Dict:
@@ -303,46 +309,16 @@ async def get_current_date_time(ctx: Context, timezone: Optional[int] = None) ->
         return {"status": "failure", "error": str(e)}
 
 @mcp.tool()
-async def list_acl_rules(ctx: Context, calendar_id: str, max_results: Optional[int] = None, page_token: Optional[str] = None, show_deleted: Optional[bool] = None, sync_token: Optional[str] = None) -> Dict:
-    """Retrieves the list of access control rules (acls) for a specified calendar."""
-    params = {"calendar_id": calendar_id, "max_results": max_results, "page_token": page_token, "show_deleted": show_deleted, "sync_token": sync_token}
-    return await _execute_tool(ctx, "GOOGLECALENDAR_LIST_ACL_RULES", **params)
-
-@mcp.tool()
 async def list_calendars(ctx: Context, max_results: int = 10, min_access_role: Optional[str] = None, page_token: Optional[str] = None, show_deleted: Optional[bool] = None, show_hidden: Optional[bool] = None, sync_token: Optional[str] = None) -> Dict:
     """Retrieves calendars from the user's google calendar list."""
     params = {"max_results": max_results, "min_access_role": min_access_role, "page_token": page_token, "show_deleted": show_deleted, "show_hidden": show_hidden, "sync_token": sync_token}
     return await _execute_tool(ctx, "GOOGLECALENDAR_LIST_CALENDARS", **params)
 
 @mcp.tool()
-async def quick_add_event(ctx: Context, text: Optional[str] = None, calendar_id: str = "primary", send_updates: str = "none") -> Dict:
-    """Parses natural language text to quickly create a basic google calendar event."""
-    params = {"text": text, "calendar_id": calendar_id, "send_updates": send_updates}
-    return await _execute_tool(ctx, "GOOGLECALENDAR_QUICK_ADD", **params)
-
-@mcp.tool()
 async def remove_attendee_from_event(ctx: Context, attendee_email: str, event_id: str, calendar_id: str = "primary") -> Dict:
     """Removes an attendee from a specified event in a google calendar."""
     params = {"attendee_email": attendee_email, "event_id": event_id, "calendar_id": calendar_id}
     return await _execute_tool(ctx, "GOOGLECALENDAR_REMOVE_ATTENDEE", **params)
-
-@mcp.tool()
-async def list_settings(ctx: Context, maxResults: Optional[int] = None, pageToken: Optional[str] = None, syncToken: Optional[str] = None) -> Dict:
-    """Returns all user settings for the authenticated user."""
-    params = {"maxResults": maxResults, "pageToken": pageToken, "syncToken": syncToken}
-    return await _execute_tool(ctx, "GOOGLECALENDAR_SETTINGS_LIST", **params)
-
-@mcp.tool()
-async def watch_settings(ctx: Context, address: str, id: str, type: str, params: Optional[Dict] = None, token: Optional[str] = None) -> Dict:
-    """Watch for changes to settings resources."""
-    params = {"address": address, "id": id, "type": type, "params": params, "token": token}
-    return await _execute_tool(ctx, "GOOGLECALENDAR_SETTINGS_WATCH", **params)
-
-@mcp.tool()
-async def update_acl_rule(ctx: Context, calendar_id: str, role: str, rule_id: str, send_notifications: bool = True) -> Dict:
-    """Updates an access control rule for the specified calendar."""
-    params = {"calendar_id": calendar_id, "role": role, "rule_id": rule_id, "send_notifications": send_notifications}
-    return await _execute_tool(ctx, "GOOGLECALENDAR_UPDATE_ACL_RULE", **params)
 
 # --- Server Execution ---
 if __name__ == "__main__":

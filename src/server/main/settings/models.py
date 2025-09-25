@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 
 class WhatsAppNumberRequest(BaseModel):
@@ -17,3 +17,6 @@ class ProfileUpdateRequest(BaseModel):
     onboardingAnswers: Dict[str, Any]
     personalInfo: Dict[str, Any]
     preferences: Dict[str, Any]
+
+class WhatsAppVerifyRequest(BaseModel):
+    phone_number: str

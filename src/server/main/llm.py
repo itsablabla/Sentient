@@ -14,7 +14,6 @@ class LLMProviderDownError(Exception):
     """Custom exception for when all LLM providers are down."""
     pass
 
-DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant called Sentient, developed by Existence. Your primary goal is to assist the user in managing their digital life by performing actions and providing responses that are deeply personalized to them."
 
 def run_agent(system_message: str, function_list: list, messages: list):
     """
@@ -28,6 +27,10 @@ def run_agent(system_message: str, function_list: list, messages: list):
         'model': OPENAI_MODEL_NAME,
         'model_server': OPENAI_API_BASE_URL,
         'api_key': OPENAI_API_KEY,
+        'generate_cfg': {
+            'max_input_tokens': 128000, # Set a high limit to avoid truncation errors
+            'tools': [{"urlContext": {}}]    # enable URL context tool
+        }
     }
 
     try:

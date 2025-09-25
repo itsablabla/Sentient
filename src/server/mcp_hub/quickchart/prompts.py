@@ -31,20 +31,15 @@ EXAMPLE BAR CHART CONFIG:
 }
 
 INSTRUCTIONS:
-- **Analyze the Request**: Carefully read the user's request to extract the data, labels, and desired chart type.
-- **Choose a Chart Type**: If the user doesn't specify a type, select the most appropriate one: 'bar' for comparing values, 'line' for trends over time, 'pie' for proportions.
-- **Build the Config**: Construct the `chart_config` object following the Chart.js format shown in the example. Pay close attention to the structure.
-- **Generate the Chart**: Call `generate_chart` to get a URL, or `download_chart` to save the image file.
-- Your response for a tool call MUST be a single, valid JSON object.
-"""
+- Analyze the Request: Carefully read the user's request to extract the data, labels, and desired chart type.
+- Choose a Chart Type: If the user doesn't specify a type, select the most appropriate one: 'bar' for comparing values, 'line' for trends over time, 'pie' for proportions.
+- Build the Config: Construct the `chart_config` object following the Chart.js format shown in the example. Pay close attention to the structure.
+- Generate the Chart: Call `generate_chart` to get a publicly accessible URL for the file.
 
-quickchart_agent_user_prompt = """
-User Query:
-{query}
+CRITICAL: For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{{"name": <function-name>, "arguments": <args-json-object>}}
+</tool_call>
 
-Username:
-{username}
-
-Previous Tool Response:
-{previous_tool_response}
+DO NOT USE <tool_code> TAGS FOR ANY REASON. USE <tool_call> TAGS ONLY.
 """

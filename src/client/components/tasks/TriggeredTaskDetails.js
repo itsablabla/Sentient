@@ -4,11 +4,16 @@ import React, { useState } from "react"
 import { format, parseISO } from "date-fns"
 import { taskStatusColors, priorityMap } from "./constants"
 import { cn } from "@utils/cn"
-import CollapsibleSection from "./CollapsibleSection"
 import ExecutionUpdate from "./ExecutionUpdate"
 import ReactMarkdown from "react-markdown"
+import {
+	Accordion,
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger
+} from "@components/ui/accordion"
 
-const TriggeredTaskDetails = ({ task }) => {
+const TriggeredTaskDetails = ({ task, userTimezone }) => {
 	if (!task) return null
 
 	const statusInfo = taskStatusColors[task.status] || taskStatusColors.default
@@ -103,10 +108,15 @@ const TriggeredTaskDetails = ({ task }) => {
 					<h4 className="font-semibold text-neutral-300 mb-2">
 						Run History
 					</h4>
-					<div className="space-y-3">
+					<Accordion
+						type="single"
+						collapsible
+						defaultValue={task.runs[task.runs.length - 1]?.run_id}
+					>
 						{task.runs
 							.slice()
 							.reverse()
+							.slice(0, 5)
 							.map((run, index) => {
 								const runNumber = task.runs.length - index
 								const runStatusInfo =
@@ -139,21 +149,48 @@ const TriggeredTaskDetails = ({ task }) => {
 										</div>
 										<div className="text-xs text-neutral-400">
 											{runDate
-												? format(
-														runDate,
-														"MMMM d, yyyy 'at' p"
-													)
+												? new Intl.DateTimeFormat(
+														undefined,
+														{
+															year: "numeric",
+															month: "long",
+															day: "numeric",
+															hour: "numeric",
+															minute: "2-digit",
+															timeZoneName:
+																"short",
+															timeZone:
+																userTimezone ||
+																undefined
+														}
+													).format(runDate)
 												: "Run pending..."}
 										</div>
 									</div>
 								)
 								return (
-									<CollapsibleSection
+									<AccordionItem
 										key={run.run_id}
-										title={title}
-										defaultOpen={index === 0}
+										value={run.run_id}
 									>
-										<div className="bg-neutral-800/50 p-4 rounded-lg border border-neutral-700/50 space-y-4 mt-2">
+										<AccordionTrigger>
+											{title}
+										</AccordionTrigger>
+										<AccordionContent>
+											{run.trigger_event_data && (
+												<div>
+													<h5 className="text-xs font-semibold text-neutral-400 mb-1">
+														Trigger Data
+													</h5>
+													<pre className="text-xs bg-neutral-900 p-2 rounded-md overflow-x-auto custom-scrollbar">
+														{JSON.stringify(
+															run.trigger_event_data,
+															null,
+															2
+														)}
+													</pre>
+												</div>
+											)}
 											{run.progress_updates &&
 											run.progress_updates.length > 0 ? (
 												run.progress_updates.map(
@@ -170,11 +207,11 @@ const TriggeredTaskDetails = ({ task }) => {
 													run.
 												</p>
 											)}
-										</div>
-									</CollapsibleSection>
+										</AccordionContent>
+									</AccordionItem>
 								)
 							})}
-					</div>
+					</Accordion>
 				</div>
 			)}
 		</div>

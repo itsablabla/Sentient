@@ -133,7 +133,12 @@ class OrpheusTTS(BaseTTS):
         except Exception as e:
             logger.error(f"Error generating Orpheus tokens: {e}", exc_info=True); yield "<|error|>"
 
-    async def stream_tts(self, text: str, options: TTSOptionsBase = None) -> AsyncGenerator[Tuple[int, NDArray[np.float32]], None]:
+    async def stream_tts(self, text: str, language: Optional[str] = "en", options: TTSOptionsBase = None) -> AsyncGenerator[Tuple[int, NDArray[np.float32]], None]:
+        # Orpheus is English-only, so we ignore the language parameter but keep it for interface consistency.
+        if language and not language.startswith("en"):
+            logger.warning(f"OrpheusTTS received a non-English language code '{language}'. It will attempt to synthesize the text as English.")
+        
+        logger.info(f"Starting Orpheus TTS stream for text: '{text[:50]}...'")
         opts = cast(OrpheusTTSOptions, options or {})
         loop = asyncio.get_running_loop()
         queue = asyncio.Queue()
@@ -157,8 +162,11 @@ class OrpheusTTS(BaseTTS):
 
         thread = threading.Thread(target=thread_worker, daemon=True)
         thread.start()
+        chunk_count = 0
         while True:
             chunk = await queue.get()
             if chunk is None: break
+            chunk_count += 1
             yield chunk
-        await asyncio.to_thread(thread.join)
+        await asyncio.to_thread(thread.join)        
+        logger.info(f"Finished streaming {chunk_count} audio chunks from Orpheus TTS.")
