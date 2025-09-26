@@ -14,7 +14,7 @@ Here is the complete list of available tools you can select from:
 {
   "file_management": "Reading, writing, and listing files.",
   "accuweather": "Use this tool to get weather information for a specific location.",
-  "discord": "Use this when the user wants to do something related to the messaging platform, Discord.",
+  "discord": "Use this tool when the user wants to do something related to the messaging platform, Discord.",
   "gcalendar": "Use this tool to manage events in Google Calendar.",
   "gdocs": "Use this tool for creating and editing documents in Google Docs.",
   "gdrive": "Use this tool to search and read files in Google Drive.",
@@ -31,7 +31,8 @@ Here is the complete list of available tools you can select from:
   "quickchart": "Use this tool to generate charts and graphs quickly from data inputs.",
   "slack": "Use this tool to perform actions in the messaging platform Slack.",
   "trello": "Use this tool for managing boards in Trello.",
-  "whatsapp": "Use this tool only for sending Whatsapp messages to the user."
+  "whatsapp": "Use this tool only for sending Whatsapp messages to the user.",
+  "clado": "Use this tool to find and enrich professional profiles, such as finding people on LinkedIn or getting their contact information."
 }
 
 Include only the tool names in the tools list.
@@ -99,7 +100,8 @@ Here is the list of available tools:
   "quickchart": "Use this tool to generate charts and graphs quickly from data inputs.",
   "slack": "Use this tool to perform actions in the messaging platform Slack.",
   "trello": "Use this tool for managing boards in Trello.",
-  "whatsapp": "Use this tool only for sending Whatsapp messages to the user."
+  "whatsapp": "Use this tool only for sending Whatsapp messages to the user.",
+  "clado": "Use this tool to find and enrich professional profiles, such as finding people on LinkedIn or getting their contact information."
 }}
 
 Your response MUST be a single, valid JSON object. DO NOT provide any other text.

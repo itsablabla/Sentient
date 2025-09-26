@@ -93,6 +93,7 @@ DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID")
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET")
 TODOIST_CLIENT_ID = os.getenv("TODOIST_CLIENT_ID")
 TODOIST_CLIENT_SECRET = os.getenv("TODOIST_CLIENT_SECRET")
+CLADO_API_KEY = os.getenv("CLADO_API_KEY")
 
 # --- Composio Auth Config IDs ---
 GMAIL_AUTH_CONFIG_ID = os.getenv("GMAIL_AUTH_CONFIG_ID")
@@ -385,6 +386,17 @@ INTEGRATIONS_CONFIG = {
         "mcp_server_config": {
             "name": "orchestrator_server",
             "url": os.getenv("ORCHESTRATOR_MCP_SERVER_URL", "http://localhost:9027/sse")
+        }
+    },
+    "clado": {
+        "display_name": "Clado",
+        "description": "Find and enrich professional profiles from LinkedIn. The agent can perform natural language searches for people, get contact information, and scrape their full profile.",
+        "auth_type": "manual",
+        "icon": "IconUsersGroup",
+        "category": "Advanced",
+        "mcp_server_config": {
+            "name": "clado_server",
+            "url": os.getenv("CLADO_MCP_SERVER_URL", "http://localhost:9029/sse")
         }
     }
 }

@@ -41,7 +41,8 @@ import {
 	IconPlug,
 	IconArrowUpCircle,
 	IconCheck,
-	IconListCheck
+	IconListCheck,
+	IconUsersGroup
 } from "@tabler/icons-react"
 import { cn } from "@utils/cn"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
@@ -99,7 +100,8 @@ const integrationColorIcons = {
 	news: IconNews,
 	discord: IconBrandDiscord,
 	whatsapp: IconBrandWhatsapp,
-	file_management: IconFile
+	file_management: IconFile,
+	clado: IconUsersGroup
 }
 
 const IconPlaceholder = IconSettingsCog

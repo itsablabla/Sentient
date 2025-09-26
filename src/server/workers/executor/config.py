@@ -301,5 +301,16 @@ INTEGRATIONS_CONFIG = {
             "name": "orchestrator_server",
             "url": os.getenv("ORCHESTRATOR_MCP_SERVER_URL", "http://localhost:9027/sse")
         }
+    },
+    "clado": {
+        "display_name": "Clado",
+        "description": "Find and enrich professional profiles from LinkedIn. The agent can perform natural language searches for people, get contact information, and scrape their full profile.",
+        "auth_type": "manual",
+        "icon": "IconUsersGroup",
+        "category": "Advanced",
+        "mcp_server_config": {
+            "name": "clado_server",
+            "url": os.getenv("CLADO_MCP_SERVER_URL", "http://localhost:9029/sse")
+        }
     }
 }

@@ -27,7 +27,8 @@ import {
 	IconBrandNotion,
 	IconBrandGithub,
 	IconBrandGoogleDrive,
-	IconArrowRight
+	IconArrowRight,
+	IconUsersGroup
 } from "@tabler/icons-react"
 import { AnimatePresence, motion } from "framer-motion"
 import ReactMarkdown from "react-markdown"
@@ -61,6 +62,7 @@ const toolIcons = {
 	whatsapp: IconBrandWhatsapp,
 	gtasks: IconListCheck,
 	gcalendar_alt: IconCalendarEvent,
+	clado: IconUsersGroup,
 	default: IconTool
 }
 // LinkButton component (no changes needed)

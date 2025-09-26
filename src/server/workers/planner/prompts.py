@@ -44,6 +44,7 @@ Here is the complete list of services (tools) available to the executor agent, t
   "trello": "Use this tool for managing boards in Trello.",
   "whatsapp": "Use this tool only for sending Whatsapp messages to the user.",
   "gtasks": "Use this tool to manage the user's todos in Google Tasks.",
+  "clado": "Use this tool to find and enrich professional profiles, such as finding people on LinkedIn or getting their contact information."
 }}
 
 

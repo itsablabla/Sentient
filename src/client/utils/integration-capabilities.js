@@ -31,5 +31,6 @@ export const INTEGRATION_CAPABILITIES = {
 		"I come with a built-in weather tool. I can get you the current weather conditions for any location, as well as provide daily forecasts so you can plan your day accordingly.",
 	quickchart:
 		"I have a built-in tool to create charts and graphs. Just give me some data, and I can generate a bar chart, line graph, or pie chart on the fly and give you a link to the image.",
-	gmaps: "Using my built-in Google Maps tool, I can help you with location-based queries. I can search for places like restaurants or landmarks and get you directions for driving, walking, or public transit."
+	gmaps: "Using my built-in Google Maps tool, I can help you with location-based queries. I can search for places like restaurants or landmarks and get you directions for driving, walking, or public transit.",
+	clado: "With the Clado integration, I can find and enrich professional profiles from LinkedIn. I can perform natural language searches for people (e.g., 'software engineers at Google'), get their contact information, and scrape their full profile for the most up-to-date information."
 }
