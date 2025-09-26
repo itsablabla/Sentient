@@ -32,6 +32,7 @@ import {
 	IconUsers,
 	IconHelpCircle,
 	IconCalendarEvent,
+	IconUsersGroup,
 	IconWorldSearch,
 	IconSearch,
 	IconBolt,
@@ -41,8 +42,7 @@ import {
 	IconPlug,
 	IconArrowUpCircle,
 	IconCheck,
-	IconListCheck,
-	IconUsersGroup
+	IconListCheck
 } from "@tabler/icons-react"
 import { cn } from "@utils/cn"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
@@ -114,7 +114,8 @@ const PRO_ONLY_INTEGRATIONS = [
 	"trello",
 	"whatsapp",
 	"gpeople",
-	"gslides"
+	"gslides",
+	"clado"
 ]
 
 const proPlanFeatures = [
@@ -916,6 +917,27 @@ const IntegrationsPage = () => {
 		openUpgradeModal()
 	}
 
+	const connectCladoMutation = useMutation({
+		mutationFn: () => {
+			// Clado is a manual integration that doesn't require user credentials.
+			// The API key is stored on the server. We just need to signal a connection.
+			return apiClient("/api/settings/integrations/connect/manual", {
+				method: "POST",
+				body: JSON.stringify({ service_name: "clado", credentials: {} })
+			})
+		},
+		onSuccess: () => {
+			toast.success("Clado connected successfully!")
+			queryClient.invalidateQueries({ queryKey: ["integrations"] })
+		},
+		onError: (error) => {
+			toast.error(`Connection failed: ${error.message}`)
+		},
+		onSettled: () => {
+			setProcessingIntegration(null)
+		}
+	})
+
 	const handleConnect = async (integration) => {
 		const isProFeature = PRO_ONLY_INTEGRATIONS.includes(integration.name)
 		if (isProFeature && !isPro) {
@@ -936,6 +958,12 @@ const IntegrationsPage = () => {
 				})
 				return // Stop if refresh fails
 			}
+		}
+
+		if (integration.name === "clado") {
+			setProcessingIntegration(integration.name)
+			connectCladoMutation.mutate()
+			return
 		}
 
 		if (integration.auth_type === "composio") {
@@ -1467,7 +1495,13 @@ const IntegrationsPage = () => {
 				</MorphingDialogContent>
 			)
 		},
-		[processingIntegration, handleComposioConnect, handleConnect]
+		[
+			processingIntegration,
+			handleComposioConnect,
+			handleConnect,
+			openPrivacyModal,
+			setDisconnectingIntegration
+		]
 	)
 
 	return (
@@ -1499,9 +1533,12 @@ const IntegrationsPage = () => {
 							confirmButtonType="danger"
 							onConfirm={() => {
 								if (disconnectingIntegration) {
-									disconnectMutation.mutate(
-										disconnectingIntegration
-									)
+									disconnectMutation.mutate({
+										integrationName:
+											disconnectingIntegration.name,
+										displayName:
+											disconnectingIntegration.display_name
+									})
 								}
 							}}
 							onCancel={() => setDisconnectingIntegration(null)}

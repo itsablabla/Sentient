@@ -42,7 +42,7 @@ async def _execute_tool(ctx: Context, method: str, endpoint: str, params: Option
 
 # Search API
 @mcp.tool()
-async def search_people(ctx: Context, query: str, limit: int = 30, companies: Optional[List[str]] = None, schools: Optional[List[str]] = None, advanced_filtering: bool = True, search_id: Optional[str]] = None, offset: int = 0) -> Dict:
+async def search_people(ctx: Context, query: str, limit: int = 30, companies: Optional[List[str]] = None, schools: Optional[List[str]] = None, advanced_filtering: bool = True, search_id: Optional[str] = None, offset: int = 0) -> Dict:
     """Searches LinkedIn profiles using a natural language query."""
     params = {k: v for k, v in locals().items() if k not in ['ctx'] and v is not None}
     return await _execute_tool(ctx, "GET", "/api/search", params=params)
@@ -95,12 +95,6 @@ async def get_post_reactions(ctx: Context, url: str, page: int = 1, reaction_typ
     """Gets detailed reaction data for a specific LinkedIn post."""
     params = {k: v for k, v in locals().items() if k not in ['ctx'] and v is not None}
     return await _execute_tool(ctx, "GET", "/api/enrich/post-reactions", params=params)
-
-# Platform API
-@mcp.tool()
-async def get_credits(ctx: Context) -> Dict:
-    """Checks the remaining credit balance for your API key."""
-    return await _execute_tool(ctx, "GET", "/api/credits")
 
 # --- Server Execution ---
 if __name__ == "__main__":

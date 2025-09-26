@@ -38,7 +38,6 @@ def run_agent_interaction():
     print("\nExample commands:")
     print("  - find software engineers at Google")
     print("  - get contact info for linkedin.com/in/williamhgates")
-    print("  - check my Clado credits")
     print("-" * 25)
 
     messages = []
