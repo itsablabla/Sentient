@@ -1,26 +1,35 @@
 import { AudioPlayer } from "./AudioPlayer"
 
+interface WebSocketClientOptions {
+    onConnected?: () => void;
+    onDisconnected?: () => void;
+    onMessage?: (message: any) => void;
+    onConnectError?: (error: Error) => void;
+    onAudioLevel?: (level: number) => void;
+}
+
 export class WebSocketClient {
-	constructor(options = {}) {
+	options: WebSocketClientOptions;
+	serverUrl: string;
+	ws: WebSocket | null = null;
+	mediaStream: MediaStream | null = null;
+	audioContext: AudioContext | null = null;
+	workletNode: AudioWorkletNode | null = null;
+	sourceNode: MediaStreamAudioSourceNode | null = null;
+	audioPlayer: AudioPlayer | null = null;
+	analyser: AnalyserNode | null = null;
+	token: string | null = null;
+	chatId: string | null = null;
+
+	constructor(options: WebSocketClientOptions = {}) {
 		this.options = options
-		const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws"
 		const serverUrlHttp =
 			process.env.NEXT_PUBLIC_APP_SERVER_URL || "http://localhost:5000"
 		const serverUrlWs = serverUrlHttp.replace(/^http/, "ws")
 		this.serverUrl = `${serverUrlWs}/voice/ws/voice`
-
-		this.ws = null
-		this.mediaStream = null
-		this.audioContext = null
-		this.workletNode = null
-		this.sourceNode = null
-		this.audioPlayer = null
-		this.analyser = null
-		this.token = null
-		this.chatId = null
 	}
 
-	async connect(deviceId, token) {
+	async connect(deviceId: string, token: string) {
 		if (this.ws) {
 			console.warn("[VoiceClient] Already connected or connecting.")
 			return
@@ -52,7 +61,7 @@ export class WebSocketClient {
 			this.setupWebSocketHandlers()
 		} catch (error) {
 			console.error("[VoiceClient] Connection failed:", error)
-			this.options.onConnectError?.(error)
+			this.options.onConnectError?.(error as Error)
 			this.disconnect()
 			throw error
 		}

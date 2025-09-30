@@ -1,5 +1,27 @@
+interface WebRTCClientOptions {
+    onConnected?: () => void;
+    onDisconnected?: () => void;
+    onAudioStream?: (stream: MediaStream) => void;
+    onAudioLevel?: (level: number) => void;
+    onEvent?: (event: any) => void;
+    iceServers?: RTCIceServer[];
+}
+
 export class WebRTCClient {
-	constructor(options = {}) {
+	peerConnection: RTCPeerConnection | null = null;
+	mediaStream: MediaStream | null = null;
+	dataChannel: RTCDataChannel | null = null;
+	options: WebRTCClientOptions;
+	audioContext: AudioContext | null = null;
+	analyser: AnalyserNode | null = null;
+	dataArray: Uint8Array | null = null;
+	animationFrameId: number | null = null;
+	serverUrl: string;
+	iceServers: RTCIceServer[];
+	iceCandidateQueue: RTCIceCandidate[] = [];
+	disconnectTimer: NodeJS.Timeout | null = null;
+
+	constructor(options: WebRTCClientOptions = {}) {
 		this.peerConnection = null
 		this.mediaStream = null
 		this.dataChannel = null
@@ -12,14 +34,12 @@ export class WebRTCClient {
 			process.env.NEXT_PUBLIC_APP_SERVER_URL || "http://localhost:5000"
 		this.iceServers = options.iceServers || [] // Store iceServers from options
 
-		// --- MODIFICATION: Add a queue for ICE candidates ---
 		this.iceCandidateQueue = []
-		// --- MODIFICATION: Add a timer for handling temporary disconnections ---
 		this.disconnectTimer = null
 		console.log("[WebRTCClient] Initialized with options:", options)
 	}
 
-	async connect(deviceId, authToken, rtcToken) {
+	async connect(deviceId: string, authToken: string, rtcToken: string) {
 		if (!authToken) {
 			throw new Error("Authentication token is required to connect.")
 		}
@@ -27,7 +47,6 @@ export class WebRTCClient {
 			throw new Error("RTC token is required to connect.")
 		}
 
-		// --- MODIFICATION: Reset the queue on new connection ---
 		this.iceCandidateQueue = []
 		console.log(
 			`[WebRTCClient] Connecting with deviceId: ${deviceId}, rtcToken: ${rtcToken}`
@@ -42,7 +61,6 @@ export class WebRTCClient {
 				this.iceServers
 			)
 
-			// --- MODIFICATION: Queue ICE candidates instead of sending immediately ---
 			this.peerConnection.onicecandidate = (event) => {
 				if (event.candidate) {
 					this.iceCandidateQueue.push(event.candidate)
@@ -60,8 +78,6 @@ export class WebRTCClient {
 				const state = this.peerConnection.connectionState
 				console.log(`[WebRTCClient] onconnectionstatechange: ${state}`)
 
-				// --- START MODIFICATION: Handle temporary disconnections ---
-				// If connection is established or re-established, clear any pending disconnect timer.
 				if (state === "connected") {
 					if (this.disconnectTimer) {
 						console.log(
@@ -73,7 +89,6 @@ export class WebRTCClient {
 					this.options.onConnected?.()
 				}
 
-				// When disconnected, it might be temporary. Start a timer to see if it recovers.
 				if (state === "disconnected") {
 					console.warn(
 						"WebRTC connection is temporarily disconnected. Starting a 300-second timer to see if it recovers..."
@@ -88,7 +103,6 @@ export class WebRTCClient {
 					}
 				}
 
-				// If the connection fails or is closed, it's permanent. Disconnect immediately.
 				if (state === "failed" || state === "closed") {
 					if (this.disconnectTimer) {
 						clearTimeout(this.disconnectTimer)
@@ -99,7 +113,6 @@ export class WebRTCClient {
 					)
 					this.disconnect()
 				}
-				// --- END MODIFICATION ---
 			}
 
 			const audioConstraints = {
@@ -176,7 +189,6 @@ export class WebRTCClient {
 			await this.peerConnection.setRemoteDescription(serverResponse)
 			console.log("[WebRTCClient] Remote description (answer) set.")
 
-			// --- MODIFICATION: Send all queued ICE candidates now ---
 			console.log(
 				`[WebRTCClient] Sending ${this.iceCandidateQueue.length} queued ICE candidates...`
 			)
@@ -269,8 +281,6 @@ export class WebRTCClient {
 	}
 
 	disconnect() {
-		// --- MODIFICATION: Make disconnect idempotent ---
-		// If peerConnection is already null, we've already cleaned up.
 		if (this.peerConnection === null) {
 			console.log("[WebRTCClient] Already disconnected, skipping redundant disconnect call.");
 			return;
