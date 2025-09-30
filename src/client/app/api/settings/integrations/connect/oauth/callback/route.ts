@@ -11,7 +11,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 	const publicBaseUrl = process.env.APP_BASE_URL
 	if (!publicBaseUrl) {
 		console.error("APP_BASE_URL environment variable is not set.")
-		return new Response("Server configuration error.", { status: 500 })
+		return new NextResponse("Server configuration error.", { status: 500 })
 	}
 
 	// Determine the correct URL for server-side fetching.

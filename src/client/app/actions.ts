@@ -32,6 +32,14 @@ async function connectToDatabase() {
 	return { client, db }
 }
 
+interface UserProfileDoc {
+	user_id: string;
+	userData?: {
+		pwa_subscriptions?: PwaSubscription[];
+	};
+	// Add other fields from your user profile schema as needed
+}
+
 // --- WebPush Setup ---
 if (
 	process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY &&
@@ -65,7 +73,7 @@ export async function subscribeUser(subscription: PwaSubscription) {
 
 	try {
 		const { db } = await connectToDatabase()
-		const userProfiles: Collection<any> = db.collection("user_profiles")
+		const userProfiles: Collection<UserProfileDoc> = db.collection("user_profiles")
 
 		await userProfiles.updateOne(
 			{ user_id: userId },
@@ -92,7 +100,7 @@ export async function unsubscribeUser(endpoint: string) {
 
 	try {
 		const { db } = await connectToDatabase()
-		const userProfiles: Collection<any> = db.collection("user_profiles")
+		const userProfiles: Collection<UserProfileDoc> = db.collection("user_profiles")
 
 		await userProfiles.updateOne(
 			{ user_id: userId },
@@ -131,8 +139,8 @@ export async function sendNotificationToCurrentUser(payload: any) {
 
 	try {
 		const { db } = await connectToDatabase()
-		const userProfile: { userData?: { pwa_subscriptions: PwaSubscription[] } } | null = await db
-			.collection("user_profiles")
+		const userProfile = await db
+			.collection<UserProfileDoc>("user_profiles")
 			.findOne(
 				{ user_id: userId },
 				{ projection: { "userData.pwa_subscriptions": 1 } }

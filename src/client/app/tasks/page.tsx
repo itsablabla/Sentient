@@ -1,7 +1,15 @@
 "use client"
 
 import { cn } from "@utils/cn"
-import React, { useRef, useState, useMemo, useEffect, Suspense, FC } from "react"
+import React, {
+	useRef,
+	useState,
+	useMemo,
+	useEffect,
+	Suspense,
+	FC,
+	useCallback
+} from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
 	IconLoader,
@@ -10,7 +18,12 @@ import {
 	IconPlus,
 	IconBolt
 } from "@tabler/icons-react"
-import { useQuery, useMutation, useQueryClient, UseMutationOptions } from "@tanstack/react-query"
+import {
+	useQuery,
+	useMutation,
+	useQueryClient,
+	UseMutationOptions
+} from "@tanstack/react-query"
 import { AnimatePresence, motion } from "framer-motion"
 import toast from "react-hot-toast"
 import { Tooltip } from "react-tooltip"
@@ -28,8 +41,8 @@ import {
 	useUserStore,
 	useTaskStore,
 	useTourStore
-} from "@stores/app-stores";
-import { Task, Integration } from "@/types";
+} from "@stores/app-stores"
+import { Task, Integration } from "@/types"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -49,8 +62,8 @@ const proPlanFeatures = [
 ]
 
 interface UpgradeToProModalProps {
-    isOpen: boolean;
-    onClose: () => void;
+	isOpen: boolean
+	onClose: () => void
 }
 
 const UpgradeToProModal: FC<UpgradeToProModalProps> = ({ isOpen, onClose }) => {
@@ -136,7 +149,7 @@ const UpgradeToProModal: FC<UpgradeToProModalProps> = ({ isOpen, onClose }) => {
 }
 
 function usePrevious<T>(value: T): T | undefined {
-	const ref = useRef<T>();
+	const ref = useRef<T>()
 	useEffect(() => {
 		ref.current = value
 	})
@@ -160,12 +173,21 @@ function TasksPageContent() {
 	const { isUpgradeModalOpen, openUpgradeModal, closeUpgradeModal } =
 		useUIStore()
 	const { isPro } = useUserStore()
-	const { isActive: isTourActive, step, subStep, phase, nextStep } = useTourStore()
+	const {
+		isActive: isTourActive,
+		step,
+		subStep,
+		phase,
+		nextStep
+	} = useTourStore()
 	const [isMobile, setIsMobile] = useState<boolean>(false)
 	const [isModalOpen, setIsModalOpen] = useState<boolean>(false)
 	const prevTourState = usePrevious({ isActive: isTourActive, step, subStep })
 
-	const { data, isLoading, isError } = useQuery<{ tasks: Task[]; integrations: Integration[] }, Error>({
+	const { data, isLoading, isError } = useQuery<
+		{ tasks: Task[]; integrations: Integration[] },
+		Error
+	>({
 		queryKey: ["tasksPageData"],
 		queryFn: async () => {
 			if (isTourActive) {
@@ -188,7 +210,7 @@ function TasksPageContent() {
 		staleTime: 1000 * 60 // 1 minute
 	})
 
-	const allTasks: Task[] = data?.tasks || []
+	const allTasks: Task[] = useMemo(() => data?.tasks || [], [data])
 	const integrations: Integration[] = data?.integrations || []
 	const allTools = integrations.map((i) => ({
 		name: i.name,
@@ -280,14 +302,14 @@ function TasksPageContent() {
 		}
 	}, [isTourActive, step, subStep])
 
-	const handleClosePanel = () => {
+	const handleClosePanel = useCallback(() => {
 		if (isTourActive && step >= 3) {
 			// Don't close panel during tour simulation
 		} else {
 			router.push("/tasks", { scroll: false }) // Clear URL param
 		}
 		setIsModalOpen(false)
-	}
+	}, [isTourActive, step, router])
 
 	// Effect to sync UI state with the tour state
 	useEffect(() => {
@@ -321,7 +343,8 @@ function TasksPageContent() {
 		isComposerOpen,
 		nextStep,
 		openComposer,
-		closeComposer
+		closeComposer,
+		composerInitialData
 	])
 
 	useEffect(() => {
@@ -368,7 +391,15 @@ function TasksPageContent() {
 			// On desktop, the modal is never used.
 			setIsModalOpen(false)
 		}
-	}, [searchParams, isMobile, isTourActive, step, phase, selectedTask, handleClosePanel])
+	}, [
+		searchParams,
+		isMobile,
+		isTourActive,
+		step,
+		phase,
+		selectedTask,
+		handleClosePanel
+	])
 
 	const tasksWithDemo: Task[] = useMemo(() => {
 		// Filter(Boolean) removes null/undefined demo tasks
@@ -401,7 +432,10 @@ function TasksPageContent() {
 
 	const useTaskMutation = <TVariables = any, TData = any>(
 		mutationFn: (variables: TVariables) => Promise<TData>,
-		{ successMessage, errorMessage }: { successMessage: string; errorMessage: string }
+		{
+			successMessage,
+			errorMessage
+		}: { successMessage: string; errorMessage: string }
 	) => {
 		return useMutation({
 			mutationFn,
@@ -415,37 +449,52 @@ function TasksPageContent() {
 		})
 	}
 
-	const answerClarificationsMutation = useMutation(useTaskMutation<{ taskId: string; answers: any[] }, any>(
-		({ taskId, answers }: { taskId: string; answers: any[] }) =>
-			fetch("/api/tasks/answer-clarifications", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ taskId, answers })
-			}).then((res) => {
-				if (!res.ok) throw new Error("Failed to submit answers.")
-				return res.json()
-			}),
-		{
-			successMessage: "Answers submitted. The task will now resume.",
-			errorMessage: "Failed to submit answers."
-		}
-	))
+	const answerClarificationsMutation = useMutation(
+		useTaskMutation<{ taskId: string; answers: any[] }, any>(
+			({ taskId, answers }: { taskId: string; answers: any[] }) =>
+				fetch("/api/tasks/answer-clarifications", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ taskId, answers })
+				}).then((res) => {
+					if (!res.ok) throw new Error("Failed to submit answers.")
+					return res.json()
+				}),
+			{
+				successMessage: "Answers submitted. The task will now resume.",
+				errorMessage: "Failed to submit answers."
+			}
+		)
+	)
 
-	const answerLongFormClarificationMutation = useMutation(useTaskMutation<{ taskId: string; requestId: string; answer: string }, any>(
-		({ taskId, requestId, answer }: { taskId: string; requestId: string; answer: string }) =>
-			fetch(`/api/tasks/${taskId}/answer-clarification`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ requestId, answer })
-			}).then((res) => {
-				if (!res.ok) throw new Error("Failed to submit answer.")
-				return res.json()
-			}),
-		{
-			successMessage: "Answer submitted. The task will now resume.",
-			errorMessage: "Failed to submit answer."
-		}
-	))
+	const answerLongFormClarificationMutation = useMutation(
+		useTaskMutation<
+			{ taskId: string; requestId: string; answer: string },
+			any
+		>(
+			({
+				taskId,
+				requestId,
+				answer
+			}: {
+				taskId: string
+				requestId: string
+				answer: string
+			}) =>
+				fetch(`/api/tasks/${taskId}/answer-clarification`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ requestId, answer })
+				}).then((res) => {
+					if (!res.ok) throw new Error("Failed to submit answer.")
+					return res.json()
+				}),
+			{
+				successMessage: "Answer submitted. The task will now resume.",
+				errorMessage: "Failed to submit answer."
+			}
+		)
+	)
 
 	const createTaskMutation = useMutation({
 		mutationFn: (payload: any) =>
@@ -485,120 +534,134 @@ function TasksPageContent() {
 		}
 	})
 
-	const resumeTaskMutation = useMutation(useTaskMutation<string, any>(
-		(taskId: string) =>
-			fetch(`/api/tasks/${taskId}/action`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ action: "resume" })
-			}).then((res) => {
-				if (!res.ok) throw new Error("Failed to resume task.")
-				return res.json()
-			}),
-		{
-			successMessage: "Task resumed.",
-			errorMessage: "Failed to resume task."
-		}
-	))
+	const resumeTaskMutation = useMutation(
+		useTaskMutation<string, any>(
+			(taskId: string) =>
+				fetch(`/api/tasks/${taskId}/action`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ action: "resume" })
+				}).then((res) => {
+					if (!res.ok) throw new Error("Failed to resume task.")
+					return res.json()
+				}),
+			{
+				successMessage: "Task resumed.",
+				errorMessage: "Failed to resume task."
+			}
+		)
+	)
 
-	const updateTaskMutation = useMutation(useTaskMutation<Task, any>(
-		(updatedTask: Task) =>
-			fetch("/api/tasks/update", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					...updatedTask,
-					taskId: updatedTask.task_id
-				})
-			}).then((res) => {
-				if (!res.ok) throw new Error("Failed to update task.")
-				return res.json()
-			}),
-		{
-			successMessage: "Task updated!",
-			errorMessage: "Failed to update task."
-		}
-	))
+	const updateTaskMutation = useMutation(
+		useTaskMutation<Task, any>(
+			(updatedTask: Task) =>
+				fetch("/api/tasks/update", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						...updatedTask,
+						taskId: updatedTask.task_id
+					})
+				}).then((res) => {
+					if (!res.ok) throw new Error("Failed to update task.")
+					return res.json()
+				}),
+			{
+				successMessage: "Task updated!",
+				errorMessage: "Failed to update task."
+			}
+		)
+	)
 
-	const deleteTaskMutation = useMutation(useTaskMutation<string, any>(
-		(taskId: string) =>
-			fetch(`/api/tasks/delete`, {
-				method: "POST",
-				body: JSON.stringify({ taskId }),
-				headers: { "Content-Type": "application/json" }
-			}).then((res) => {
-				if (!res.ok) throw new Error("Failed to delete task.")
-				return res.json()
-			}),
-		{
-			successMessage: "Task deleted.",
-			errorMessage: "Failed to delete task."
-		}
-	))
+	const deleteTaskMutation = useMutation(
+		useTaskMutation<string, any>(
+			(taskId: string) =>
+				fetch(`/api/tasks/delete`, {
+					method: "POST",
+					body: JSON.stringify({ taskId }),
+					headers: { "Content-Type": "application/json" }
+				}).then((res) => {
+					if (!res.ok) throw new Error("Failed to delete task.")
+					return res.json()
+				}),
+			{
+				successMessage: "Task deleted.",
+				errorMessage: "Failed to delete task."
+			}
+		)
+	)
 
-	const approveTaskMutation = useMutation(useTaskMutation<string, any>(
-		(taskId: string) =>
-			fetch(`/api/tasks/approve`, {
-				method: "POST",
-				body: JSON.stringify({ taskId }),
-				headers: { "Content-Type": "application/json" }
-			}).then((res) => {
-				if (!res.ok) throw new Error("Failed to approve task.")
-				return res.json()
-			}),
-		{
-			successMessage: "Task approved.",
-			errorMessage: "Failed to approve task."
-		}
-	))
+	const approveTaskMutation = useMutation(
+		useTaskMutation<string, any>(
+			(taskId: string) =>
+				fetch(`/api/tasks/approve`, {
+					method: "POST",
+					body: JSON.stringify({ taskId }),
+					headers: { "Content-Type": "application/json" }
+				}).then((res) => {
+					if (!res.ok) throw new Error("Failed to approve task.")
+					return res.json()
+				}),
+			{
+				successMessage: "Task approved.",
+				errorMessage: "Failed to approve task."
+			}
+		)
+	)
 
-	const rerunTaskMutation = useMutation(useTaskMutation<string, any>(
-		(taskId: string) =>
-			fetch("/api/tasks/rerun", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ taskId })
-			}).then((res) => {
-				if (!res.ok) throw new Error("Failed to re-run task.")
-				return res.json()
-			}),
-		{
-			successMessage: "Task re-run initiated.",
-			errorMessage: "Failed to re-run task."
-		}
-	))
+	const rerunTaskMutation = useMutation(
+		useTaskMutation<string, any>(
+			(taskId: string) =>
+				fetch("/api/tasks/rerun", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ taskId })
+				}).then((res) => {
+					if (!res.ok) throw new Error("Failed to re-run task.")
+					return res.json()
+				}),
+			{
+				successMessage: "Task re-run initiated.",
+				errorMessage: "Failed to re-run task."
+			}
+		)
+	)
 
-	const archiveTaskMutation = useMutation(useTaskMutation<string, any>(
-		(taskId: string) =>
-			fetch(`/api/tasks/update`, {
-				method: "POST",
-				body: JSON.stringify({ taskId, status: "archived" }),
-				headers: { "Content-Type": "application/json" }
-			}).then((res) => {
-				if (!res.ok) throw new Error("Failed to archive task.")
-				return res.json()
-			}),
-		{
-			successMessage: "Task archived.",
-			errorMessage: "Failed to archive task."
-		}
-	))
+	const archiveTaskMutation = useMutation(
+		useTaskMutation<string, any>(
+			(taskId: string) =>
+				fetch(`/api/tasks/update`, {
+					method: "POST",
+					body: JSON.stringify({ taskId, status: "archived" }),
+					headers: { "Content-Type": "application/json" }
+				}).then((res) => {
+					if (!res.ok) throw new Error("Failed to archive task.")
+					return res.json()
+				}),
+			{
+				successMessage: "Task archived.",
+				errorMessage: "Failed to archive task."
+			}
+		)
+	)
 
-	const sendChatMessageMutation = useMutation(useTaskMutation<{ taskId: string; message: string }, any>(
-		({ taskId, message }: { taskId: string; message: string }) =>
-			fetch(`/api/tasks/chat`, {
-				method: "POST",
-				body: JSON.stringify({ taskId, message }),
-				headers: { "Content-Type": "application/json" }
-			}).then((res) => {
-				if (!res.ok) throw new Error("Failed to send message.")
-				return res.json()
-			}),
-		{
-			successMessage: "Message sent.",
-			errorMessage: "Failed to send message."
-		}
-	))
+	const sendChatMessageMutation = useMutation(
+		useTaskMutation<{ taskId: string; message: string }, any>(
+			({ taskId, message }: { taskId: string; message: string }) =>
+				fetch(`/api/tasks/chat`, {
+					method: "POST",
+					body: JSON.stringify({ taskId, message }),
+					headers: { "Content-Type": "application/json" }
+				}).then((res) => {
+					if (!res.ok) throw new Error("Failed to send message.")
+					return res.json()
+				}),
+			{
+				successMessage: "Message sent.",
+				errorMessage: "Failed to send message."
+			}
+		)
+	)
 
 	const selectedTaskOrDemo: Task | null = useMemo(() => {
 		// During the tour's task simulation step (step 5+), force the demo task data into the panel.
@@ -614,7 +677,11 @@ function TasksPageContent() {
 		handleClosePanel()
 	}
 
-	const handleAnswerLongFormClarification = (taskId: string, requestId: string, answer: string) => {
+	const handleAnswerLongFormClarification = (
+		taskId: string,
+		requestId: string,
+		answer: string
+	) => {
 		answerLongFormClarificationMutation.mutate({
 			taskId,
 			requestId,
@@ -793,7 +860,6 @@ function TasksPageContent() {
 							>
 								<Button
 									onClick={() => openComposer()}
-			
 									aria-label={
 										view === "workflows"
 											? "Create new workflow"

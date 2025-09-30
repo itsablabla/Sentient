@@ -46,13 +46,13 @@ export const POST = withAuth(async function POST(
 			}),
 			// IMPORTANT: duplex must be set to 'half' to stream response body in Next.js Edge/Node runtime
 			duplex: "half"
-		})
+		} as any)
 
 		if (!backendResponse.ok) {
 			const errorText = await backendResponse
 				.text()
 				.catch(() => "Unknown backend error")
-			let errorJson = {}
+			let errorJson: any = {}
 			try {
 				errorJson = JSON.parse(errorText)
 			} catch (e) {

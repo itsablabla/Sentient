@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { withAuth } from "@lib/api-utils"
+import { HandlerParams, withAuth } from "@lib/api-utils"
 
 const appServerUrl =
 	process.env.NEXT_PUBLIC_ENVIRONMENT === "selfhost"
@@ -8,14 +8,11 @@ const appServerUrl =
 
 export const GET = withAuth(async function GET(
 	request: NextRequest,
-	{ params, authHeader }: {
-		params: { filename: string[] };
-		authHeader: HeadersInit;
-	}
+	params: HandlerParams
 ): Promise<Response> {
 	// The [...filename] route parameter captures all segments into an array.
-	const filenameParts = params.filename
-
+	const filenameParts = params.filename as string[]
+	const { authHeader } = params
 	// Safely check if filenameParts is a valid, non-empty array before using it.
 	if (!Array.isArray(filenameParts) || filenameParts.length === 0) {
 		return NextResponse.json(
@@ -34,7 +31,7 @@ export const GET = withAuth(async function GET(
 				headers: { ...authHeader },
 				// IMPORTANT: duplex must be set to 'half' to stream response body
 				duplex: "half"
-			}
+			} as any
 		)
 
 		if (!backendResponse.ok) {

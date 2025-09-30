@@ -14,12 +14,12 @@ import {
 	IconCheck,
 	IconX,
 	IconBrain
-} from "@tabler/icons-react";
+} from "@tabler/icons-react"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import { useMutation } from "@tanstack/react-query"
 import { useUserStore } from "@stores/app-stores"
 import ProgressBar from "@components/onboarding/ProgressBar" // Assuming this component exists
-import SparkleEffect from "@components/ui/SparkleEffect";
+import SparkleEffect from "@components/ui/SparkleEffect"
 import SiriSpheres from "@components/voice/SiriSpheres"
 import IntroSequence from "@components/onboarding/IntroSequence"
 import { Button } from "@components/ui/button"
@@ -42,7 +42,13 @@ const countryData = [
 	{ name: "United Arab Emirates", code: "AE", dial_code: "+971", flag: "🇦🇪" },
 	{ name: "Other", code: "OTHER", dial_code: "", flag: "🌍" }
 ]
-type QuestionType = "text-input" | "select" | "location" | "textarea" | "yes-no" | "multi-choice";
+type QuestionType =
+	| "text-input"
+	| "select"
+	| "location"
+	| "textarea"
+	| "yes-no"
+	| "multi-choice"
 // --- Helper Components ---
 
 const FormattedPaQuestion = () => (
@@ -77,15 +83,15 @@ const questionStyles = {
 // --- Onboarding Data ---
 
 interface Question {
-	id: string;
-	question: string;
-	description?: string;
-	type: QuestionType;
-	required: boolean;
-	placeholder?: string;
-	options?: { value: string; label: string; disabled?: boolean }[];
-	icon?: React.ReactNode;
-	limit?: number;
+	id: string
+	question: string
+	description?: string
+	type: QuestionType
+	required: boolean
+	placeholder?: string
+	options?: { value: string; label: string; disabled?: boolean }[]
+	icon?: React.ReactNode
+	limit?: number
 }
 
 const questions: Question[] = [
@@ -257,8 +263,12 @@ const OnboardingPage: FC = () => {
 	const [showCustomDialCode, setShowCustomDialCode] = useState(false)
 	const [modelReacting, setModelReacting] = useState(false)
 	const [audioLevel, setAudioLevel] = useState(0.1)
-	const [timezoneDetected, setTimezoneDetected] = useState<boolean | null>(null) // null: checking, true: detected, false: not detected
-	const [whatsappCountry, setWhatsappCountry] = useState<(typeof countryData)[number]>(countryData[1]) // Default to India
+	const [timezoneDetected, setTimezoneDetected] = useState<boolean | null>(
+		null
+	) // null: checking, true: detected, false: not detected
+	const [whatsappCountry, setWhatsappCountry] = useState<
+		(typeof countryData)[number]
+	>(countryData[1]) // Default to India
 	const [whatsappLocalNumber, setWhatsappLocalNumber] = useState("")
 
 	const [locationState, setLocationState] = useState({
@@ -587,7 +597,7 @@ const OnboardingPage: FC = () => {
 	}, [stage, handleNext, currentQuestionIndex])
 
 	useEffect(() => {
-		let interval: NodeJS.Timeout;
+		let interval: NodeJS.Timeout
 		if (modelReacting) {
 			setAudioLevel(0.8) // Spike the level for reaction
 		} else {
@@ -910,7 +920,7 @@ const OnboardingPage: FC = () => {
 					if (timezoneDetected === false) {
 						timezoneOptions[0] = {
 							value: "",
-							label: "Couldn't detect. Please select..."
+							label: "Couldn&apos;t detect. Please select..."
 						}
 					}
 
@@ -941,7 +951,7 @@ const OnboardingPage: FC = () => {
 							</Select>
 							{timezoneDetected === true && (
 								<p className="text-green-400 text-sm mt-3 bg-green-400/10 border border-green-400/20 rounded-lg px-4 py-2">
-									We've automatically detected your timezone.
+									We&apos;ve automatically detected your timezone.
 								</p>
 							)}
 							{timezoneDetected === false && (

@@ -45,10 +45,11 @@ const WaitingNodeDetails = ({
 	taskId,
 	userTimezone
 }) => {
-	if (!waitingConfig || !waitingConfig.timeout_at) return null
-
 	const [timeLeft, setTimeLeft] = useState("Calculating...")
+
 	const timeoutDate = useMemo(() => {
+		if (!waitingConfig || !waitingConfig.timeout_at) return null
+
 		const timeoutVal = waitingConfig.timeout_at
 		let dateString = timeoutVal
 
@@ -100,9 +101,7 @@ const WaitingNodeDetails = ({
 			timeoutVal
 		)
 		return null
-	}, [waitingConfig.timeout_at])
-
-	if (!timeoutDate) return null
+	}, [waitingConfig])
 
 	const formattedTimeout = useMemo(() => {
 		if (!timeoutDate) return "Invalid date"
@@ -149,6 +148,10 @@ const WaitingNodeDetails = ({
 		return () => clearInterval(intervalId)
 	}, [timeoutDate])
 
+	if (!waitingConfig || !waitingConfig.timeout_at || !timeoutDate) {
+		return null
+	}
+
 	return (
 		<div className="space-y-2">
 			<p>
@@ -178,16 +181,11 @@ const WaitingNodeDetails = ({
 
 // --- NEW COMPONENT: TaskFlowchartNode ---
 const TaskFlowchartNode: FC<{
-	node: any;
-	onSelectTask: (task: Partial<Task>) => void;
-	onResumeTask: (taskId: string) => void;
-	userTimezone: string | null;
-}> = ({
-	node,
-	onSelectTask,
-	onResumeTask,
-	userTimezone
-}) => {
+	node: any
+	onSelectTask: (task: Partial<Task>) => void
+	onResumeTask: (taskId: string) => void
+	userTimezone: string | null
+}> = ({ node, onSelectTask, onResumeTask, userTimezone }) => {
 	const [isExpanded, setIsExpanded] = useState(false)
 
 	const nodeIcons = {
@@ -230,7 +228,7 @@ const TaskFlowchartNode: FC<{
 					className={cn(
 						"p-3 rounded-lg border bg-neutral-800/50",
 						nodeColors[node.type],
-						isClickable && "cursor-pointer hover:bg-neutral-800"
+						isClickable && "hover:bg-neutral-800"
 					)}
 					onClick={() => isClickable && setIsExpanded(!isExpanded)}
 				>
@@ -305,10 +303,10 @@ const TaskFlowchartNode: FC<{
 
 // --- NEW COMPONENT: TaskFlowchart ---
 const TaskFlowchart: FC<{
-	task: Task;
-	onSelectTask: (task: Partial<Task>) => void;
-	onResumeTask: (taskId: string) => void;
-	userTimezone: string | null;
+	task: Task
+	onSelectTask: (task: Partial<Task>) => void
+	onResumeTask: (taskId: string) => void
+	userTimezone: string | null
 }> = ({ task, onSelectTask, onResumeTask, userTimezone }) => {
 	const { dynamic_plan = [], orchestrator_state = {}, status } = task
 	const { current_state, waiting_config } = orchestrator_state
@@ -440,13 +438,13 @@ const TaskResultDisplay: FC<{ result: any }> = ({ result }) => {
 		)
 	}
 
-	const {
-		summary,
-		links_created = [],
-		links_found = [],
-		files_created = [],
-		tools_used = []
-	} = parsedResult
+  const {
+    summary,
+    links_created = [],
+    links_found = [],
+    files_created = [],
+    tools_used = []
+  } = parsedResult
 	const allLinks = [...links_created, ...links_found]
 
 	return (
@@ -492,21 +490,21 @@ const TaskResultDisplay: FC<{ result: any }> = ({ result }) => {
 									className="text-neutral-400 flex-shrink-0 mt-1"
 								/>
 								<div className="overflow-hidden">
-									<p className="text-sm font-medium text-blue-400 truncate">
-										{link.url}
-									</p>
-									{link.description && (
-										<p className="text-xs text-neutral-500">
-											{link.description}
-										</p>
-									)}
-								</div>
-							</a>
-						))}
-					</div>
-				</div>
-			)}
-			{tools_used.length > 0 && (
+          <p className="text-sm font-medium text-blue-400 truncate">
+            {link.url}
+          </p>
+          {link.description && (
+            <p className="text-xs text-neutral-500">
+              {link.description}
+            </p>
+          )}
+          </div>
+        </a>
+      ))}
+    </div>
+  </div>
+)}
+{tools_used.length > 0 && (
 				<div>
 					<h4 className="font-semibold text-neutral-300 mb-2">
 						Tools Used
@@ -530,9 +528,9 @@ const TaskResultDisplay: FC<{ result: any }> = ({ result }) => {
 
 // New component for handling clarification questions
 const QnaSection: FC<{
-	questions: any[];
-	task: Task;
-	onAnswerClarifications: (taskId: string, answers: any[]) => void;
+	questions: any[]
+	task: Task
+	onAnswerClarifications: (taskId: string, answers: any[]) => void
 }> = ({ questions, task, onAnswerClarifications }) => {
 	const [answers, setAnswers] = useState({})
 	const [isSubmitting, setIsSubmitting] = useState(false)
@@ -628,8 +626,8 @@ const QnaSection: FC<{
 }
 
 const LongFormPlanSection: FC<{
-	plan: any[];
-	onSelectTask: (task: Partial<Task>) => void;
+	plan: any[]
+	onSelectTask: (task: Partial<Task>) => void
 }> = ({ plan, onSelectTask }) => {
 	if (!plan || plan.length === 0) {
 		return (
@@ -694,9 +692,9 @@ const LongFormPlanSection: FC<{
 }
 
 const LongFormQnaSection: FC<{
-	requests: any[];
-	task: Task;
-	onAnswer: (taskId: string, requestId: string, answer: string) => void;
+	requests: any[]
+	task: Task
+	onAnswer: (taskId: string, requestId: string, answer: string) => void
 }> = ({ requests, task, onAnswer }) => {
 	const [answers, setAnswers] = useState({})
 	const [isSubmitting, setIsSubmitting] = useState(null) // store request_id being submitted
@@ -789,7 +787,7 @@ const SwarmPlanSection: FC<{ plan: any[] }> = ({ plan }) => {
 								Instructions:
 							</label>
 							<p className="text-sm text-neutral-300 mt-1 italic">
-								"{workerConfig.worker_prompt}"
+								&quot;{workerConfig.worker_prompt}&quot;
 							</p>
 						</div>
 					</div>
@@ -840,7 +838,7 @@ const CurrentPlanSection: FC<{ task: Task }> = ({ task }) => {
 						Your Request
 					</label>
 					<div className="bg-neutral-800/50 p-3 rounded-lg text-sm text-neutral-300 italic">
-						"{lastRequest.content}"
+						&quot;{lastRequest.content}&quot;
 					</div>
 				</div>
 			)}
@@ -870,8 +868,8 @@ const CurrentPlanSection: FC<{ task: Task }> = ({ task }) => {
 }
 
 const TaskChatSection: FC<{
-	task: Task;
-	onSendChatMessage: (taskId: string, message: string) => void;
+	task: Task
+	onSendChatMessage: (taskId: string, message: string) => void
 }> = ({ task, onSendChatMessage }) => {
 	const [message, setMessage] = useState("")
 	const chatEndRef = useRef(null)
@@ -932,21 +930,25 @@ const TaskChatSection: FC<{
 }
 
 const TaskDetailsContent: FC<{
-	task: Task;
-	isEditing?: boolean;
-	editableTask?: Task;
-	handleFieldChange?: (field: keyof Task, value: any) => void;
-	handleScheduleChange?: (schedule: any) => void;
-	handleAddStep?: () => void;
-	handleRemoveStep?: (index: number) => void;
-	handleStepChange?: (index: number, field: string, value: string) => void;
-	allTools?: { name: string; display_name: string }[];
-	userTimezone: string | null;
-	onSendChatMessage?: (taskId: string, message: string) => void;
-	onAnswerClarifications?: (taskId: string, answers: any[]) => void;
-	onAnswerLongFormClarification?: (taskId: string, requestId: string, answer: string) => void;
-	onSelectTask?: (task: Partial<Task>) => void;
-	onResumeTask?: (taskId: string) => void;
+	task: Task
+	isEditing?: boolean
+	editableTask?: Task
+	handleFieldChange?: (field: keyof Task, value: any) => void
+	handleScheduleChange?: (schedule: any) => void
+	handleAddStep?: () => void
+	handleRemoveStep?: (index: number) => void
+	handleStepChange?: (index: number, field: string, value: string) => void
+	allTools?: { name: string; display_name: string }[]
+	userTimezone: string | null
+	onSendChatMessage?: (taskId: string, message: string) => void
+	onAnswerClarifications?: (taskId: string, answers: any[]) => void
+	onAnswerLongFormClarification?: (
+		taskId: string,
+		requestId: string,
+		answer: string
+	) => void
+	onSelectTask?: (task: Partial<Task>) => void
+	onResumeTask?: (taskId: string) => void
 }> = ({
 	task,
 	isEditing,

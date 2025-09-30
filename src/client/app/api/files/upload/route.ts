@@ -22,7 +22,7 @@ export const POST = withAuth(async function POST(
 				headers: { ...authHeader }, // Don't set Content-Type, let fetch do it
 				body: formData,
 				duplex: "half"
-			}
+			} as any
 		)
 
 		const data = await backendResponse.json()

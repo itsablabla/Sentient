@@ -19,7 +19,7 @@ import {
 	IconBrandWhatsapp,
 	IconRefresh,
 	IconUsers
-} from "@tabler/icons-react";
+} from "@tabler/icons-react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Tooltip } from "react-tooltip"
 import { cn } from "@utils/cn"
@@ -32,7 +32,7 @@ import {
 	AccordionContent,
 	AccordionItem,
 	AccordionTrigger
-} from "@components/ui/accordion";
+} from "@components/ui/accordion"
 import apiClient from "@lib/apiClient"
 
 const handleTestPush = async () => {
@@ -299,11 +299,11 @@ const WhatsAppSettings = () => {
 				<div className="space-y-4">
 					<p className="text-neutral-400 text-sm">
 						Receive important notifications, task updates, and
-						reminders on WhatsApp. We're in the process of getting
-						an official number, so for now, messages will come from
-						our co-founder Sarthak (+91827507823), who may also
-						occasionally reach out for feedback. Please enter your
-						number with the country code.
+						reminders on WhatsApp. We&apos;re in the process of
+						getting an official number, so for now, messages will
+						come from our co-founder Sarthak (+91827507823), who may
+						also occasionally reach out for feedback. Please enter
+						your number with the country code.
 					</p>
 					{isNotifLoading ? (
 						<div className="flex justify-center mt-4">
@@ -858,7 +858,15 @@ const TestingTools = () => {
 	)
 }
 
-const ProfileSettings = ({ initialData, onSave, isSaving }: { initialData: any, onSave: (data: any) => void, isSaving: boolean }) => {
+const ProfileSettings = ({
+	initialData,
+	onSave,
+	isSaving
+}: {
+	initialData: any
+	onSave: (data: any) => void
+	isSaving: boolean
+}) => {
 	const [formData, setFormData] = useState({})
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: We only want this to run when initialData changes

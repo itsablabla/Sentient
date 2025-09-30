@@ -192,13 +192,19 @@ const MemoryDetailPanel = ({ memory, onClose, onUpdate, onDelete }: {
 	onUpdate: (id: string, content: string) => Promise<void>;
 	onDelete: (id: string) => Promise<void>;
 }) => {
-	if (!memory) return null
-
 	const [isEditing, setIsEditing] = useState(false)
-	const [editedContent, setEditedContent] = useState(memory.content)
+	const [editedContent, setEditedContent] = useState(memory?.content || "")
 	const [isSaving, setIsSaving] = useState(false)
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
+
+	useEffect(() => {
+		if (memory) {
+			setEditedContent(memory.content)
+		}
+	}, [memory])
+
+	if (!memory) return null
 
 	const timeAgo = formatDistanceToNow(parseISO(memory.created_at), {
 		addSuffix: true
@@ -448,19 +454,19 @@ const CreateMemoryModal = ({ onClose, onCreate, userDetails }: {
 					onChange={(e) => setContent(e.target.value)}
 					placeholder="Enter a fact or piece of information to remember..."
 					className="w-full h-40 p-3 text-base"
-					autoFocus
-				/>
-				<p className="text-xs text-neutral-500 mt-2 px-1">
-					Note: All memories should be in the third person. e.g., "
-					<span className="font-semibold text-neutral-400">
-						{userDetails?.given_name || "User"} likes football
-					</span>
-					" instead of "I like football".
-				</p>
-			</ModalBody>
-			<ModalFooter className="p-6">
-				<Button onClick={onClose} variant="secondary">
-					Cancel
+  autoFocus
+/>
+<p className="text-xs text-neutral-500 mt-2 px-1">
+Note: All memories should be in the third person. e.g., &quot;
+<span className="font-semibold text-neutral-400">
+{userDetails?.given_name || "User"} likes football
+</span>
+" instead of "I like football".
+</p>
+</ModalBody>
+<ModalFooter className="p-6">
+<Button onClick={onClose} variant="secondary">
+Cancel
 				</Button>
 				<Button
 					onClick={handleCreate}
@@ -878,13 +884,13 @@ export default function MemoriesPage() {
 						</p>
 						<div className="space-y-4">
 							<div className="flex items-start gap-4">
-								<IconBrain
-									size={20}
-									className="text-brand-orange flex-shrink-0 mt-1"
-								/>
-								<div>
-									<h3 className="font-semibold text-white">
-										How it Works
+                <IconBrain
+                  size={20}
+                  className="text-brand-orange flex-shrink-0 mt-1"
+                />
+                <div>
+                  <h3 className="font-semibold text-white">
+                    How it Works
 									</h3>
 									<p className="text-neutral-400 text-sm mt-1">
 										As we interact, I identify key pieces of
@@ -898,21 +904,21 @@ export default function MemoriesPage() {
 								</div>
 							</div>
 							<div className="flex items-start gap-4">
-								<IconHeart
-									size={20}
-									className="text-brand-orange flex-shrink-0 mt-1"
-								/>
-								<div>
-									<h3 className="font-semibold text-white">
-										How it's Used
+                  <IconHeart
+                    size={20}
+                    className="text-brand-orange flex-shrink-0 mt-1"
+                  />
+                  <div>
+                    <h3 className="font-semibold text-white">
+                      How it's Used
 									</h3>
-									<p className="text-neutral-400 text-sm mt-1">
-										I use these memories to provide more
-										context-aware assistance. For example,
-										if you ask me to 'email my manager', I
-										can look up who your manager is from my
-										memory instead of asking you every time.
-										This makes our interactions faster and
+                    <p className="text-neutral-400 text-sm mt-1">
+                      I use these memories to provide more
+                      context-aware assistance. For example,
+                      if you ask me to &apos;email my manager&apos;, I
+                      can look up who your manager is from my
+                      memory instead of asking you every time.
+                      This makes our interactions faster and
 										more intelligent.
 									</p>
 								</div>

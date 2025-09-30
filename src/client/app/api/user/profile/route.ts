@@ -31,6 +31,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 	// We ensure `given_name` is provided for the UI.
 	const userProfile: UserProfile = {
 		sub: session.user.sub,
+		name: session.user.name || "User",
 		given_name: session.user.given_name || session.user.name || "User",
 		picture:
 			session.user.picture ||

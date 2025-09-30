@@ -1,4 +1,4 @@
-import React, { useState, useMemo, FC } from "react"
+import React, { useState, useMemo, FC, useEffect } from "react"
 import { cn } from "@utils/cn"
 import {
 	IconClipboard,
@@ -26,7 +26,7 @@ import {
 	IconBrandNotion,
 	IconBrandGithub,
 	IconBrandGoogleDrive,
-	IconArrowRight,
+	IconArrowRight
 } from "@tabler/icons-react"
 import { AnimatePresence, motion } from "framer-motion"
 import ReactMarkdown from "react-markdown"
@@ -64,10 +64,12 @@ const toolIcons = {
 	default: IconTool
 }
 // LinkButton component (no changes needed)
-const LinkButton = ({ href, children }: {
-	href: string;
-	children: React.ReactNode;
-
+const LinkButton = ({
+	href,
+	children
+}: {
+	href: string
+	children: React.ReactNode
 }) => {
 	const toolMapping = {
 		"drive.google.com": {
@@ -138,15 +140,15 @@ const LinkButton = ({ href, children }: {
 
 // Main ChatBubble component
 const ChatBubble: FC<{
-	role: "user" | "assistant";
-	content: string;
-	tools?: string[];
-	turn_steps?: TurnStep[];
-	onReply: (message: ChatMessage) => void;
-	onDelete: (messageId: string) => void;
-	message: ChatMessage;
-	allMessages?: ChatMessage[];
-	isStreaming?: boolean;
+	role: "user" | "assistant"
+	content: string
+	tools?: string[]
+	turn_steps?: TurnStep[]
+	onReply: (message: ChatMessage) => void
+	onDelete: (messageId: string) => void
+	message: ChatMessage
+	allMessages?: ChatMessage[]
+	isStreaming?: boolean
 }> = ({
 	role,
 	content,
@@ -159,7 +161,9 @@ const ChatBubble: FC<{
 	isStreaming = false
 }) => {
 	const [copied, setCopied] = useState(false)
-	const [expandedStates, setExpandedStates] = useState<Record<string, boolean>>({})
+	const [expandedStates, setExpandedStates] = useState<
+		Record<string, boolean>
+	>({})
 	const [processedContent, setProcessedContent] = useState({
 		content: content,
 		repliedTo: null
@@ -210,7 +214,7 @@ const ChatBubble: FC<{
 					const filename = href.substring(5)
 					return <FileCard filename={filename} />
 				}
-				return <LinkButton href={href} children={children} />
+				return <LinkButton href={href}>{children}</LinkButton>
 			}
 		}
 
@@ -218,12 +222,13 @@ const ChatBubble: FC<{
 		if (isUser) {
 			return (
 				<ReactMarkdown
-					className="prose prose-invert max-w-none" // Added max-w-none to allow full width
+					className="prose prose-invert max-w-none"
 					remarkPlugins={[remarkGfm]}
-					children={processedContent.content || ""}
 					urlTransform={transformLinkUri}
 					components={markdownComponents}
-				/>
+				>
+					{processedContent.content || ""}
+				</ReactMarkdown>
 			)
 		}
 
@@ -243,7 +248,7 @@ const ChatBubble: FC<{
 							) : (
 								<IconChevronDown size={16} />
 							)}
-							Agent's Thought Process
+							Agent&apos;s Thought Process
 						</button>
 						<AnimatePresence>
 							{expandedStates["agent_thought_process"] && (
@@ -374,10 +379,11 @@ const ChatBubble: FC<{
 						<ReactMarkdown
 							className="prose prose-invert"
 							remarkPlugins={[remarkGfm]}
-							children={processedContent.content}
 							urlTransform={transformLinkUri}
 							components={markdownComponents}
-						/>
+						>
+							{processedContent.content}
+						</ReactMarkdown>
 					</div>
 				)}
 			</>
@@ -387,13 +393,15 @@ const ChatBubble: FC<{
 		expandedStates,
 		isUser,
 		turn_steps,
-		isStreaming
+		isStreaming,
+		hasInternalMonologue
 	])
 
 	// Function to copy message content to clipboard
 	const handleCopyToClipboard = () => {
 		const textToCopy = processedContent.content
-		if (!textToCopy) { // @ts-ignore
+		if (!textToCopy) {
+			// @ts-ignore
 			toast.error("Nothing to copy.")
 			return
 		}

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { withAuth } from "@lib/api-utils"
+import { HandlerParams, withAuth } from "@lib/api-utils"
 
 const appServerUrl =
 	process.env.NEXT_PUBLIC_ENVIRONMENT === "selfhost"
@@ -8,12 +8,10 @@ const appServerUrl =
 
 export const PUT = withAuth(async function PUT(
 	request: NextRequest,
-	{ params, authHeader }: {
-		params: { memoryId: string };
-		authHeader: HeadersInit;
-	}
+	params: HandlerParams
 ): Promise<NextResponse> {
-	const { memoryId } = params
+	const memoryId = params.memoryId as string
+	const { authHeader } = params
 	const backendUrl = new URL(`${appServerUrl}/memories/${memoryId}`)
 
 	try {
@@ -38,12 +36,10 @@ export const PUT = withAuth(async function PUT(
 
 export const DELETE = withAuth(async function DELETE(
 	request: NextRequest,
-	{ params, authHeader }: {
-		params: { memoryId: string };
-		authHeader: HeadersInit;
-	}
+	params: HandlerParams
 ): Promise<NextResponse> {
-	const { memoryId } = params
+	const memoryId = params.memoryId as string
+	const { authHeader } = params
 	const backendUrl = new URL(`${appServerUrl}/memories/${memoryId}`)
 
 	try {

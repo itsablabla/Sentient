@@ -1,9 +1,128 @@
-import { create } from "zustand"
+import { create, StoreApi, UseBoundStore } from "zustand"
 import { devtools, persist } from "zustand/middleware"
 import { taskSubSteps } from "@lib/tour-steps"
+import { Memory, Integration } from "@/types"
 
-// --- UI Store ---
-export const useUIStore = create(
+// --- Type Definitions ---
+
+interface UIState {
+	isSearchOpen: boolean
+	isMobileNavOpen: boolean
+	isUpgradeModalOpen: boolean
+	openSearch: () => void
+	closeSearch: () => void
+	openMobileNav: () => void
+	closeMobileNav: () => void
+	openUpgradeModal: () => void
+	closeUpgradeModal: () => void
+}
+
+interface UserState {
+	user: any | null
+	plan: string
+	isPro: boolean
+	onboardingComplete: boolean
+	isLoading: boolean
+	error: string | null
+	fetchUserData: () => Promise<any | null>
+}
+
+const userStoreInitialState: Omit<UserState, "fetchUserData"> = {
+	user: null,
+	plan: "free",
+	isPro: false,
+	onboardingComplete: false,
+	isLoading: true,
+	error: null
+}
+
+interface NotificationState {
+	unreadCount: number
+	isNotificationsOpen: boolean
+	notifRefreshKey: number
+	incrementUnreadCount: () => void
+	refreshNotifications: () => void
+	openNotifications: () => void
+	closeNotifications: () => void
+}
+
+interface TourState {
+	isActive: boolean
+	step: number
+	subStep: number
+	phase: string | null
+	isWaitingForAction: boolean
+	isHighlightPaused: boolean
+	chatActionsRef: React.MutableRefObject<any | null>
+	startTour: () => void
+	skipTour: () => void
+	finishTour: () => void
+	nextStep: () => void
+	nextSubStep: () => void
+	setHighlightPaused: (isPaused: boolean) => void
+	setPhase: (phase: string | null) => void
+	handleCustomAction: () => void
+	setChatActionsRef: (ref: React.MutableRefObject<any | null>) => void
+}
+
+interface ChatState {
+	isVoiceMode: boolean
+	connectionStatus: string
+	isMuted: boolean
+	voiceStatusText: string
+	audioLevel: number
+	setVoiceMode: (isVoiceMode: boolean) => void
+	setConnectionStatus: (status: string) => void
+	setIsMuted: (muted: boolean) => void
+	setVoiceStatusText: (text: string) => void
+	setAudioLevel: (level: number) => void
+	endVoiceCall: () => void
+}
+
+interface TaskState {
+	view: "tasks" | "workflows"
+	searchQuery: string
+	isComposerOpen: boolean
+	composerInitialData: any | null
+	setView: (view: "tasks" | "workflows") => void
+	setSearchQuery: (query: string) => void
+	openComposer: (initialData?: any | null) => void
+	closeComposer: () => void
+}
+
+interface MemoryState {
+	view: "graph" | "list"
+	activeTopic: string
+	selectedMemory: Memory | null
+	isInfoPanelOpen: boolean
+	isCreateModalOpen: boolean
+	setView: (view: "graph" | "list") => void
+	setActiveTopic: (topic: string) => void
+	setSelectedMemory: (memory: Memory | null) => void
+	openInfoPanel: () => void
+	closeInfoPanel: () => void
+	openCreateModal: () => void
+	closeCreateModal: () => void
+}
+
+interface IntegrationState {
+	searchQuery: string
+	activeCategory: string
+	privacyModalService: string | null
+	disconnectingIntegration: Integration | null
+	setSearchQuery: (query: string) => void
+	setActiveCategory: (category: string) => void
+	openPrivacyModal: (service: string) => void
+	closePrivacyModal: () => void
+	setDisconnectingIntegration: (integration: Integration | null) => void
+	isIntegrationModalOpen: boolean
+	openIntegrationModal: () => void
+	closeIntegrationModal: () => void
+}
+
+// --- Store Implementations ---
+
+export const useUIStore = create<UIState>()(
 	devtools(
 		(set) => ({
 			isSearchOpen: false,
@@ -20,16 +139,12 @@ export const useUIStore = create(
 	)
 )
 
-// --- User Store ---
-const userStoreInitialState = {
-	user: null,
-	plan: "free",
-	isPro: false,
-	onboardingComplete: false,
-	isLoading: true,
-	error: null
+// For the test file
+type UserStoreWithInitial = UseBoundStore<StoreApi<UserState>> & {
+	getInitialState: () => Omit<UserState, "fetchUserData">
 }
-export const useUserStore = create(
+
+export const useUserStore = create<UserState>()(
 	devtools(
 		(set) => ({
 			...userStoreInitialState,
@@ -39,8 +154,7 @@ export const useUserStore = create(
 					const res = await fetch("/api/user/data", {
 						method: "POST"
 					})
-					if (!res.ok)
-						throw new Error("Could not verify user status.")
+					if (!res.ok) throw new Error("Could not verify user status.")
 					const data = await res.json()
 
 					const profileRes = await fetch("/api/user/profile")
@@ -60,19 +174,19 @@ export const useUserStore = create(
 					return userData
 				} catch (error) {
 					console.error("Error fetching user data:", error)
-					set({ error: error.message, isLoading: false })
+					set({ error: (error as Error).message, isLoading: false })
 					return null
 				}
 			}
 		}),
 		{ name: "UserStore" }
 	)
-)
+) as UserStoreWithInitial
+
 // Add getInitialState to the store for easy resetting in tests
 useUserStore.getInitialState = () => userStoreInitialState
 
-// --- Notification Store ---
-export const useNotificationStore = create(
+export const useNotificationStore = create<NotificationState>()(
 	devtools(
 		(set) => ({
 			unreadCount: 0,
@@ -92,8 +206,7 @@ export const useNotificationStore = create(
 	)
 )
 
-// --- Tour Store ---
-const tourInitialState = {
+const tourInitialState: Omit<TourState, "chatActionsRef" | "startTour" | "skipTour" | "finishTour" | "nextStep" | "nextSubStep" | "setHighlightPaused" | "setPhase" | "handleCustomAction" | "setChatActionsRef"> = {
 	isActive: false,
 	step: 0,
 	subStep: 0,
@@ -101,7 +214,8 @@ const tourInitialState = {
 	isWaitingForAction: false,
 	isHighlightPaused: false
 }
-export const useTourStore = create(
+
+export const useTourStore = create<TourState>()(
 	devtools(
 		(set, get) => ({
 			...tourInitialState,
@@ -122,46 +236,27 @@ export const useTourStore = create(
 					}
 				}),
 			nextSubStep: () => set((state) => ({ subStep: state.subStep + 1 })),
-			setHighlightPaused: (isPaused) =>
-				set({ isHighlightPaused: isPaused }),
+			setHighlightPaused: (isPaused) => set({ isHighlightPaused: isPaused }),
 			setPhase: (phase) => set({ phase }),
 			handleCustomAction: () => {
 				set((state) => {
-					get().setHighlightPaused(true)
+					;(get() as TourState).setHighlightPaused(true)
 					if (state.step === 5) {
 						const isMobile = () =>
-							typeof window !== "undefined" &&
-							window.innerWidth < 768
+							typeof window !== "undefined" && window.innerWidth < 768
 						if (isMobile()) {
-							if (state.phase === "list")
-								return { ...state, phase: "panel" }
-							const isLastSubStep =
-								state.subStep >= taskSubSteps.length - 1
+							if (state.phase === "list") return { ...state, phase: "panel" }
+							const isLastSubStep = state.subStep >= taskSubSteps.length - 1
 							if (isLastSubStep) {
 								const newStep = state.step + 1
-								return {
-									...state,
-									step: newStep,
-									subStep: 0,
-									phase: null
-								}
+								return { ...state, step: newStep, subStep: 0, phase: null }
 							}
-							return {
-								...state,
-								subStep: state.subStep + 1,
-								phase: "list"
-							}
+							return { ...state, subStep: state.subStep + 1, phase: "list" }
 						} else {
-							const isLastSubStep =
-								state.subStep >= taskSubSteps.length - 1
+							const isLastSubStep = state.subStep >= taskSubSteps.length - 1
 							if (isLastSubStep) {
 								const newStep = state.step + 1
-								return {
-									...state,
-									step: newStep,
-									subStep: 0,
-									phase: null
-								}
+								return { ...state, step: newStep, subStep: 0, phase: null }
 							}
 							return { ...state, subStep: state.subStep + 1 }
 						}
@@ -169,7 +264,7 @@ export const useTourStore = create(
 					const newStep = state.step + 1
 					return { ...state, step: newStep }
 				})
-				setTimeout(() => get().setHighlightPaused(false), 500)
+				setTimeout(() => (get() as TourState).setHighlightPaused(false), 500)
 			},
 			setChatActionsRef: (ref) => set({ chatActionsRef: ref })
 		}),
@@ -177,8 +272,7 @@ export const useTourStore = create(
 	)
 )
 
-// --- Chat Store ---
-export const useChatStore = create(
+export const useChatStore = create<ChatState>()(
 	devtools(
 		(set) => ({
 			isVoiceMode: false,
@@ -203,8 +297,7 @@ export const useChatStore = create(
 	)
 )
 
-// --- Task Store ---
-export const useTaskStore = create(
+export const useTaskStore = create<TaskState>()(
 	devtools(
 		(set) => ({
 			view: "tasks",
@@ -222,8 +315,7 @@ export const useTaskStore = create(
 	)
 )
 
-// --- Memory Store ---
-export const useMemoryStore = create(
+export const useMemoryStore = create<MemoryState>()(
 	devtools(
 		persist(
 			(set) => ({
@@ -241,23 +333,22 @@ export const useMemoryStore = create(
 				closeCreateModal: () => set({ isCreateModalOpen: false })
 			}),
 			{
-				name: "memory-store-storage", // name of the item in the storage (must be unique)
+				name: "memory-store-storage",
 				partialize: (state) => ({
 					view: state.view,
 					activeTopic: state.activeTopic
-				}) // only persist these fields
+				})
 			}
 		),
 		{ name: "MemoryStore" }
 	)
 )
 
-// --- Integration Store (for integrations page) ---
-export const useIntegrationStore = create(
+export const useIntegrationStore = create<IntegrationState>()(
 	devtools(
 		(set) => ({
 			searchQuery: "",
-			activeCategory: "Core", // Set a default category
+			activeCategory: "Core",
 			privacyModalService: null,
 			disconnectingIntegration: null,
 			setSearchQuery: (query) => set({ searchQuery: query }),
@@ -266,8 +357,6 @@ export const useIntegrationStore = create(
 			closePrivacyModal: () => set({ privacyModalService: null }),
 			setDisconnectingIntegration: (integration) =>
 				set({ disconnectingIntegration: integration }),
-
-			// Deprecated modal state, kept for backward compatibility during refactor
 			isIntegrationModalOpen: false,
 			openIntegrationModal: () => set({ isIntegrationModalOpen: true }),
 			closeIntegrationModal: () => set({ isIntegrationModalOpen: false })

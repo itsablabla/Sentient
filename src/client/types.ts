@@ -13,7 +13,7 @@ export interface UserProfile {
 // Interface for a chat message
 export interface ChatMessage {
     id: string;
-    message_id: string;
+    message_id?: string;
     role: "user" | "assistant";
     content: string;
     timestamp: string;

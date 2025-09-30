@@ -5,6 +5,7 @@ import {
 	useState,
 	useEffect,
 	useRef,
+	useLayoutEffect,
 	useCallback,
 	useMemo,
 	Fragment
@@ -76,6 +77,10 @@ const proPlanFeatures = [
 		limit: "Notion, GitHub, Slack, Discord, Trello"
 	}
 ]
+
+interface ErrorWithStatus extends Error {
+	status?: number
+}
 
 interface UpgradeToProModalProps {
 	isOpen: boolean
@@ -150,6 +155,19 @@ const UpgradeToProModal: FC<UpgradeToProModalProps> = ({ isOpen, onClose }) => {
 	)
 }
 
+interface SendMessageVariables {
+	newUserMessage: ChatMessage
+	uploadedFilename: string | null
+}
+
+function usePrevious<T>(value: T): T | undefined {
+	const ref = useRef<T | undefined>(undefined)
+	useEffect(() => {
+		ref.current = value
+	})
+	return ref.current
+}
+
 export default function ChatPage() {
 	const [input, setInput] = useState<string>("")
 	const [statusText, setStatusText] = useState<string>("")
@@ -166,7 +184,9 @@ export default function ChatPage() {
 	const [tourMessages, setTourMessages] = useState<ChatMessage[]>([])
 
 	// State for infinite scroll
-	const [searchingForMessageId, setSearchingForMessageId] = useState<string | null>(null)
+	const [searchingForMessageId, setSearchingForMessageId] = useState<
+		string | null
+	>(null)
 
 	// State for UI enhancements
 	const posthog = usePostHog()
@@ -179,14 +199,21 @@ export default function ChatPage() {
 	const { openUpgradeModal, isUpgradeModalOpen, closeUpgradeModal } =
 		useUIStore()
 	const {
-		tourState,
-		prevTourState,
+		isActive,
+		step,
+		subStep,
 		chatActionsRef,
 		startTour,
 		nextStep,
 		nextSubStep,
 		setHighlightPaused
 	} = useTourStore()
+	const tourState = useMemo(
+		() => ({ isActive, step, subStep }),
+		[isActive, step, subStep]
+	)
+	const prevTourState = usePrevious(tourState)
+
 	const {
 		isVoiceMode,
 		connectionStatus,
@@ -205,11 +232,16 @@ export default function ChatPage() {
 
 	// --- File Upload State ---
 	const [selectedFile, setSelectedFile] = useState<File | null>(null)
-	const [uploadedFilename, setUploadedFilename] = useState<string | null>(null)
+	const [uploadedFilename, setUploadedFilename] = useState<string | null>(
+		null
+	)
 
 	// --- Voice Mode State ---
-	const [audioInputDevices, setAudioInputDevices] = useState<{ deviceId: string; label: string }[]>([])
-	const [selectedAudioInputDevice, setSelectedAudioInputDevice] = useState<string>("")
+	const [audioInputDevices, setAudioInputDevices] = useState<
+		{ deviceId: string; label: string }[]
+	>([])
+	const [selectedAudioInputDevice, setSelectedAudioInputDevice] =
+		useState<string>("")
 	const webrtcClientRef = useRef<any>(null) // Consider creating a type for WebRTCClient
 	const ringtoneAudioRef = useRef<HTMLAudioElement>(null)
 	const connectedAudioRef = useRef<HTMLAudioElement>(null)
@@ -254,11 +286,14 @@ export default function ChatPage() {
 		isError: isHistoryError
 	} = useInfiniteQuery<{ messages: ChatMessage[]; hasMore: boolean }, Error>({
 		queryKey: ["chatHistory"],
-		queryFn: async ({ pageParam }: { pageParam: string | null }) => {
+		queryFn: async ({ pageParam }: { pageParam: unknown }) => {
 			const res = await fetch("/api/chat/history", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ limit: 50, before_timestamp: pageParam })
+				body: JSON.stringify({
+					limit: 50,
+					before_timestamp: pageParam as string | null
+				})
 			})
 			if (!res.ok) throw new Error("Failed to fetch messages")
 			const pageData: { messages: any[] } = await res.json()
@@ -275,25 +310,27 @@ export default function ChatPage() {
 			}
 			return undefined
 		},
-		enabled: !tourState?.isActive
+		enabled: !tourState.isActive
 	})
 
 	const displayedMessagesFromQuery = useMemo(
-		() => (chatHistoryData?.pages.flatMap((page) => page.messages) ?? []) as ChatMessage[],
+		() =>
+			(chatHistoryData?.pages.flatMap((page) => page.messages) ??
+				[]) as ChatMessage[],
 		[chatHistoryData]
 	)
 
 	// Use tour messages if the tour is active, otherwise use data from the query
-	const displayedMessages = tourState?.isActive
+	const displayedMessages = tourState.isActive
 		? tourMessages
 		: displayedMessagesFromQuery
 
 	useEffect(() => {
 		// When tour becomes inactive, refetch original messages
-		if (!tourState?.isActive && prevTourState?.isActive) {
+		if (!tourState.isActive && prevTourState?.isActive) {
 			queryClient.invalidateQueries({ queryKey: ["chatHistory"] })
 		}
-	}, [tourState?.isActive, prevTourState, queryClient])
+	}, [tourState.isActive, prevTourState, queryClient])
 
 	useEffect(() => {
 		const messageId = searchParams.get("messageId")
@@ -326,9 +363,9 @@ export default function ChatPage() {
 
 	const sendMessageMutation = useMutation({
 		mutationFn: async ({
-			newUserMessage, // Type this properly
+			newUserMessage,
 			uploadedFilename: mutationUploadedFilename
-		}) => {
+		}: SendMessageVariables) => {
 			abortControllerRef.current = new AbortController()
 
 			posthog?.capture("chat_message_sent", {
@@ -341,9 +378,8 @@ export default function ChatPage() {
 				finalContent = `(Attached file for context: ${mutationUploadedFilename}) ${finalContent}. Use file-management MCP to read it`
 			}
 
-			if (tourState?.isActive && tourState.step === 1) {
+			if (tourState.isActive && tourState.step === 1) {
 				// --- TOUR SIMULATION ---
-				const subStep = tourState.subStep
 				setHighlightPaused(true)
 				setStatusText("Thinking...")
 				setTourMessages((prev) => [...prev, newUserMessage])
@@ -351,8 +387,9 @@ export default function ChatPage() {
 				if (subStep === 0) {
 					// First message: "Hi Sentient!"
 					setTimeout(() => {
-						const fakeResponse = {
-							id: `assistant-tour-0`, message_id: `assistant-tour-0`,
+						const fakeResponse: ChatMessage = {
+							id: `assistant-tour-0`,
+							message_id: `assistant-tour-0`,
 							role: "assistant",
 							content: "Hey there, I'm ready to help.",
 							timestamp: new Date().toISOString()
@@ -372,8 +409,9 @@ export default function ChatPage() {
 					}, 1000)
 
 					setTimeout(() => {
-						const fakeResponse = {
-							id: `assistant-tour-1`, message_id: `assistant-tour-1`,
+						const fakeResponse: ChatMessage = {
+							id: `assistant-tour-1`,
+							message_id: `assistant-tour-1`,
 							role: "assistant",
 							content:
 								"Cool, I've sent that email. Is there anything else you want to do?",
@@ -394,8 +432,9 @@ export default function ChatPage() {
 						setStatusText("Using tool: tasks")
 					}, 1000)
 					setTimeout(() => {
-						const fakeResponse = {
-							id: `assistant-tour-2`, message_id: `assistant-tour-2`,
+						const fakeResponse: ChatMessage = {
+							id: `assistant-tour-2`,
+							message_id: `assistant-tour-2`,
 							role: "assistant",
 							content: "Cool, I've created the workflow.",
 							timestamp: new Date().toISOString(),
@@ -431,7 +470,7 @@ export default function ChatPage() {
 				const errorData = await response.json().catch(() => ({
 					detail: `Request failed with status ${response.status}`
 				}))
-				const error = new Error(
+				const error: ErrorWithStatus = new Error(
 					errorData.detail || "An unexpected error occurred."
 				)
 				error.status = response.status
@@ -466,65 +505,68 @@ export default function ChatPage() {
 							setStatusText("")
 						}
 
-						queryClient.setQueryData(["chatHistory"], (oldData: any) => {
-							if (!oldData) return oldData
-							const newPages = oldData.pages.map(
-								(page, pageIndex) => {
-									if (
-										pageIndex ===
-										oldData.pages.length - 1
-									) {
-										const newMessages = page.messages.map(
-											(msg) => {
-												if (
-													msg.id ===
-													newUserMessage.assistantTempId
-												) {
-													let newId = msg.id
+						queryClient.setQueryData(
+							["chatHistory"],
+							(oldData: any) => {
+								if (!oldData) return oldData
+								const newPages = oldData.pages.map(
+									(page, pageIndex) => {
+										if (
+											pageIndex ===
+											oldData.pages.length - 1
+										) {
+											const newMessages =
+												page.messages.map((msg) => {
 													if (
-														parsed.messageId &&
-														msg.id.startsWith(
-															"assistant-"
-														)
+														msg.id ===
+														newUserMessage.assistantTempId
 													) {
-														newId = parsed.messageId
-													}
-													if (parsed.done) {
+														let newId = msg.id
+														if (
+															parsed.messageId &&
+															msg.id.startsWith(
+																"assistant-"
+															)
+														) {
+															newId =
+																parsed.messageId
+														}
+														if (parsed.done) {
+															return {
+																...msg,
+																id: newId,
+																content:
+																	parsed.final_content ||
+																	"",
+																turn_steps:
+																	parsed.turn_steps ||
+																	[],
+																tools:
+																	parsed.tools ||
+																	[]
+															}
+														}
 														return {
 															...msg,
 															id: newId,
-															content:
-																parsed.final_content ||
-																"",
-															turn_steps:
-																parsed.turn_steps ||
-																[],
 															tools:
 																parsed.tools ||
-																[]
+																msg.tools
 														}
 													}
-													return {
-														...msg,
-														id: newId,
-														tools:
-															parsed.tools ||
-															msg.tools
-													}
-												}
-												return msg
+													return msg
+												})
+											return {
+												...page,
+												messages: newMessages
 											}
-										)
-										return {
-											...page,
-											messages: newMessages
 										}
+										return page
 									}
-									return page
-								}
-							)
-							return { ...oldData, pages: newPages }
-						})
+								)
+								return { ...oldData, pages: newPages }
+							}
+						)
 					} catch (parseError) {
 						// This might be raw text if streaming fails to produce JSON
 					}
@@ -583,8 +625,10 @@ export default function ChatPage() {
 			queryClient.setQueryData(["chatHistory"], context.previousHistory)
 			if (error.name === "AbortError") {
 				toast.info("Message generation stopped.")
-			} else if (error.status === 429) {
-				toast.error((error as Error).message || "You've reached a usage limit.")
+			} else if ((error as ErrorWithStatus).status === 429) {
+				toast.error(
+					(error as Error).message || "You've reached a usage limit."
+				)
 				if (!isPro) openUpgradeModal()
 			} else {
 				toast.error(`Error: ${(error as Error).message}`)
@@ -597,8 +641,9 @@ export default function ChatPage() {
 		}
 	})
 
-	const sendMessage = () => {
-		const newUserMessage: any = {
+	const sendMessage = useCallback(() => {
+		if (!input.trim() && !uploadedFilename) return
+		const newUserMessage: ChatMessage = {
 			id: `user-${Date.now()}`,
 			assistantTempId: `assistant-${Date.now()}`,
 			role: "user",
@@ -607,7 +652,7 @@ export default function ChatPage() {
 			...(replyingTo && { replyToId: replyingTo.id })
 		}
 		sendMessageMutation.mutate({ newUserMessage, uploadedFilename })
-	}
+	}, [input, uploadedFilename, replyingTo, sendMessageMutation])
 
 	useEffect(() => {
 		if (chatActionsRef) {
@@ -623,7 +668,9 @@ export default function ChatPage() {
 		}
 	}, [chatActionsRef, sendMessage, setInput])
 
-	const { data: integrationsData } = useQuery<{ integrations: Integration[] }>({
+	const { data: integrationsData } = useQuery<{
+		integrations: Integration[]
+	}>({
 		queryKey: ["integrations"],
 		queryFn: async () => {
 			const res = await fetch("/api/settings/integrations", {
@@ -675,7 +722,9 @@ export default function ChatPage() {
 
 			if (!response.ok) {
 				const errorData = await response.json().catch(() => ({}))
-				const error = new Error(errorData.error || "File upload failed")
+				const error: ErrorWithStatus = new Error(
+					errorData.error || "File upload failed"
+				)
 				error.status = response.status
 				throw error
 			}
@@ -911,7 +960,8 @@ export default function ChatPage() {
 			} else if (event.type === "llm_result" && event.text) {
 				lastSpokenTextRef.current = event.text
 				const assistantMessage = {
-					id: event.messageId || `assistant_${Date.now()}`, message_id: event.messageId || `assistant_${Date.now()}`,
+					id: event.messageId || `assistant_${Date.now()}`,
+					message_id: event.messageId || `assistant_${Date.now()}`,
 					role: "assistant",
 					content: event.text,
 					timestamp: new Date().toISOString()
@@ -1014,7 +1064,7 @@ export default function ChatPage() {
 				const errorData = await rtcTokenResponse
 					.json()
 					.catch(() => ({}))
-				const error = new Error(
+				const error: ErrorWithStatus = new Error(
 					errorData.detail || "Could not initiate voice session."
 				)
 				error.status = rtcTokenResponse.status
@@ -1064,7 +1114,7 @@ export default function ChatPage() {
 			)
 		} catch (error) {
 			console.error("[ChatPage] Error during handleStartVoice:", error)
-			if ((error as any).status === 429) {
+			if ((error as ErrorWithStatus).status === 429) {
 				toast.error(
 					(error as Error).message ||
 						"You've used all your voice minutes for today on the free plan."
@@ -1252,7 +1302,7 @@ export default function ChatPage() {
 										<p className="text-neutral-400 text-sm mt-1">
 											I remember our entire conversation,
 											so you can always pick up where you
-											left off.
+											left off.&apos;
 										</p>
 									</div>
 								</div>
@@ -1269,8 +1319,8 @@ export default function ChatPage() {
 											I automatically select and use the
 											right tools from your connected
 											apps. Just tell me what you need,
-											and I'll figure out how to get it
-											done.
+											and I&apos;ll figure out how to get
+											it done.
 										</p>
 									</div>
 								</div>
@@ -1284,10 +1334,12 @@ export default function ChatPage() {
 											Schedule for Later
 										</h3>
 										<p className="text-neutral-400 text-sm mt-1">
-											Tell me to do something 'tomorrow at
-											9am' or 'next Friday', and I'll
-											handle it in the background, keeping
-											you updated in the Tasks panel.
+											Tell me to do something
+											&apos;tomorrow at 9am&apos; or
+											&apos;next Friday&apos;, and
+											I&apos;ll handle it in the
+											background, keeping you updated in
+											the Tasks panel.
 										</p>
 									</div>
 								</div>

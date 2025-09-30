@@ -6,6 +6,12 @@ const appServerUrl =
 		? process.env.INTERNAL_APP_SERVER_URL
 		: process.env.NEXT_PUBLIC_APP_SERVER_URL
 
+interface ServiceFilters {
+	keywords?: string[];
+	emails?: string[];
+	labels?: string[];
+}
+
 // GET handler to fetch current privacy filters for a specific service
 export const GET = withAuth(async function GET(
 	request: NextRequest,
@@ -34,7 +40,7 @@ export const GET = withAuth(async function GET(
 		const data = await response.json()
 		const allFilters = data?.data?.privacyFilters
 
-		let serviceFilters = {}
+		let serviceFilters: ServiceFilters = {}
 
 		// Handle backward compatibility and new structured format
 		if (Array.isArray(allFilters)) {

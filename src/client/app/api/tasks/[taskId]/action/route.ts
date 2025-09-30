@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { withAuth } from "@lib/api-utils"
+import { HandlerParams, withAuth } from "@lib/api-utils"
 
 const APP_SERVER_URL =
 	process.env.NEXT_PUBLIC_ENVIRONMENT === "selfhost"
@@ -8,19 +8,10 @@ const APP_SERVER_URL =
 
 export const POST = withAuth(async function POST(
 	request: NextRequest,
-	{ params, authHeader }: {
-		params: { taskId: string };
-		authHeader: HeadersInit;
-	}
+	params: HandlerParams
 ): Promise<NextResponse> {
-	const { taskId } = params
-	if (!taskId) {
-		return NextResponse.json(
-			{ error: "Task ID parameter is required" },
-			{ status: 400 }
-		)
-	}
-
+	const taskId = params.taskId as string
+	const { authHeader } = params
 	try {
 		const { action } = await request.json()
 		if (!action) {

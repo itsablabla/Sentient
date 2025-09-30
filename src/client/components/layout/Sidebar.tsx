@@ -33,6 +33,7 @@ import {
 } from "@tabler/icons-react"
 import { cn } from "@utils/cn";
 import { motion, AnimatePresence } from "framer-motion"
+import Image from "next/image"
 import { usePostHog } from "posthog-js/react"
 import useClickOutside from "@hooks/useClickOutside"
 import { Tooltip } from "react-tooltip"
@@ -219,7 +220,7 @@ const ComingSoonModal: FC<ComingSoonModalProps> = ({ isOpen, onClose }) => {
 								Coming Soon
 							</h2>
 							<p className="text-neutral-400 mt-2">
-								Here's a sneak peek at what we're building next.
+								Here&apos;s a sneak peek at what we&apos;re building next.
 							</p>
 						</header>
 						<main className="space-y-4 overflow-y-auto custom-scrollbar pr-2 flex-1">
@@ -281,9 +282,11 @@ const UserProfileSection: FC<{ isCollapsed: boolean, user: any }> = ({ isCollaps
 				)}
 			>
 				{user?.picture ? (
-					<img
+					<Image
 						src={user.picture}
 						alt="User"
+						width={28}
+						height={28}
 						className="w-7 h-7 rounded-full flex-shrink-0"
 					/>
 				) : (
@@ -596,9 +599,11 @@ const SidebarContent: FC<{
 					className="flex items-center gap-2"
 					onClick={isMobile ? onMobileClose : undefined}
 				>
-					<img
+					<Image
 						src="/images/half-logo-dark.svg"
 						alt="Logo"
+						width={28}
+						height={28}
 						className="w-7 h-7"
 					/>
 					<AnimatePresence>
@@ -679,7 +684,7 @@ const SidebarContent: FC<{
 									<p className="font-semibold text-sm text-white">
 										Unlock Pro
 									</p>
-									<p className="text-xs text-neutral-400">
+                    <p className="text-xs text-neutral-400">
 										Unlock all features
 									</p>
 								</motion.div>

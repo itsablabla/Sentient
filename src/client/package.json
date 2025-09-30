@@ -81,7 +81,6 @@
 		"@types/jsonwebtoken": "^9.0.6",
 		"@types/mongodb": "^4.0.7",
 		"@types/uuid": "^10.0.0",
-		"@types/vis": "^4.21.28",
 		"@types/web-push": "^3.6.3",
 		"@types/react": "^19.1.16",
 		"@types/react-dom": "^19.1.9",

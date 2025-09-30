@@ -359,6 +359,7 @@ const WhatsAppQRCodeModal = ({ onClose }) => {
 						<IconLoader className="animate-spin text-brand-orange" />
 					)}
 					{status === "scanning" && qrCode && (
+						// eslint-disable-next-line @next/next/no-img-element
 						<img
 							src={`data:image/png;base64,${qrCode}`}
 							alt="WhatsApp QR Code"
@@ -827,6 +828,17 @@ const IntegrationCard = ({
 // Define the missing constant to prevent reference errors.
 const MANUAL_INTEGRATION_CONFIGS = {}
 
+const googleServices = [
+	"gmail",
+	"gcalendar",
+	"gdrive",
+	"gdocs",
+	"gslides",
+	"gsheets",
+	"gmaps",
+	"gpeople"
+]
+
 const IntegrationsPage = () => {
 	const queryClient = useQueryClient()
 	const {
@@ -853,17 +865,6 @@ const IntegrationsPage = () => {
 	const [isInfoPanelOpen, setIsInfoPanelOpen] = useState(false)
 	const posthog = usePostHog()
 	const router = useRouter()
-
-	const googleServices = [
-		"gmail",
-		"gcalendar",
-		"gdrive",
-		"gdocs",
-		"gslides",
-		"gsheets",
-		"gmaps",
-		"gpeople"
-	]
 
 	const {
 		data: integrationsData,
@@ -910,115 +911,119 @@ const IntegrationsPage = () => {
 		return { userIntegrations: connectable, defaultTools: builtIn }
 	}, [integrationsData])
 
-	const handleUpgradeClick = () => {
-		openUpgradeModal()
-	}
-
-	const handleConnect = async (integration) => {
-		const isProFeature = PRO_ONLY_INTEGRATIONS.includes(integration.name)
-		if (isProFeature && !isPro) {
-			handleUpgradeClick()
-			return
-		}
-
-		// If it's a pro feature, refresh the session cookie before redirecting
-		// to ensure the backend gets a fresh token with the correct roles.
-		if (isProFeature) {
-			const toastId = toast.loading("Preparing secure connection...")
-			try {
-				await apiClient("/api/auth/refresh-session")
-				toast.dismiss(toastId)
-			} catch (e) {
-				toast.error("Could not prepare connection. Please try again.", {
-					id: toastId
-				})
-				return // Stop if refresh fails
-			}
-		}
-
-		if (integration.auth_type === "composio") {
-			handleComposioConnect(integration)
-			return
-		}
-
-		if (integration.auth_type === "oauth") {
-			const { name: serviceName, client_id: clientId } = integration
-			if (!clientId) {
-				toast.error(
-					`Client ID for ${integration.display_name} is not configured.`
-				)
+	const handleConnect = useCallback(
+		async (integration: Integration) => {
+			const isProFeature = PRO_ONLY_INTEGRATIONS.includes(
+				integration.name
+			)
+			if (isProFeature && !isPro) {
+				openUpgradeModal()
 				return
 			}
 
-			if (serviceName === "trello") {
-				// Trello uses an implicit grant flow where the token is returned in the URL fragment.
-				const returnUrl = `${window.location.origin}/integrations` // Redirect back to this page to handle the fragment.
-				const scope = "read,write" // Request read and write permissions for creating cards.
-				const authUrl = `https://trello.com/1/authorize?expiration=never&scope=${scope}&response_type=token&key=${clientId}&return_url=${encodeURIComponent(returnUrl)}&callback_method=fragment`
-				window.location.href = authUrl
-				return // Stop execution for Trello as it's a redirect.
+			// If it's a pro feature, refresh the session cookie before redirecting
+			// to ensure the backend gets a fresh token with the correct roles.
+			if (isProFeature) {
+				const toastId = toast.loading("Preparing secure connection...")
+				try {
+					await apiClient("/api/auth/refresh-session")
+					toast.dismiss(toastId)
+				} catch (e) {
+					toast.error(
+						"Could not prepare connection. Please try again.",
+						{
+							id: toastId
+						}
+					)
+					return // Stop if refresh fails
+				}
 			}
 
-			const redirectUri = `${window.location.origin}/api/settings/integrations/connect/oauth/callback`
-			let authUrl = ""
-			const scopes = {
-				gdrive: "https://www.googleapis.com/auth/drive",
-				gcalendar: "https://www.googleapis.com/auth/calendar",
-				gmail: "https://mail.google.com/",
-				gdocs: "https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/drive",
-				gslides:
-					"https://www.googleapis.com/auth/presentations https://www.googleapis.com/auth/drive",
-				gsheets: "https://www.googleapis.com/auth/spreadsheets",
-				gmaps: "https://www.googleapis.com/auth/cloud-platform",
-				gpeople: "https://www.googleapis.com/auth/contacts",
-				github: "repo user",
-				notion: "read_content write_content insert_content", // This is not a scope, it's just for user to know. Notion doesn't use scopes in the URL.
-				slack: "channels:history,channels:read,chat:write,users:read,reactions:write"
+			if (integration.auth_type === "composio") {
+				handleComposioConnect(integration)
+				return
 			}
-			const scope =
-				scopes[serviceName] ||
-				"https://www.googleapis.com/auth/userinfo.email"
-			if (googleServices.includes(serviceName)) {
-				authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(
-					redirectUri
-				)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent&state=${serviceName}`
-			} else if (serviceName === "github") {
-				// For GitHub, it's safer to omit the redirect_uri and let it use the default
-				// configured in the OAuth App settings to avoid mismatches.
-				authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=${encodeURIComponent(scope)}&state=${serviceName}`
-			} else if (serviceName === "slack") {
-				authUrl = `https://slack.com/oauth/v2/authorize?client_id=${clientId}&user_scope=${encodeURIComponent(
-					scope
-				)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${serviceName}`
-			} else if (serviceName === "notion") {
-				// Notion's `owner` parameter is important
-				authUrl = `https://api.notion.com/v1/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(
-					redirectUri
-				)}&response_type=code&owner=user&state=${serviceName}`
-			} else if (serviceName === "discord") {
-				// Scopes for Discord: identify (read user info), guilds (list servers), bot (add bot to servers), applications.commands (for slash commands)
-				const scope = "identify guilds bot applications.commands"
-				// Permissions for the bot
-				const permissions = "580851377359936"
-				authUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(
-					redirectUri
-				)}&response_type=code&scope=${encodeURIComponent(scope)}&permissions=${permissions}&state=${serviceName}`
-			}
-			if (authUrl) window.location.href = authUrl
-			else
-				toast.error(
-					`OAuth flow for ${integration.display_name} is not implemented.`
-				)
-		} else if (integration.auth_type === "manual") {
-			if (MANUAL_INTEGRATION_CONFIGS[integration.name]) {
-				setActiveManualIntegration(integration)
-			} else {
-				toast.error(`UI for ${integration.display_name} not found.`)
-			}
-		}
-	}
 
-	const handleComposioConnect = async (integration) => {
+			if (integration.auth_type === "oauth") {
+				const { name: serviceName, client_id: clientId } = integration
+				if (!clientId) {
+					toast.error(
+						`Client ID for ${integration.display_name} is not configured.`
+					)
+					return
+				}
+
+				if (serviceName === "trello") {
+					// Trello uses an implicit grant flow where the token is returned in the URL fragment.
+					const returnUrl = `${window.location.origin}/integrations` // Redirect back to this page to handle the fragment.
+					const scope = "read,write" // Request read and write permissions for creating cards.
+					const authUrl = `https://trello.com/1/authorize?expiration=never&scope=${scope}&response_type=token&key=${clientId}&return_url=${encodeURIComponent(returnUrl)}&callback_method=fragment`
+					window.location.href = authUrl
+					return // Stop execution for Trello as it's a redirect.
+				}
+
+				const redirectUri = `${window.location.origin}/api/settings/integrations/connect/oauth/callback`
+				let authUrl = ""
+				const scopes = {
+					gdrive: "https://www.googleapis.com/auth/drive",
+					gcalendar: "https://www.googleapis.com/auth/calendar",
+					gmail: "https://mail.google.com/",
+					gdocs: "https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/drive",
+					gslides:
+						"https://www.googleapis.com/auth/presentations https://www.googleapis.com/auth/drive",
+					gsheets: "https://www.googleapis.com/auth/spreadsheets",
+					gmaps: "https://www.googleapis.com/auth/cloud-platform",
+					gpeople: "https://www.googleapis.com/auth/contacts",
+					github: "repo user",
+					notion: "read_content write_content insert_content", // This is not a scope, it's just for user to know. Notion doesn't use scopes in the URL.
+					slack: "channels:history,channels:read,chat:write,users:read,reactions:write"
+				}
+				const scope =
+					scopes[serviceName] ||
+					"https://www.googleapis.com/auth/userinfo.email"
+				if (googleServices.includes(serviceName)) {
+					authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(
+						redirectUri
+					)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent&state=${serviceName}`
+				} else if (serviceName === "github") {
+					// For GitHub, it's safer to omit the redirect_uri and let it use the default
+					// configured in the OAuth App settings to avoid mismatches.
+					authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=${encodeURIComponent(scope)}&state=${serviceName}`
+				} else if (serviceName === "slack") {
+					authUrl = `https://slack.com/oauth/v2/authorize?client_id=${clientId}&user_scope=${encodeURIComponent(
+						scope
+					)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${serviceName}`
+				} else if (serviceName === "notion") {
+					// Notion's `owner` parameter is important
+					authUrl = `https://api.notion.com/v1/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(
+						redirectUri
+					)}&response_type=code&owner=user&state=${serviceName}`
+				} else if (serviceName === "discord") {
+					// Scopes for Discord: identify (read user info), guilds (list servers), bot (add bot to servers), applications.commands (for slash commands)
+					const scope = "identify guilds bot applications.commands"
+					// Permissions for the bot
+					const permissions = "580851377359936"
+					authUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(
+						redirectUri
+					)}&response_type=code&scope=${encodeURIComponent(scope)}&permissions=${permissions}&state=${serviceName}`
+				}
+				if (authUrl) window.location.href = authUrl
+				else
+					toast.error(
+						`OAuth flow for ${integration.display_name} is not implemented.`
+					)
+			} else if (integration.auth_type === "manual") {
+				if (MANUAL_INTEGRATION_CONFIGS[integration.name]) {
+					setActiveManualIntegration(integration)
+				} else {
+					toast.error(`UI for ${integration.display_name} not found.`)
+				}
+			}
+		},
+		[isPro, openUpgradeModal, handleComposioConnect]
+	)
+
+	const handleComposioConnect = useCallback(async (integration) => {
 		const { name: serviceName, auth_config_id: authConfigId } = integration
 		if (!authConfigId) {
 			toast.error(
@@ -1044,7 +1049,7 @@ const IntegrationsPage = () => {
 			setProcessingIntegration(null)
 			localStorage.removeItem("composio_pending_service")
 		}
-	}
+	}, [])
 
 	const disconnectMutation = useMutation({
 		mutationFn: ({ integrationName }) => {
@@ -1465,8 +1470,18 @@ const IntegrationsPage = () => {
 				</MorphingDialogContent>
 			)
 		},
-		[processingIntegration, handleComposioConnect, handleConnect]
+		[
+			processingIntegration,
+			handleComposioConnect,
+			handleConnect,
+			openPrivacyModal,
+			setDisconnectingIntegration
+		]
 	)
+
+	const handleUpgradeClick = () => {
+		openUpgradeModal()
+	}
 
 	return (
 		<div className="flex-1 flex h-screen text-white overflow-x-hidden">
