@@ -1,7 +1,7 @@
-import { MetadataRoute } from 'next'
+import { MetadataRoute } from "next"
 
 export default function manifest(): MetadataRoute.Manifest {
-    return {
+	return {
 		name: "Sentient",
 		short_name: "Sentient",
 		description: "Your autopilot for productivity",
