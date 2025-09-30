@@ -26,7 +26,7 @@ type NextRouteHandler = (
  */
 export function withAuth(handler: AuthenticatedHandler): NextRouteHandler {
 	return async (request, context) => {
-		const finalParams = { ...(context?.params || {}) }
+		const finalParams = { ...(context.params || {}) }
 
 		if (isSelfHost) {
 			const authHeader = await getBackendAuthHeader()

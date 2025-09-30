@@ -25,10 +25,10 @@ const DayDetailView = ({ date, tasks: items, onSelectTask, onClose }: DayDetailV
 	const hours = Array.from({ length: 24 }, (_, i) => i)
 
 	const allDayItems = (items || []).filter( (item: Task) =>
-		(item) => !item.schedule?.run_at || !item.schedule.run_at.includes("T")
+		!item.schedule?.run_at || !item.schedule.run_at.includes("T")
 	)
 	const timedItems = (items || []).filter( (item: Task) =>
-		(item) => item.schedule?.run_at && item.schedule.run_at.includes("T")
+		item.schedule?.run_at && item.schedule.run_at.includes("T")
 	)
 
 	const getTopPosition = (item: Task) => {
@@ -69,7 +69,7 @@ const DayDetailView = ({ date, tasks: items, onSelectTask, onClose }: DayDetailV
 				<div className="p-4 border-b border-neutral-800">
 					<div className="space-y-2">
 						{allDayItems.length > 0 ? (
-							allDayItems.map((item) => (
+							allDayItems.map((item: Task) => (
 								<TaskCardDayView
 									key={item.instance_id}
 									task={item}
@@ -105,7 +105,7 @@ const DayDetailView = ({ date, tasks: items, onSelectTask, onClose }: DayDetailV
 
 					{/* Timed tasks */}
 					<div className="absolute inset-0">
-						{timedItems.map((item) => (
+						{timedItems.map((item: Task) => (
 							<div
 								key={item.instance_id}
 								className="absolute w-full pr-4 pl-16"

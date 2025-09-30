@@ -207,7 +207,7 @@ const ChatBubble: FC<{
 	const transformLinkUri = (uri) => {
 		return uri // Let ReactMarkdown handle its default security
 	}
-	const renderedContent = React.useMemo(() => {
+	const renderedContent = React.useMemo(() => { // @ts-ignore
 		const markdownComponents = {
 			a: ({ href, children }) => {
 				if (href && href.startsWith("file:")) {
@@ -281,21 +281,12 @@ const ChatBubble: FC<{
 														</div>
 													)
 												case "tool_call":
-													let formattedArgs =
-														step.arguments
-													try {
-														const parsed =
-															JSON.parse(
-																step.arguments
-															)
-														formattedArgs =
-															JSON.stringify(
-																parsed,
-																null,
-																2
-															)
-													} catch (e) {
-														/* not json, leave as is */
+													let formattedArgs = step.arguments
+													if (step.arguments) {
+														try {
+															const parsed = JSON.parse(step.arguments)
+															formattedArgs = JSON.stringify(parsed, null, 2)
+														} catch (e) { /* not json, leave as is */ }
 													}
 													return (
 														<div
@@ -309,7 +300,7 @@ const ChatBubble: FC<{
 																Tool Call:{" "}
 																{step.tool_name}
 															</p>
-															<pre className="text-xs text-neutral-300 whitespace-pre-wrap font-mono bg-black/30 p-2 rounded-md">
+															<pre className="text-xs text-neutral-300 whitespace-pre-wrap font-mono bg-black/30 p-2 rounded-md break-all">
 																<code>
 																	{
 																		formattedArgs
@@ -319,21 +310,12 @@ const ChatBubble: FC<{
 														</div>
 													)
 												case "tool_result":
-													let formattedResult =
-														step.result
-													try {
-														const parsed =
-															JSON.parse(
-																step.result
-															)
-														formattedResult =
-															JSON.stringify(
-																parsed,
-																null,
-																2
-															)
-													} catch (e) {
-														/* not json, leave as is */
+													let formattedResult = step.result
+													if (step.result) {
+														try {
+															const parsed = JSON.parse(step.result)
+															formattedResult = JSON.stringify(parsed, null, 2)
+														} catch (e) { /* not json, leave as is */ }
 													}
 													return (
 														<div
@@ -347,7 +329,7 @@ const ChatBubble: FC<{
 																Tool Result:{" "}
 																{step.tool_name}
 															</p>
-															<pre className="text-xs text-neutral-400 whitespace-pre-wrap font-mono bg-black/30 p-2 rounded-md">
+															<pre className="text-xs text-neutral-400 whitespace-pre-wrap font-mono bg-black/30 p-2 rounded-md break-all">
 																<code>
 																	{
 																		formattedResult
@@ -401,7 +383,6 @@ const ChatBubble: FC<{
 	const handleCopyToClipboard = () => {
 		const textToCopy = processedContent.content
 		if (!textToCopy) {
-			// @ts-ignore
 			toast.error("Nothing to copy.")
 			return
 		}

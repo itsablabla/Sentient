@@ -42,7 +42,8 @@ import {
 	IconArrowUpCircle,
 	IconCheck,
 	IconListCheck
-} from "@tabler/icons-react"
+} from "@tabler/icons-react";
+import type { IconProps } from "@tabler/icons-react";
 import { cn } from "@utils/cn"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import { motion, AnimatePresence } from "framer-motion"
@@ -79,7 +80,7 @@ import {
 } from "@stores/app-stores"
 import { usePostHog } from "posthog-js/react"
 
-const integrationColorIcons: { [key: string]: React.ElementType } = {
+const integrationColorIcons: { [key: string]: React.FC<IconProps> } = {
 	gmail: IconMail,
 	gcalendar: IconCalendarEvent,
 	gpeople: IconUsers,
@@ -179,7 +180,7 @@ const UpgradeToProModal = ({
 							</p>
 						</header>
 						<main className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 my-4">
-							{proPlanFeatures.map((feature) => (
+							{proPlanFeatures.map((feature: { name: string, limit: string }) => (
 								<div
 									key={feature.name}
 									className="flex items-start gap-2.5"
@@ -283,7 +284,7 @@ const WhatsAppDisclaimerModal = ({
 
 const WhatsAppQRCodeModal = ({ onClose }: { onClose: () => void }) => {
 	const [qrCode, setQrCode] = useState(null)
-	const [status, setStatus] = useState("initiating") // initiating, scanning, working,const WhatsAppQRCodeModal = ({ onClose }) => {
+	const [status, setStatus] = useState("initiating") // initiating, scanning, working, error
 	const [error, setError] = useState("")
 	const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -788,7 +789,7 @@ const IntegrationCard = ({
 	onUpgradeClick
 }: {
 	integration: Integration
-	icon: React.ElementType
+	icon: React.FC<IconProps>
 	isProFeature: boolean
 	isProUser: boolean
 	onUpgradeClick: () => void
@@ -1341,8 +1342,8 @@ const IntegrationsPage = () => {
 								<MorphingDialog
 									transition={{
 										type: "spring",
-										bounce: 0.05,
-										duration: 0.3
+										stiffness: 300,
+										damping: 30
 									}}
 								>
 									<MorphingDialogTrigger className="group h-full w-full">
@@ -1415,19 +1416,19 @@ const IntegrationsPage = () => {
 		])
 
 		if (activeCategory === "Core") {
-			return allIntegrations.filter((i) => coreServices.has(i.name))
+			return allIntegrations.filter((i: Integration) => coreServices.has(i.name))
 		}
 		if (activeCategory === "Inbuilt") {
-			return allIntegrations.filter((i) => i.auth_type === "builtin")
+			return allIntegrations.filter((i: Integration) => i.auth_type === "builtin")
 		}
 		if (activeCategory === "Advanced") {
 			return allIntegrations.filter(
-				(i) => !coreServices.has(i.name) && i.auth_type !== "builtin"
+				(i: Integration) => !coreServices.has(i.name) && i.auth_type !== "builtin"
 			)
 		}
 
 		// Fallback for default category before state update or if category is unknown
-		return allIntegrations.filter((i) => coreServices.has(i.name))
+		return allIntegrations.filter((i: Integration) => coreServices.has(i.name))
 	}, [activeCategory, allIntegrations, searchQuery])
 
 	const renderIntegrationDialogContent = useCallback(

@@ -9,15 +9,15 @@ import { cn } from "@utils/cn"
 import useClickOutside from "@hooks/useClickOutside"
 import { Input } from "@components/ui/input"
 import { Button } from "@components/ui/button"
-import { Task } from "@/types";
+import { Task } from "@/types"
 
 interface ListViewProps {
-    tasks: Task[];
-    view: 'tasks' | 'workflows';
-    onSelectTask: (task: Task) => void;
-    searchQuery: string;
-    onSearchChange: (query: string) => void;
-    onExampleClick: (example: any) => void;
+	tasks: Task[]
+	view: "tasks" | "workflows"
+	onSelectTask: (task: Task) => void
+	searchQuery: string
+	onSearchChange: (query: string) => void
+	onExampleClick: (example: any) => void
 }
 
 const ListView = ({
@@ -45,26 +45,27 @@ const ListView = ({
 		const subTasksByParentId = new Map<string, Task[]>()
 		const topLevelTasks: Task[] = []
 
-		tasks.forEach((task) => {
+		tasks.forEach((task: Task) => {
 			const parentId = task.original_context?.parent_task_id
 			if (parentId) {
 				if (!subTasksByParentId.has(parentId)) {
 					subTasksByParentId.set(parentId, [])
 				}
-				subTasksByParentId.get(parentId).push(task)
+				subTasksByParentId.get(parentId)!.push(task)
 			} else {
 				topLevelTasks.push(task)
 			}
 		})
 
-		topLevelTasks.forEach((parent) => {
+		topLevelTasks.forEach((parent: Task) => {
 			if (subTasksByParentId.has(parent.task_id)) {
-				parent.subTasks = subTasksByParentId
-					.get(parent.task_id)
-					.sort(
-						(a, b) =>
-							new Date(a.created_at) - new Date(b.created_at)
-					)
+				parent.subTasks = (
+					subTasksByParentId.get(parent.task_id) || []
+				).sort(
+					(a, b) =>
+						new Date(a.created_at).getTime() -
+						new Date(b.created_at).getTime()
+				)
 			}
 		})
 
@@ -89,7 +90,7 @@ const ListView = ({
 				}
 				const targetStatuses = statusMap[statusFilter]
 				if (targetStatuses) {
-					filtered = filtered.filter((task) =>
+					filtered = filtered.filter((task: Task) =>
 						targetStatuses.includes(task.status)
 					)
 				}
@@ -103,7 +104,7 @@ const ListView = ({
 				}
 				const targetStatuses = statusMap[workflowStatusFilter]
 				if (targetStatuses) {
-					filtered = filtered.filter((task) =>
+					filtered = filtered.filter((task: Task) =>
 						targetStatuses.includes(task.status)
 					)
 				}
@@ -112,7 +113,7 @@ const ListView = ({
 		// Date filter
 		if (dateFilter !== "all") {
 			const now = new Date()
-			filtered = filtered.filter((task) => {
+			filtered = filtered.filter((task: Task) => {
 				if (!task.created_at) return false
 				const createdAt = new Date(task.created_at)
 				if (dateFilter === "today") return isToday(createdAt)
@@ -143,7 +144,7 @@ const ListView = ({
 
 		// 3. Split the *filtered* list into tasks and workflows
 
-		let finalWorkflows = filtered.filter((t) =>
+		let finalWorkflows = filtered.filter((t: Task) =>
 			workflowTypes.includes(t.task_type)
 		)
 
@@ -155,7 +156,7 @@ const ListView = ({
 		}
 
 		return {
-			tasksToDisplay: filtered.filter((t) =>
+			tasksToDisplay: filtered.filter((t: Task) =>
 				taskTypes.includes(t.task_type)
 			),
 			workflowsToDisplay: finalWorkflows
@@ -187,11 +188,16 @@ const ListView = ({
 		)
 	}
 
-	const FilterButton = ({ value, label, currentFilter, setFilter }: {
-		value: string;
-		label: string;
-		currentFilter: string;
-		setFilter: (value: string) => void;
+	const FilterButton = ({
+		value,
+		label,
+		currentFilter,
+		setFilter
+	}: {
+		value: string
+		label: string
+		currentFilter: string
+		setFilter: (value: string) => void
 	}) => {
 		// eslint-disable-line
 		const isActive = currentFilter === value

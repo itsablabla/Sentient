@@ -115,7 +115,7 @@ const UpgradeToProModal: FC<UpgradeToProModalProps> = ({ isOpen, onClose }) => {
 					</p>
 				</header>
 				<main className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 my-4">
-					{proPlanFeatures.map((feature) => (
+					{proPlanFeatures.map((feature: { name: string, limit: string }) => (
 						<div
 							key={feature.name}
 							className="flex items-start gap-2.5"
@@ -297,7 +297,7 @@ export default function ChatPage() {
 			})
 			if (!res.ok) throw new Error("Failed to fetch messages")
 			const pageData: { messages: any[] } = await res.json()
-			const messages = (pageData.messages || []).map((m) => ({
+			const messages = (pageData.messages || []).map((m: any) => ({
 				...m,
 				id: m.message_id
 			}))
@@ -818,9 +818,11 @@ export default function ChatPage() {
 			const previousHistory = queryClient.getQueryData(["chatHistory"])
 			queryClient.setQueryData(["chatHistory"], (oldData: any) => { // @ts-ignore
 				if (!oldData) return oldData
-				const newPages = oldData.pages.map((page) => ({
+				const newPages = oldData.pages.map((page: { messages: ChatMessage[] }) => ({
 					...page,
-					messages: page.messages.filter((m) => m.id !== messageId)
+					messages: page.messages.filter(
+						(m: ChatMessage) => m.id !== messageId
+					)
 				}))
 				return { ...oldData, pages: newPages }
 			})

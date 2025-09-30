@@ -16,6 +16,7 @@ const FileCard: FC<FileCardProps> = ({ filename }) => {
 			const response = await fetch(
 				`/api/files/download/${encodeURIComponent(fname)}`
 			)
+			const blob = await response.blob()
 			const url = window.URL.createObjectURL(blob)
 			const a = document.createElement("a")
 			a.href = url

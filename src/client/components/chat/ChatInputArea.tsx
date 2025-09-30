@@ -23,10 +23,10 @@ const ChatInputArea: FC<{
 	input: string;
 	handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
 	sendMessage: () => void;
-	textareaRef: any;
+	textareaRef: React.RefObject<HTMLTextAreaElement | null>;
 	uploadedFilename: string | null;
 	isUploading: boolean;
-	fileInputRef: React.RefObject<HTMLInputElement>;
+	fileInputRef: React.RefObject<HTMLInputElement | null>;
 	handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 	integrations: Integration[];
 	setIsWelcomeModalOpen: (isOpen: boolean) => void;

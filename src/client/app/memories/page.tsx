@@ -1,6 +1,13 @@
 "use client"
 
-import React, { useState, useMemo, useRef, useCallback, FC, useEffect } from "react"
+import React, {
+	useState,
+	useMemo,
+	useRef,
+	useCallback,
+	FC,
+	useEffect
+} from "react"
 import toast from "react-hot-toast"
 import {
 	IconLoader,
@@ -20,7 +27,7 @@ import {
 	IconDeviceFloppy,
 	IconCheck,
 	IconSparkles
-} from "@tabler/icons-react";
+} from "@tabler/icons-react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { motion, AnimatePresence } from "framer-motion"
 import { formatDistanceToNow, parseISO } from "date-fns"
@@ -34,14 +41,14 @@ import {
 	ModalBody,
 	ModalFooter,
 	ModalCloseButton
-} from "@components/ui/ModalDialog";
+} from "@components/ui/ModalDialog"
 import useClickOutside from "@hooks/useClickOutside"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@components/ui/button"
 import { Card, CardContent, CardFooter } from "@components/ui/card"
 import { Drawer } from "@components/ui/drawer"
 import { Textarea } from "@components/ui/textarea"
-import apiClient, { ApiError } from "@lib/apiClient";
+import apiClient, { ApiError } from "@lib/apiClient"
 import { useUIStore, useUserStore, useMemoryStore } from "@stores/app-stores"
 import { Memory, UserProfile } from "@/types"
 
@@ -63,11 +70,18 @@ const proPlanFeatures = [
 ]
 
 interface UpgradeToProModalProps {
-	isOpen: boolean;
-	onClose: () => void;
+	isOpen: boolean
+	onClose: () => void
 }
 
-const UpgradeToProModal: FC<UpgradeToProModalProps> = ({ isOpen, onClose }) => {
+interface ErrorWithStatus extends Error {
+	status?: number
+}
+
+const UpgradeToProModal: FC<UpgradeToProModalProps> = ({
+	isOpen,
+	onClose
+}: UpgradeToProModalProps) => {
 	if (!isOpen) return null
 
 	const handleUpgrade = () => {
@@ -107,25 +121,27 @@ const UpgradeToProModal: FC<UpgradeToProModalProps> = ({ isOpen, onClose }) => {
 							</p>
 						</header>
 						<main className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 my-4">
-							{proPlanFeatures.map((feature) => (
-								<div
-									key={feature.name}
-									className="flex items-start gap-2.5"
-								>
-									<IconCheck
-										size={18}
-										className="text-green-400 flex-shrink-0 mt-0.5"
-									/>
-									<div>
-										<p className="text-white text-sm font-medium">
-											{feature.name}
-										</p>
-										<p className="text-neutral-400 text-xs">
-											{feature.limit}
-										</p>
+							{proPlanFeatures.map(
+								(feature: { name: string; limit: string }) => (
+									<div
+										key={feature.name}
+										className="flex items-start gap-2.5"
+									>
+										<IconCheck
+											size={18}
+											className="text-green-400 flex-shrink-0 mt-0.5"
+										/>
+										<div>
+											<p className="text-white text-sm font-medium">
+												{feature.name}
+											</p>
+											<p className="text-neutral-400 text-xs">
+												{feature.limit}
+											</p>
+										</div>
 									</div>
-								</div>
-							))}
+								)
+							)}
 						</main>
 						<footer className="mt-4 flex flex-col gap-2">
 							<button
@@ -148,10 +164,14 @@ const UpgradeToProModal: FC<UpgradeToProModalProps> = ({ isOpen, onClose }) => {
 	)
 }
 
-const InfoPanel = ({ onClose, title, children }: {
-	onClose: () => void;
-	title: React.ReactNode;
-	children: React.ReactNode;
+const InfoPanel = ({
+	onClose,
+	title,
+	children
+}: {
+	onClose: () => void
+	title: React.ReactNode
+	children: React.ReactNode
 }) => (
 	<motion.div
 		initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
@@ -186,11 +206,16 @@ const InfoPanel = ({ onClose, title, children }: {
 	</motion.div>
 )
 
-const MemoryDetailPanel = ({ memory, onClose, onUpdate, onDelete }: {
-	memory: Memory | null;
-	onClose: () => void;
-	onUpdate: (id: string, content: string) => Promise<void>;
-	onDelete: (id: string) => Promise<void>;
+const MemoryDetailPanel = ({
+	memory,
+	onClose,
+	onUpdate,
+	onDelete
+}: {
+	memory: Memory | null
+	onClose: () => void
+	onUpdate: (id: string, content: string) => Promise<void>
+	onDelete: (id: string) => Promise<void>
 }) => {
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedContent, setEditedContent] = useState(memory?.content || "")
@@ -419,10 +444,14 @@ const MemoryDetailPanel = ({ memory, onClose, onUpdate, onDelete }: {
 	)
 }
 
-const CreateMemoryModal = ({ onClose, onCreate, userDetails }: {
-	onClose: () => void;
-	onCreate: (content: string) => Promise<void>;
-	userDetails: UserProfile | undefined;
+const CreateMemoryModal = ({
+	onClose,
+	onCreate,
+	userDetails
+}: {
+	onClose: () => void
+	onCreate: (content: string) => Promise<void>
+	userDetails: UserProfile | undefined
 }) => {
 	const [content, setContent] = useState("")
 	const [isSaving, setIsSaving] = useState(false)
@@ -454,19 +483,20 @@ const CreateMemoryModal = ({ onClose, onCreate, userDetails }: {
 					onChange={(e) => setContent(e.target.value)}
 					placeholder="Enter a fact or piece of information to remember..."
 					className="w-full h-40 p-3 text-base"
-  autoFocus
-/>
-<p className="text-xs text-neutral-500 mt-2 px-1">
-Note: All memories should be in the third person. e.g., &quot;
-<span className="font-semibold text-neutral-400">
-{userDetails?.given_name || "User"} likes football
-</span>
-" instead of "I like football".
-</p>
-</ModalBody>
-<ModalFooter className="p-6">
-<Button onClick={onClose} variant="secondary">
-Cancel
+					autoFocus
+				/>
+				<p className="text-xs text-neutral-500 mt-2 px-1">
+					Note: All memories should be in the third person. e.g.,
+					&quot;
+					<span className="font-semibold text-neutral-400">
+						{userDetails?.given_name || "User"} likes football
+					</span>
+					" instead of "I like football".
+				</p>
+			</ModalBody>
+			<ModalFooter className="p-6">
+				<Button onClick={onClose} variant="secondary">
+					Cancel
 				</Button>
 				<Button
 					onClick={handleCreate}
@@ -487,9 +517,12 @@ Cancel
 
 const MotionCard = motion(Card)
 
-const MemoryCard = ({ memory, onSelect }: {
-	memory: Memory;
-	onSelect: (memory: Memory) => void;
+const MemoryCard = ({
+	memory,
+	onSelect
+}: {
+	memory: Memory
+	onSelect: (memory: Memory) => void
 }) => {
 	const timeAgo = formatDistanceToNow(parseISO(memory.created_at), {
 		addSuffix: true
@@ -548,21 +581,25 @@ const ForceGraph3D = dynamic(() => import("react-force-graph-3d"), {
 	)
 })
 
-const MemoryGraph = ({ data, onSelectNode, onClearSelection }: {
-	data: any;
-	onSelectNode: (node: any) => void;
-	onClearSelection: () => void;
+const MemoryGraph = ({
+	data,
+	onSelectNode,
+	onClearSelection
+}: {
+	data: any
+	onSelectNode: (node: any) => void
+	onClearSelection: () => void
 }) => {
-	const fgRef = useRef()
+	const fgRef = useRef<any>(null)
 
 	const graphData = useMemo(() => {
 		if (!data) return { nodes: [], links: [] }
-		const links = (data.links || data.edges || []).map((edge) => ({
+		const links = (data.links || data.edges || []).map((edge: any) => ({
 			source: edge.source || edge.from,
 			target: edge.target || edge.to,
 			...edge
 		}))
-		const nodes = data.nodes.map((node) => ({
+		const nodes = data.nodes.map((node: any) => ({
 			...node,
 			color: node.id % 5 === 0 ? "#22c55e" : "#f59e0b",
 			val: 1
@@ -571,8 +608,8 @@ const MemoryGraph = ({ data, onSelectNode, onClearSelection }: {
 	}, [data])
 
 	const handleNodeClick = useCallback(
-		(node) => {
-			const originalNode = data.nodes.find((n) => n.id === node.id)
+		(node: any) => {
+			const originalNode = data.nodes.find((n: any) => n.id === node.id)
 			if (originalNode) onSelectNode(originalNode)
 			const distance = 120
 			const distRatio = 1 + distance / Math.hypot(node.x, node.y, node.z)
@@ -618,7 +655,7 @@ const buttonVariants = {
 		paddingLeft: ".5rem",
 		paddingRight: ".5rem"
 	},
-	animate: (selected) => ({
+	animate: (selected: any) => ({
 		gap: selected ? ".5rem" : 0,
 		paddingLeft: selected ? "1rem" : ".5rem",
 		paddingRight: selected ? "1rem" : ".5rem"
@@ -631,16 +668,27 @@ const spanVariants = {
 	exit: { width: 0, opacity: 0 }
 }
 
-const transition = { delay: 0.1, type: "spring", bounce: 0, duration: 0.35 }
+const transition = {
+	delay: 0.1,
+	type: "spring",
+	bounce: 0,
+	duration: 0.35
+} as const
 
-const Tab = ({ text, selected, setSelected, value, children, ...props }: {
-	text: string;
-	selected: boolean;
-	setSelected: (value: 'graph' | 'list') => void;
-	value: 'graph' | 'list';
-	children: React.ReactNode;
-	[key: string]: any;
-
+const Tab = ({
+	text,
+	selected,
+	setSelected,
+	value,
+	children,
+	...props
+}: {
+	text: string
+	selected: boolean
+	setSelected: (value: "graph" | "list") => void
+	value: "graph" | "list"
+	children: React.ReactNode
+	[key: string]: any
 }) => {
 	return (
 		<motion.button
@@ -674,7 +722,13 @@ const Tab = ({ text, selected, setSelected, value, children, ...props }: {
 	)
 }
 
-const memoryTabs = [
+interface MemoryTab {
+	title: string
+	value: "graph" | "list"
+	icon: React.ReactNode
+}
+
+const memoryTabs: MemoryTab[] = [
 	{ title: "Graph", value: "graph", icon: <IconShare3 size={16} /> },
 	{ title: "List", value: "list", icon: <IconLayoutGrid size={16} /> }
 ]
@@ -744,16 +798,16 @@ export default function MemoriesPage() {
 	}, [data, view])
 
 	const topics = useMemo(() => {
-		const allTopics = new Set()
-		memories.forEach((memory) => {
-			;(memory.topics || []).forEach((topic) => allTopics.add(topic))
+		const allTopics = new Set<string>()
+		memories.forEach((memory: any) => {
+			;(memory.topics || []).forEach((topic: any) => allTopics.add(topic))
 		})
 		return ["All", ...Array.from(allTopics).sort()]
 	}, [memories])
 
 	const filteredMemories = useMemo(() => {
 		if (activeTopic === "All") return memories
-		return memories.filter((memory) =>
+		return memories.filter((memory: any) =>
 			(memory.topics || []).includes(activeTopic)
 		)
 	}, [memories, activeTopic])
@@ -762,7 +816,7 @@ export default function MemoriesPage() {
 		const memoryId = searchParams.get("memoryId")
 		if (memoryId && memories.length > 0) {
 			const memoryToSelect = memories.find(
-				(m) => String(m.id) === memoryId
+				(m: any) => String(m.id) === memoryId
 			)
 			if (memoryToSelect) {
 				setSelectedMemory(memoryToSelect)
@@ -779,7 +833,7 @@ export default function MemoriesPage() {
 			}).then(async (res) => {
 				if (!res.ok) {
 					const errorData = await res.json().catch(() => ({}))
-					const error = new Error(
+					const error: ErrorWithStatus = new Error(
 						errorData.error || "Failed to add memory"
 					)
 					error.status = res.status
@@ -793,7 +847,8 @@ export default function MemoriesPage() {
 			queryClient.invalidateQueries({ queryKey: ["memories"] })
 		},
 		onError: (error: any) => {
-			if (error.status === 429) { // @ts-ignore
+			if (error.status === 429) {
+				// @ts-ignore
 				toast.error(
 					error.message ||
 						"You've reached your memory limit for the free plan."
@@ -812,7 +867,10 @@ export default function MemoriesPage() {
 		mutationFn: ({
 			memoryId,
 			newContent
-		}: { memoryId: string; newContent: string }) =>
+		}: {
+			memoryId: string
+			newContent: string
+		}) =>
 			fetch(`/api/memories/${memoryId}`, {
 				method: "PUT",
 				body: JSON.stringify({ content: newContent })
@@ -887,13 +945,13 @@ export default function MemoriesPage() {
 						</p>
 						<div className="space-y-4">
 							<div className="flex items-start gap-4">
-                <IconBrain
-                  size={20}
-                  className="text-brand-orange flex-shrink-0 mt-1"
-                />
-                <div>
-                  <h3 className="font-semibold text-white">
-                    How it Works
+								<IconBrain
+									size={20}
+									className="text-brand-orange flex-shrink-0 mt-1"
+								/>
+								<div>
+									<h3 className="font-semibold text-white">
+										How it Works
 									</h3>
 									<p className="text-neutral-400 text-sm mt-1">
 										As we interact, I identify key pieces of
@@ -907,22 +965,23 @@ export default function MemoriesPage() {
 								</div>
 							</div>
 							<div className="flex items-start gap-4">
-                  <IconHeart
-                    size={20}
-                    className="text-brand-orange flex-shrink-0 mt-1"
-                  />
-                  <div>
-                    <h3 className="font-semibold text-white">
-                      How it's Used
+								<IconHeart
+									size={20}
+									className="text-brand-orange flex-shrink-0 mt-1"
+								/>
+								<div>
+									<h3 className="font-semibold text-white">
+										How it's Used
 									</h3>
-                    <p className="text-neutral-400 text-sm mt-1">
-                      I use these memories to provide more
-                      context-aware assistance. For example,
-                      if you ask me to &apos;email my manager&apos;, I
-                      can look up who your manager is from my
-                      memory instead of asking you every time.
-                      This makes our interactions faster and
-										more intelligent.
+									<p className="text-neutral-400 text-sm mt-1">
+										I use these memories to provide more
+										context-aware assistance. For example,
+										if you ask me to &apos;email my
+										manager&apos;, I can look up who your
+										manager is from my memory instead of
+										asking you every time. This makes our
+										interactions faster and more
+										intelligent.
 									</p>
 								</div>
 							</div>
@@ -981,7 +1040,7 @@ export default function MemoriesPage() {
 								<div className="flex flex-wrap gap-2 mb-8">
 									{topics.map((topic) => (
 										<button
-											key={topic}
+											key={topic as string}
 											onClick={() =>
 												setActiveTopic(topic)
 											}

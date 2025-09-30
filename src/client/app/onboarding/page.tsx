@@ -271,7 +271,11 @@ const OnboardingPage: FC = () => {
 	>(countryData[1]) // Default to India
 	const [whatsappLocalNumber, setWhatsappLocalNumber] = useState("")
 
-	const [locationState, setLocationState] = useState({
+	const [locationState, setLocationState] = useState<{
+		loading: boolean
+		data: string | null
+		error: string | null
+	}>({
 		loading: false,
 		data: null,
 		error: null
@@ -390,7 +394,7 @@ const OnboardingPage: FC = () => {
 						}
 
 						// Update state with the text location
-						setLocationState({ // @ts-ignore
+						setLocationState({
 							loading: false,
 							data: locationString, // Store the string
 							error: null
@@ -398,9 +402,9 @@ const OnboardingPage: FC = () => {
 						handleAnswer("location", locationString) // Save the string
 					} catch (error) {
 						setLocationState({
-							loading: false, // @ts-ignore
+							loading: false,
 							data: null,
-							error: error.message
+							error: (error as Error).message
 						})
 						toast.error(
 							`Could not convert coordinates to location: ${error.message}`
@@ -424,7 +428,7 @@ const OnboardingPage: FC = () => {
 								"The request to get your location timed out. Please try again."
 							break
 					}
-					setLocationState({ // @ts-ignore
+					setLocationState({
 						loading: false,
 						data: null,
 						error: userMessage
@@ -951,7 +955,8 @@ const OnboardingPage: FC = () => {
 							</Select>
 							{timezoneDetected === true && (
 								<p className="text-green-400 text-sm mt-3 bg-green-400/10 border border-green-400/20 rounded-lg px-4 py-2">
-									We&apos;ve automatically detected your timezone.
+									We&apos;ve automatically detected your
+									timezone.
 								</p>
 							)}
 							{timezoneDetected === false && (

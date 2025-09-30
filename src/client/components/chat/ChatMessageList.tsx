@@ -14,7 +14,7 @@ interface ChatMessageListProps {
 	displayedMessages: ChatMessage[];
 	thinking: boolean;
 	statusText: string;
-	chatEndRef: React.RefObject<HTMLDivElement>;
+	chatEndRef: React.RefObject<HTMLDivElement | null>;
 	handleReply: (message: ChatMessage) => void;
 	handleDeleteMessage: (messageId: string) => void;
 }

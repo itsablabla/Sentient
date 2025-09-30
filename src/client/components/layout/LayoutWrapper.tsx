@@ -81,8 +81,12 @@ const GuidedTour: FC = () => {
 				},
 				isPositionedBelow: false,
 				hideArrow: true
-			}
-		}
+	}
+}
+
+interface CustomWebSocket extends WebSocket {
+	isCleaningUp?: boolean
+}
 
 		const tooltipHeightEstimate = 180
 		const spaceBelow = innerHeight - targetRect.bottom
@@ -430,7 +434,7 @@ const GuidedTour: FC = () => {
 	)
 }
 
-function urlBase64ToUint8Array(base64String) {
+function urlBase64ToUint8Array(base64String: string) {
 	const padding = "=".repeat((4 - (base64String.length % 4)) % 4)
 	const base64 = (base64String + padding)
 		.replace(/-/g, "+")
@@ -468,8 +472,8 @@ const LayoutWrapper: FC<{ children: React.ReactNode }> = ({ children }) => {
 		openNotifications,
 		closeNotifications
 	} = useNotificationStore()
-	const { isActive: isTourActive } = useTourStore()
-	const wsRef = useRef(null)
+	const { isActive: isTourActive } = useTourStore();
+	const wsRef = useRef<CustomWebSocket | null>(null);
 	const searchParams = useSearchParams()
 	const posthog = usePostHog()
 	const pathname = usePathname()
@@ -606,7 +610,7 @@ const LayoutWrapper: FC<{ children: React.ReactNode }> = ({ children }) => {
 		if (!user?.sub) return
 
 		const connectWebSocket = async () => {
-			if (wsRef.current && wsRef.current.readyState < 2) return
+			if (wsRef.current && wsRef.current.readyState < WebSocket.CLOSING) return
 
 			try {
 				const tokenResponse = await fetch("/api/auth/token")
@@ -623,7 +627,7 @@ const LayoutWrapper: FC<{ children: React.ReactNode }> = ({ children }) => {
 				const serverHost = serverUrlHttp.replace(/^https?:\/\//, "")
 				const wsUrl = `${wsProtocol}://${serverHost}/api/ws/notifications`
 
-				const ws = new WebSocket(wsUrl)
+				const ws: CustomWebSocket = new WebSocket(wsUrl)
 				ws.isCleaningUp = false
 				wsRef.current = ws
 
@@ -738,7 +742,7 @@ const LayoutWrapper: FC<{ children: React.ReactNode }> = ({ children }) => {
 			window.workbox !== undefined
 		) {
 			const wb = window.workbox
-			const promptNewVersionAvailable = (event) => {
+			const promptNewVersionAvailable = (event: any) => {
 				if (!event.wasWaitingBeforeRegister) {
 					toast(
 						(t) => (

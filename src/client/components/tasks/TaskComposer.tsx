@@ -9,7 +9,7 @@ import {
 	IconSparkles,
 	IconMail,
 	IconCalendarEvent
-} from "@tabler/icons-react";
+} from "@tabler/icons-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@utils/cn"
 import toast from "react-hot-toast"
@@ -59,12 +59,16 @@ const triggers = [
 ]
 
 interface TaskComposerProps {
-	view: 'tasks' | 'workflows';
-	onTaskCreated: (payload: any) => void;
-	isPro: boolean;
-	onUpgradeClick: () => void;
-	onClose: () => void;
-	initialData: any;
+	view: "tasks" | "workflows"
+	onTaskCreated: (payload: any) => void
+	isPro: boolean
+	onUpgradeClick: () => void
+	onClose: () => void
+	initialData: any
+}
+
+interface ErrorWithStatus extends Error {
+	status?: number
 }
 
 const TaskComposer: FC<TaskComposerProps> = ({
@@ -119,7 +123,9 @@ const TaskComposer: FC<TaskComposerProps> = ({
 		)
 	}
 
-	const handleGoalInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+	const handleGoalInputChange = (
+		e: React.ChangeEvent<HTMLTextAreaElement>
+	) => {
 		setGoalInput(e.target.value)
 		// Auto-resize logic
 		if (textareaRef.current) {
@@ -167,9 +173,12 @@ const TaskComposer: FC<TaskComposerProps> = ({
 		setGoalInput("") // Clear input after creation
 	}
 
-	const Switch = ({ checked, onChange }: {
-		checked: boolean;
-		onChange: (checked: boolean) => void;
+	const Switch = ({
+		checked,
+		onChange
+	}: {
+		checked: boolean
+		onChange: (checked: boolean) => void
 	}) => (
 		<button
 			type="button"

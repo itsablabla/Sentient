@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useMemo, FC } from "react"
+import React, { useState, useEffect, useMemo, FC, Suspense } from "react"
 import toast from "react-hot-toast"
 import {
 	IconX,
@@ -29,7 +29,6 @@ import {
 	IconCheck,
 	IconChevronDown,
 	IconMessageCircle,
-	IconAlertTriangle, // @ts-ignore
 	IconBrain
 } from "@tabler/icons-react"
 import { getDisplayName } from "@utils/taskUtils"
@@ -340,7 +339,9 @@ const TaskDetails: FC<TaskDetailsProps> = ({
 								<IconLoader className="w-6 h-6 animate-spin text-neutral-500" />
 							</div>
 						) : (
-							renderTaskContent()
+							<Suspense fallback={<div className="flex justify-center items-center h-full"><IconLoader className="w-6 h-6 animate-spin text-neutral-500" /></div>}>
+								{renderTaskContent()}
+							</Suspense>
 						)}
 					</main>
 

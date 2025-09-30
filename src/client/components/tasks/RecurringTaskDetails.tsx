@@ -75,7 +75,7 @@ const QnaSection = ({
 						: "bg-neutral-800/20 border-neutral-700/50"
 				)}
 			>
-				{questions.map((q, index) => (
+				{questions.map((q: any, index: number) => (
 					<div key={q.question_id || index}>
 						<label className="block text-sm font-medium text-neutral-300 mb-2">
 							{q.text}
@@ -359,7 +359,7 @@ const RecurringTaskDetails = ({
 											{run.progress_updates &&
 											run.progress_updates.length > 0 ? (
 												run.progress_updates.map(
-													(update, index) => (
+													(update: any, index: number) => (
 														<ExecutionUpdate
 															key={index}
 															update={update}

@@ -119,7 +119,7 @@ export default function GlobalSearch({ onClose }: GlobalSearchProps) {
 			return results
 		}
 		const filterType = activeFilter.slice(0, -1).toLowerCase() // Tasks -> task
-		return results.filter((r) => r.type === filterType)
+		return results.filter((r: any) => r.type === filterType)
 	}, [results, activeFilter])
 
 	return (
@@ -199,7 +199,7 @@ export default function GlobalSearch({ onClose }: GlobalSearchProps) {
 								exit={{ opacity: 0 }}
 								className="space-y-1"
 							>
-								{filteredResults.map((item) => (
+								{filteredResults.map((item: any) => (
 									<ResultItem
 										key={`${item.type}-${item.task_id || item.message_id || item.id}`}
 										item={item}

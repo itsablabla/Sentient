@@ -31,6 +31,7 @@ import {
 	IconBug,
 	IconBulb
 } from "@tabler/icons-react"
+import { UserProfile } from "@auth0/nextjs-auth0/client"
 import { cn } from "@utils/cn";
 import { motion, AnimatePresence } from "framer-motion"
 import Image from "next/image"
@@ -106,7 +107,7 @@ const UpgradeToProModal: FC<UpgradeToProModalProps> = ({ isOpen, onClose }) => {
 							</p>
 						</header>
 						<main className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 my-4">
-							{proPlanFeatures.map((feature) => (
+							{proPlanFeatures.map((feature: { name: string, limit: string }) => (
 								<div
 									key={feature.name}
 									className="flex items-start gap-3"
@@ -224,7 +225,7 @@ const ComingSoonModal: FC<ComingSoonModalProps> = ({ isOpen, onClose }) => {
 							</p>
 						</header>
 						<main className="space-y-4 overflow-y-auto custom-scrollbar pr-2 flex-1">
-							{comingSoonFeatures.map((feature) => (
+							{comingSoonFeatures.map((feature: any) => (
 								<div
 									key={feature.name}
 									className="flex items-start gap-4 p-4 bg-neutral-800/50 rounded-lg"
@@ -255,7 +256,7 @@ const ComingSoonModal: FC<ComingSoonModalProps> = ({ isOpen, onClose }) => {
 	)
 }
 
-const UserProfileSection: FC<{ isCollapsed: boolean, user: any }> = ({ isCollapsed, user }) => {
+const UserProfileSection: FC<{ isCollapsed: boolean, user: UserProfile | undefined }> = ({ isCollapsed, user }) => {
 	const [isUserMenuOpen, setUserMenuOpen] = useState(false)
 	const userMenuRef = useRef(null)
 	const { isPro } = useUserStore()
@@ -485,7 +486,7 @@ const SidebarContent: FC<{
 	onMobileClose?: () => void;
 	installPrompt: any;
 	handleInstallClick: () => void;
-	user: any;
+	user: UserProfile | undefined;
 	isTourActive: boolean;
 }> = ({
 	isCollapsed,
@@ -837,7 +838,7 @@ const Sidebar: FC<{
 	unreadCount: number;
 	isMobileOpen: boolean;
 	onMobileClose: () => void;
-	user: any;
+	user: UserProfile | undefined;
 	isTourActive: boolean;
 }> = ({
 	onNotificationsOpen,

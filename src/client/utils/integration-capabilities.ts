@@ -1,4 +1,4 @@
-export const INTEGRATION_CAPABILITIES = {
+export const INTEGRATION_CAPABILITIES: Record<string, string> = {
 	gmail: "Once connected, I can manage your emails by searching your inbox, reading threads, summarizing important messages, and even drafting or sending replies on your behalf. I can also help organize your inbox by applying labels, archiving, or deleting messages as you need.",
 	gcalendar:
 		"Connecting your Google Calendar allows me to be your smart scheduling assistant. I can create new events using natural language, find free slots in your schedule, invite attendees, and keep you informed about your upcoming appointments. I can also search for past or future events and update them for you.",

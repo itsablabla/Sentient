@@ -129,7 +129,7 @@ const EditTaskModal = ({ task, onClose, onSave, allTools }: EditTaskModalProps) 
 					<label className="text-sm font-medium text-gray-300">
 						Plan Steps
 					</label>
-					{(localTask.plan || []).map((step, index) => (
+					{(localTask.plan || []).map((step: any, index: number) => (
 						<div
 							key={index}
 							className="flex items-center gap-2 p-2 bg-neutral-800/30 rounded-lg border border-neutral-700/50"
@@ -147,7 +147,7 @@ const EditTaskModal = ({ task, onClose, onSave, allTools }: EditTaskModalProps) 
 								className="w-1/3 p-2 h-auto"
 							>
 								<option value="">Select tool...</option>
-								{allTools.map((tool) => (
+								{allTools.map((tool: any) => (
 									<option key={tool.name} value={tool.name}>
 										{tool.display_name}
 									</option>
