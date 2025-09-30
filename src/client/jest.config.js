@@ -11,6 +11,7 @@ module.exports = {
 		"^@stores/(.*)$": "<rootDir>/stores/$1",
 		"^@utils/(.*)$": "<rootDir>/utils/$1",
 		"^@lib/(.*)$": "<rootDir>/lib/$1",
-		"^@app/(.*)$": "<rootDir>/app/$1"
+		"^@app/(.*)$": "<rootDir>/app/$1",
+		"^@/types$": "<rootDir>/types.ts"
 	}
 }
