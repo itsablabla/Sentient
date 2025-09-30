@@ -464,7 +464,7 @@ const TestingTools = () => {
 	const [isSubmitting, setIsSubmitting] = useState(false)
 	const [isReprocessing, setIsReprocessing] = useState(false)
 
-	const handleSubmit = async (e) => {
+	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault()
 		setIsSubmitting(true)
 		let parsedData
@@ -494,7 +494,7 @@ const TestingTools = () => {
 		}
 	}
 
-	const handleServiceChange = (e) => {
+	const handleServiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
 		const newService = e.target.value
 		setServiceName(newService)
 		if (newService === "gmail") {

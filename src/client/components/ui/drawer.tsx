@@ -20,7 +20,7 @@ const Drawer: FC<DrawerProps> = ({ isOpen, onClose, children, className, side = 
 	})
 
 	useEffect(() => {
-		const handleKeyDown = (event) => {
+		const handleKeyDown = (event: KeyboardEvent) => {
 			if (event.key === "Escape" && isOpen) {
 				onClose()
 			}

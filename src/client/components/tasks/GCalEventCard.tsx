@@ -11,7 +11,7 @@ interface GCalEventCardProps {
 }
 
 const GCalEventCard = ({ event, onSelectTask }: GCalEventCardProps) => {
-	const handleClick = (e) => {
+	const handleClick = (e: React.MouseEvent) => {
 		e.stopPropagation()
 		// Renamed onSelectTask to handle both tasks and events
 		onSelectTask(event)

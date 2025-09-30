@@ -11,7 +11,7 @@ interface GCalEventCardDayViewProps {
 }
 
 const GCalEventCardDayView = ({ event, onSelectTask: onSelectItem }: GCalEventCardDayViewProps) => {
-	const handleClick = (e) => {
+	const handleClick = (e: React.MouseEvent) => {
 		e.stopPropagation()
 		if (onSelectItem) {
 			onSelectItem(event)
