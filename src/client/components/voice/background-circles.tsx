@@ -2,7 +2,14 @@
 
 import { motion } from "framer-motion"
 import { cn } from "@utils/cn"
-import { useState, useEffect } from "react"
+import { useState, useEffect } from "react";
+
+interface BackgroundCirclesProps {
+    className?: string;
+    variant?: keyof typeof COLOR_VARIANTS;
+    audioLevel?: number;
+    isActive?: boolean;
+}
 
 const COLOR_VARIANTS = {
 	primary: {
@@ -58,7 +65,7 @@ export function BackgroundCircles({
 	variant = "octonary",
 	audioLevel = 0,
 	isActive = false
-}) {
+}: BackgroundCirclesProps) {
 	const variantStyles = COLOR_VARIANTS[variant]
 	const [animationParams, setAnimationParams] = useState({
 		scale: 1,

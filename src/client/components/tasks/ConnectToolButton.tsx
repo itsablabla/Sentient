@@ -1,10 +1,14 @@
 "use client"
 
-import React from "react"
+import React from "react";
 import { useRouter } from "next/navigation"
 import { IconPlugConnected } from "@tabler/icons-react"
 
-const ConnectToolButton = ({ toolName }) => {
+interface ConnectToolButtonProps {
+    toolName: string;
+}
+
+const ConnectToolButton = ({ toolName }: ConnectToolButtonProps) => {
 	const router = useRouter()
 	return (
 		<button
@@ -17,4 +21,4 @@ const ConnectToolButton = ({ toolName }) => {
 	)
 }
 
-export default ConnectToolButton
+export default ConnectToolButton;

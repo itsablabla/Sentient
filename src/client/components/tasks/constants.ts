@@ -1,5 +1,5 @@
 import {
-	IconClock,
+	IconClock, // Keep this if used elsewhere, or replace with a more specific icon
 	IconRefresh,
 	IconCircleCheck,
 	IconAlertCircle,
@@ -8,10 +8,19 @@ import {
 	IconMessageQuestion,
 	IconPlayerPlay,
 	IconX,
-	IconHelpCircle
+	IconHelpCircle,
+	TablerIconsProps
 } from "@tabler/icons-react"
 
-export const taskStatusColors = {
+interface StatusInfo {
+    icon: React.FC<TablerIconsProps>;
+    label: string;
+    textColor: string;
+    bgColor: string;
+    border: string;
+}
+
+export const taskStatusColors: Record<string, StatusInfo> = {
 	planning: {
 		icon: IconRefresh,
 		label: "Planning",
@@ -98,9 +107,14 @@ export const taskStatusColors = {
 	}
 }
 
-export const priorityMap = {
+interface PriorityInfo {
+    label: string;
+    color: string;
+}
+
+export const priorityMap: Record<number | 'default', PriorityInfo> = {
 	0: { label: "High", color: "text-red-400" },
 	1: { label: "Medium", color: "text-yellow-400" },
 	2: { label: "Low", color: "text-gray-400" },
 	default: { label: "Medium", color: "text-yellow-400" }
-}
+};

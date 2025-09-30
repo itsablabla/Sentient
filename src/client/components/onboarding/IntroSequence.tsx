@@ -1,5 +1,5 @@
 "use client"
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion"
 import SiriSpheres from "@components/voice/SiriSpheres"
 import FloatingIcons from "./FloatingIcons"
@@ -7,7 +7,14 @@ import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackg
 import { IconArrowRight } from "@tabler/icons-react"
 import { Button } from "@components/ui/button"
 
-const introStages = [
+interface IntroStage {
+    id: string;
+    text: string;
+    iconStage: string | null;
+    duration: number;
+}
+
+const introStages: IntroStage[] = [
 	{
 		id: "intro",
 		text: "Hi. I'm <strong>Sentient</strong>.",
@@ -40,7 +47,7 @@ const introStages = [
 	}
 ]
 
-const IntroSequence = ({ onComplete }) => {
+const IntroSequence = ({ onComplete }: { onComplete: () => void }) => {
 	const [currentStageIndex, setCurrentStageIndex] = useState(0)
 	const [audioLevel, setAudioLevel] = useState(0.1)
 	const [sphereReacting, setSphereReacting] = useState(false)
@@ -51,7 +58,7 @@ const IntroSequence = ({ onComplete }) => {
 
 	// Gentle pulse animation for SiriSpheres
 	useEffect(() => {
-		let interval
+		let interval: NodeJS.Timeout;
 		if (!sphereReacting) {
 			interval = setInterval(() => {
 				setAudioLevel(Math.sin(Date.now() / 500) * 0.1 + 0.15)
@@ -191,4 +198,4 @@ const IntroSequence = ({ onComplete }) => {
 	)
 }
 
-export default IntroSequence
+export default IntroSequence;

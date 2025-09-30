@@ -17,8 +17,14 @@ import {
 	IconBrandGoogleDrive,
 	IconClipboardList
 } from "@tabler/icons-react"
+import { ElementType } from "react";
 
-const toolIcons = {
+interface ToolIcons {
+    [key: string]: ElementType;
+}
+
+
+const toolIcons: ToolIcons = {
 	gmail: IconMail,
 	gcalendar: IconCalendar,
 	gdocs: IconFileText,
@@ -33,7 +39,17 @@ const toolIcons = {
 	internet_search: IconWorldSearch
 }
 
-const exampleWorkflows = [
+interface ExampleWorkflow {
+    view: 'tasks' | 'workflows';
+    type: 'task' | 'workflow';
+    title: string;
+    description: string;
+    prompt: string;
+    tools: string[];
+    params?: any;
+}
+
+const exampleWorkflows: ExampleWorkflow[] = [
 	// --- Examples for TASKS view ---
 	{
 		view: "tasks",
@@ -104,7 +120,12 @@ const exampleWorkflows = [
 	}
 ]
 
-const content = {
+interface Content {
+    title: string;
+    description: string;
+}
+
+const content: Record<'tasks' | 'workflows', Content> = {
 	tasks: {
 		title: "Welcome to Tasks",
 		description:
@@ -117,7 +138,13 @@ const content = {
 	}
 }
 
-const WelcomePanel = ({ view, onExampleClick, onClose }) => {
+interface WelcomePanelProps {
+    view: 'tasks' | 'workflows';
+    onExampleClick: (example: ExampleWorkflow) => void;
+    onClose: () => void;
+}
+
+const WelcomePanel = ({ view, onExampleClick, onClose }: WelcomePanelProps) => {
 	const currentContent = content[view] || content.tasks
 	const examples = exampleWorkflows.filter((ex) => ex.view === view)
 

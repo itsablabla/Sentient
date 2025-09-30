@@ -1,13 +1,21 @@
 "use client"
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef } from "react";
 import { format, getHours, getMinutes, parseISO, isToday } from "date-fns"
 import { cn } from "@utils/cn"
 import TaskCardDayView from "./TaskCardDayView"
 import { IconX } from "@tabler/icons-react"
+import { Task } from "@/types";
 
-const DayDetailView = ({ date, tasks: items, onSelectTask, onClose }) => {
+interface DayDetailViewProps {
+    date: Date;
+    tasks: Task[];
+    onSelectTask: (task: Task) => void;
+    onClose: () => void;
+}
+
+const DayDetailView = ({ date, tasks: items, onSelectTask, onClose }: DayDetailViewProps) => {
 	const [currentTime, setCurrentTime] = useState(new Date())
-	const timelineRef = useRef(null)
+	const timelineRef = useRef<HTMLDivElement>(null)
 
 	useEffect(() => {
 		const timer = setInterval(() => setCurrentTime(new Date()), 60000) // Update every minute
@@ -16,14 +24,14 @@ const DayDetailView = ({ date, tasks: items, onSelectTask, onClose }) => {
 
 	const hours = Array.from({ length: 24 }, (_, i) => i)
 
-	const allDayItems = (items || []).filter(
+	const allDayItems = (items || []).filter( (item: Task) =>
 		(item) => !item.schedule?.run_at || !item.schedule.run_at.includes("T")
 	)
-	const timedItems = (items || []).filter(
+	const timedItems = (items || []).filter( (item: Task) =>
 		(item) => item.schedule?.run_at && item.schedule.run_at.includes("T")
 	)
 
-	const getTopPosition = (item) => {
+	const getTopPosition = (item: Task) => {
 		try {
 			const isoString = item.schedule?.run_at
 			if (!isoString) return 0

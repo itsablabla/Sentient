@@ -16,10 +16,23 @@ import {
 } from "@components/ui/accordion"
 import { Textarea } from "@components/ui/textarea"
 import { Button } from "@components/ui/button"
+import { Task } from "@/types";
 
 // This component is used to handle clarification questions
 // within recurring task runs. It's modified to use the run's status.
-const QnaSection = ({ questions, task, onAnswerClarifications, runStatus }) => {
+interface QnaSectionProps {
+    questions: any[];
+    task: Task;
+    onAnswerClarifications: (taskId: string, answers: any[]) => void;
+    runStatus: string;
+}
+
+const QnaSection = ({
+	questions,
+	task,
+	onAnswerClarifications,
+	runStatus
+}: QnaSectionProps) => {
 	const [answers, setAnswers] = useState({})
 	const [isSubmitting, setIsSubmitting] = useState(false)
 	// Use the status of the specific run to determine if input is needed.
@@ -112,11 +125,17 @@ const QnaSection = ({ questions, task, onAnswerClarifications, runStatus }) => {
 	)
 }
 
+interface RecurringTaskDetailsProps {
+    task: Task;
+    onAnswerClarifications: (taskId: string, answers: any[]) => void;
+    userTimezone: string | null;
+}
+
 const RecurringTaskDetails = ({
 	task,
 	onAnswerClarifications,
 	userTimezone
-}) => {
+}: RecurringTaskDetailsProps) => {
 	if (!task) return null
 
 	const statusInfo = taskStatusColors[task.status] || taskStatusColors.default

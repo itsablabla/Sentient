@@ -9,6 +9,16 @@ import { cn } from "@utils/cn"
 import useClickOutside from "@hooks/useClickOutside"
 import { Input } from "@components/ui/input"
 import { Button } from "@components/ui/button"
+import { Task } from "@/types";
+
+interface ListViewProps {
+    tasks: Task[];
+    view: 'tasks' | 'workflows';
+    onSelectTask: (task: Task) => void;
+    searchQuery: string;
+    onSearchChange: (query: string) => void;
+    onExampleClick: (example: any) => void;
+}
 
 const ListView = ({
 	tasks,
@@ -17,7 +27,7 @@ const ListView = ({
 	searchQuery,
 	onSearchChange,
 	onExampleClick
-}) => {
+}: ListViewProps) => {
 	const [statusFilter, setStatusFilter] = useState("all")
 	const [dateFilter, setDateFilter] = useState("all")
 	// New states for workflow view
@@ -32,8 +42,8 @@ const ListView = ({
 		const workflowTypes = ["recurring", "triggered"]
 
 		// 1. Nest sub-tasks first before any filtering
-		const subTasksByParentId = new Map()
-		const topLevelTasks = []
+		const subTasksByParentId = new Map<string, Task[]>()
+		const topLevelTasks: Task[] = []
 
 		tasks.forEach((task) => {
 			const parentId = task.original_context?.parent_task_id
@@ -177,7 +187,12 @@ const ListView = ({
 		)
 	}
 
-	const FilterButton = ({ value, label, currentFilter, setFilter }) => {
+	const FilterButton = ({ value, label, currentFilter, setFilter }: {
+		value: string;
+		label: string;
+		currentFilter: string;
+		setFilter: (value: string) => void;
+	}) => {
 		// eslint-disable-line
 		const isActive = currentFilter === value
 		return (

@@ -1,11 +1,16 @@
 // src/client/components/tasks/GCalEventCardDayView.js
 "use client"
-import React from "react"
+import React from "react";
 import { motion } from "framer-motion"
 import { cn } from "@utils/cn"
 import { IconCalendarEvent } from "@tabler/icons-react"
 
-const GCalEventCardDayView = ({ event, onSelectTask: onSelectItem }) => {
+interface GCalEventCardDayViewProps {
+    event: any; // Define a proper type for Google Calendar event
+    onSelectTask: (event: any) => void;
+}
+
+const GCalEventCardDayView = ({ event, onSelectTask: onSelectItem }: GCalEventCardDayViewProps) => {
 	const handleClick = (e) => {
 		e.stopPropagation()
 		if (onSelectItem) {

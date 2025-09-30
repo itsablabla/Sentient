@@ -1,11 +1,16 @@
 // src/client/components/tasks/GCalEventCard.js
 "use client"
-import React from "react"
+import React from "react";
 import { motion } from "framer-motion"
 import { cn } from "@utils/cn"
 import { IconCalendarEvent } from "@tabler/icons-react"
 
-const GCalEventCard = ({ event, onSelectTask }) => {
+interface GCalEventCardProps {
+    event: any; // Define a proper type for Google Calendar event
+    onSelectTask: (event: any) => void;
+}
+
+const GCalEventCard = ({ event, onSelectTask }: GCalEventCardProps) => {
 	const handleClick = (e) => {
 		e.stopPropagation()
 		// Renamed onSelectTask to handle both tasks and events

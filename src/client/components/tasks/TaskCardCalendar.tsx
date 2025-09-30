@@ -1,11 +1,17 @@
 "use client"
-import React from "react"
+import React from "react";
 import { motion } from "framer-motion"
 import { cn } from "@utils/cn"
 import { taskStatusColors } from "./constants"
 import { getDisplayName } from "@utils/taskUtils"
+import { Task } from "@/types";
 
-const TaskCardCalendar = ({ task, onSelectTask }) => {
+interface TaskCardCalendarProps {
+    task: Task;
+    onSelectTask: (task: Task) => void;
+}
+
+const TaskCardCalendar = ({ task, onSelectTask }: TaskCardCalendarProps) => {
 	const statusInfo = taskStatusColors[task.status] || taskStatusColors.default
 	return (
 		<motion.div
@@ -35,4 +41,4 @@ const TaskCardCalendar = ({ task, onSelectTask }) => {
 	)
 }
 
-export default TaskCardCalendar
+export default TaskCardCalendar;

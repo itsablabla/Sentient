@@ -14,8 +14,14 @@ import { format, isToday } from "date-fns"
 import { BorderTrail } from "@components/ui/border-trail"
 import { getDisplayName } from "@utils/taskUtils"
 import { Card } from "@components/ui/card"
+import { Task } from "@/types";
 
-const StatusBadge = ({ status, taskType, orchestratorState }) => {
+interface StatusBadgeProps {
+    status: string;
+    taskType: string;
+    orchestratorState?: string;
+}
+const StatusBadge = ({ status, taskType, orchestratorState }: StatusBadgeProps) => {
 	let displayStatus = status
 	if (taskType === "long_form" && orchestratorState) {
 		// Map orchestrator state to a display status that taskStatusColors can understand
@@ -62,7 +68,12 @@ const StatusBadge = ({ status, taskType, orchestratorState }) => {
 	)
 }
 
-const SubTaskItem = ({ task, onSelectTask }) => {
+interface SubTaskItemProps {
+    task: Task;
+    onSelectTask: (task: Task) => void;
+}
+
+const SubTaskItem = ({ task, onSelectTask }: SubTaskItemProps) => {
 	const statusInfo = taskStatusColors[task.status] || taskStatusColors.default
 	return (
 		<div
@@ -97,7 +108,12 @@ const SubTaskItem = ({ task, onSelectTask }) => {
 
 const MotionCard = motion(Card)
 
-const TaskCardList = ({ task, onSelectTask }) => {
+interface TaskCardListProps {
+    task: Task;
+    onSelectTask: (task: Task) => void;
+}
+
+const TaskCardList = ({ task, onSelectTask }: TaskCardListProps) => {
 	const [isExpanded, setIsExpanded] = useState(false)
 	const subTasks = task.subTasks || []
 	const hasSubTasks = subTasks && subTasks.length > 0

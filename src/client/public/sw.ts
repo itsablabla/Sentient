@@ -1,3 +1,6 @@
+/// <reference lib="webworker" />
+declare const workbox: any;
+
 // Import the Workbox libraries from a CDN.
 // This is the modern way to use Workbox without a complex build setup.
 importScripts(
@@ -88,12 +91,12 @@ workbox.routing.registerRoute(
 // ---------------------------------------------------------------- //
 
 // On install, activate immediately.
-self.addEventListener("install", (event) => {
+self.addEventListener("install", (event: any) => {
 	event.waitUntil(self.skipWaiting())
 })
 
 // On activate, take control of all clients.
-self.addEventListener("activate", (event) => {
+self.addEventListener("activate", (event: any) => {
 	event.waitUntil(self.clients.claim())
 })
 
@@ -112,13 +115,13 @@ self.addEventListener("push", (event) => {
 })
 
 // Handle notification clicks.
-self.addEventListener("notificationclick", (event) => {
+self.addEventListener("notificationclick", (event: any) => {
 	event.notification.close()
 	const urlToOpen = new URL(event.notification.data.url, self.location.origin)
 		.href
 
 	event.waitUntil(
-		clients
+		(self as any).clients
 			.matchAll({
 				type: "window",
 				includeUncontrolled: true
@@ -134,7 +137,7 @@ self.addEventListener("notificationclick", (event) => {
 				if (matchingClient) {
 					return matchingClient.focus()
 				} else {
-					return clients.openWindow(urlToOpen)
+					return (self as any).clients.openWindow(urlToOpen)
 				}
 			})
 	)

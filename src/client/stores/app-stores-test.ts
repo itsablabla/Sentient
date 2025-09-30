@@ -2,7 +2,7 @@ import { useUserStore } from "./app-stores"
 import { act } from "@testing-library/react"
 
 // Mocking fetch is handled in jest.setup.js
-
+declare const fetch: jest.Mock;
 describe("useUserStore", () => {
 	beforeEach(() => {
 		fetch.mockClear()

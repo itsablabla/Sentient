@@ -1,11 +1,17 @@
 "use client"
-import React, { useRef, useMemo, useState } from "react"
+import React, { useRef, useMemo, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber"
 import * as THREE from "three"
 import { Color } from "three"
 
-const Ring = ({ color, initialRotation, reactionIntensity = 0 }) => {
-	const ringRef = useRef()
+interface RingProps {
+    color: THREE.Color;
+    initialRotation: [number, number, number];
+    reactionIntensity?: number;
+}
+
+const Ring: React.FC<RingProps> = ({ color, initialRotation, reactionIntensity = 0 }) => {
+	const ringRef = useRef<THREE.Group>(null);
 
 	useFrame(({ clock }) => {
 		if (ringRef.current) {
@@ -59,8 +65,14 @@ const Ring = ({ color, initialRotation, reactionIntensity = 0 }) => {
 	)
 }
 
-const Scene = ({ status, audioLevel = 0, reactionIntensity = 0 }) => {
-	const groupRef = useRef()
+interface SceneProps {
+    status: 'disconnected' | 'connecting' | 'connected';
+    audioLevel?: number;
+    reactionIntensity?: number;
+}
+
+const Scene: React.FC<SceneProps> = ({ status, audioLevel = 0, reactionIntensity = 0 }) => {
+	const groupRef = useRef<THREE.Group>(null);
 	const scale = useRef(1)
 	const velocity = useRef(0)
 	const dullOrange = useMemo(() => new Color("#8B5F11"), [])
@@ -154,7 +166,7 @@ const Scene = ({ status, audioLevel = 0, reactionIntensity = 0 }) => {
 	)
 }
 
-const SiriSpheres = ({ status, audioLevel = 0, reactionIntensity = 0 }) => {
+const SiriSpheres: React.FC<SceneProps> = ({ status, audioLevel = 0, reactionIntensity = 0 }) => {
 	return (
 		<Canvas
 			className="w-full h-full"
@@ -176,4 +188,4 @@ const SiriSpheres = ({ status, audioLevel = 0, reactionIntensity = 0 }) => {
 	)
 }
 
-export default SiriSpheres
+export default SiriSpheres;

@@ -1,4 +1,4 @@
-import React from "react"
+import React from "react";
 import {
 	Carousel,
 	CarouselContent,
@@ -13,7 +13,13 @@ import {
 	IconBrain
 } from "@tabler/icons-react"
 
-const useCases = [
+interface UseCase {
+    icon: React.ReactNode;
+    title: string;
+    description: string;
+}
+
+const useCases: UseCase[] = [
 	{
 		icon: <IconSparkles className="w-8 h-8 text-brand-orange" />,
 		title: "Automate Your Tasks",

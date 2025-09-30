@@ -1,8 +1,13 @@
 "use client"
-import React from "react"
+import React from "react";
 import { motion } from "framer-motion"
 
-const ProgressBar = ({ score, totalQuestions }) => {
+interface ProgressBarProps {
+    score: number;
+    totalQuestions: number;
+}
+
+const ProgressBar = ({ score, totalQuestions }: ProgressBarProps) => {
 	const progress =
 		totalQuestions > 0 ? (score / (totalQuestions * 10)) * 100 : 0
 
@@ -20,4 +25,4 @@ const ProgressBar = ({ score, totalQuestions }) => {
 	)
 }
 
-export default ProgressBar
+export default ProgressBar;

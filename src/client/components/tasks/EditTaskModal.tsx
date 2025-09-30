@@ -25,10 +25,18 @@ import {
 	ModalBody,
 	ModalFooter
 } from "@components/ui/ModalDialog"
+import { Task, Integration } from "@/types";
 
-const EditTaskModal = ({ task, onClose, onSave, allTools }) => {
+interface EditTaskModalProps {
+    task: Task;
+    onClose: () => void;
+    onSave: (task: Task) => void;
+    allTools: { name: string; display_name: string }[];
+}
+
+const EditTaskModal = ({ task, onClose, onSave, allTools }: EditTaskModalProps) => {
 	const [isSubmitting, setIsSubmitting] = useState(false)
-	const [localTask, setLocalTask] = useState(task)
+	const [localTask, setLocalTask] = useState<Task>(task)
 
 	useEffect(() => {
 		setLocalTask(task)
@@ -42,14 +50,14 @@ const EditTaskModal = ({ task, onClose, onSave, allTools }) => {
 		setLocalTask({ ...localTask, plan: newPlan })
 	}
 
-	const handleRemoveStep = (index) => {
+	const handleRemoveStep = (index: number) => {
 		setLocalTask((prev) => ({
 			...prev,
 			plan: prev.plan.filter((_, i) => i !== index)
 		}))
 	}
 
-	const handleStepChange = (index, field, value) => {
+	const handleStepChange = (index: number, field: string, value: string) => {
 		setLocalTask((prev) => ({
 			...prev,
 			plan: prev.plan.map((step, i) =>
@@ -58,11 +66,11 @@ const EditTaskModal = ({ task, onClose, onSave, allTools }) => {
 		}))
 	}
 
-	const handleFieldChange = (field, value) => {
+	const handleFieldChange = (field: keyof Task, value: any) => {
 		setLocalTask((prev) => ({ ...prev, [field]: value }))
 	}
 
-	const handleScheduleChange = (newSchedule) => {
+	const handleScheduleChange = (newSchedule: any) => {
 		setLocalTask((prev) => ({ ...prev, schedule: newSchedule }))
 	}
 

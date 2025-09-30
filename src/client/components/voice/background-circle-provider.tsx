@@ -6,12 +6,24 @@ import React, {
 	useRef,
 	useCallback,
 	forwardRef,
-	useImperativeHandle
+	useImperativeHandle,
+	Ref
 } from "react"
 import { BackgroundCircles } from "./background-circles"
 import { WebRTCClient } from "@lib/webrtc-client"
 
-const BackgroundCircleProvider = forwardRef(
+interface BackgroundCircleProviderProps {
+    onStatusChange: (status: 'connected' | 'disconnected') => void;
+    onEvent: (event: any) => void;
+    connectionStatusProp: string;
+}
+
+export interface BackgroundCircleProviderRef {
+    connect: (deviceId: string, authToken: string, rtcToken: string) => Promise<void>;
+    disconnect: () => void;
+}
+
+const BackgroundCircleProvider = forwardRef<BackgroundCircleProviderRef, BackgroundCircleProviderProps>(
 	({ onStatusChange, onEvent, connectionStatusProp }, ref) => {
 		const [audioLevel, setAudioLevel] = useState(0)
 		const audioRef = useRef(null)
@@ -25,7 +37,7 @@ const BackgroundCircleProvider = forwardRef(
 			onStatusChange?.("disconnected")
 		}, [onStatusChange])
 
-		const handleAudioStream = useCallback((stream) => {
+		const handleAudioStream = useCallback((stream: MediaStream) => {
 			if (audioRef.current) {
 				audioRef.current.srcObject = stream
 			}
@@ -36,7 +48,7 @@ const BackgroundCircleProvider = forwardRef(
 		}, [])
 
 		useImperativeHandle(ref, () => ({
-			async connect(deviceId, authToken, rtcToken) {
+			async connect(deviceId: string, authToken: string, rtcToken: string) {
 				if (webrtcClientRef.current) {
 					webrtcClientRef.current.disconnect()
 				}
@@ -75,4 +87,4 @@ const BackgroundCircleProvider = forwardRef(
 )
 
 BackgroundCircleProvider.displayName = "BackgroundCircleProvider"
-export default BackgroundCircleProvider
+export default BackgroundCircleProvider;

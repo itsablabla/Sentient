@@ -1,9 +1,16 @@
 "use client"
 
 import { AnimatePresence, motion } from "framer-motion"
-import { IconClipboardList, IconRepeat } from "@tabler/icons-react"
+import { IconClipboardList, IconRepeat } from "@tabler/icons-react";
+import React from "react";
 
-const tabs = [
+interface Tab {
+    title: string;
+    value: 'tasks' | 'workflows';
+    icon: React.ReactNode;
+}
+
+const tabs: Tab[] = [
 	{
 		title: "Tasks",
 		value: "tasks",
@@ -33,7 +40,15 @@ const spanVariants = {
 
 const transition = { delay: 0.1, type: "spring", bounce: 0, duration: 0.35 }
 
-const Tab = ({ text, selected, setSelected, value, children, ...props }) => {
+interface TabProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+    text: string;
+    selected: boolean;
+    setSelected: (value: 'tasks' | 'workflows') => void;
+    value: 'tasks' | 'workflows';
+    children: React.ReactNode;
+}
+
+const Tab = ({ text, selected, setSelected, value, children, ...props }: TabProps) => {
 	return (
 		<motion.button
 			variants={buttonVariants}
@@ -66,7 +81,12 @@ const Tab = ({ text, selected, setSelected, value, children, ...props }) => {
 	)
 }
 
-const TaskViewSwitcher = ({ view, setView }) => {
+interface TaskViewSwitcherProps {
+    view: 'tasks' | 'workflows';
+    setView: (view: 'tasks' | 'workflows') => void;
+}
+
+const TaskViewSwitcher = ({ view, setView }: TaskViewSwitcherProps) => {
 	return (
 		<div className={"flex flex-wrap items-center gap-2"}>
 			{tabs.map((tab) => (

@@ -1,12 +1,14 @@
+declare class AudioWorkletProcessor {
+    readonly port: MessagePort;
+    process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
+}
+declare function registerProcessor(name: string, processorCtor: (new (...args: any[]) => AudioWorkletProcessor)): void;
+
 class AudioProcessor extends AudioWorkletProcessor {
 	// Buffer audio chunks until we have a desired size
 	_bufferSize = 2048 // Send chunks of this size (adjust as needed)
 	_bytesWritten = 0
 	_buffer = new Float32Array(this._bufferSize)
-
-	constructor() {
-		super()
-	}
 
 	process(inputs, outputs, parameters) {
 		// inputs[0][0] is the Float32Array of PCM data for the first channel

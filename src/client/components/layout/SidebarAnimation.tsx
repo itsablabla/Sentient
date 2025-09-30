@@ -1,8 +1,16 @@
 "use client"
-import React, { useMemo } from "react"
+import React, { useMemo } from "react";
 import { motion } from "framer-motion"
 
-const Particle = ({ x, y, size, duration, delay }) => {
+interface ParticleProps {
+    x: number;
+    y: number;
+    size: number;
+    duration: number;
+    delay: number;
+}
+
+const Particle = ({ x, y, size, duration, delay }: ParticleProps) => {
 	return (
 		<motion.div
 			className="absolute rounded-full bg-brand-orange/30"
@@ -71,4 +79,4 @@ const SidebarAnimation = () => {
 	)
 }
 
-export default SidebarAnimation
+export default SidebarAnimation;

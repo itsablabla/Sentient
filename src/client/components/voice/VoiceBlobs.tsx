@@ -1,7 +1,15 @@
 "use client"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@utils/cn"
 import React from "react"
+
+interface VoiceBlobsProps {
+    audioLevel?: number;
+    isActive?: boolean;
+    isConnecting?: boolean;
+    className?: string;
+    containerClassName?: string;
+}
 
 const COLOR_SETS = {
 	disconnected: {
@@ -33,13 +41,13 @@ export const VoiceBlobs = ({
 	isConnecting = false,
 	className,
 	containerClassName
-}) => {
-	const layerRefs = useRef([
-		useRef(null),
-		useRef(null),
-		useRef(null),
-		useRef(null),
-		useRef(null)
+}: VoiceBlobsProps) => {
+	const layerRefs = useRef<(HTMLDivElement | null)[]>([
+		useRef<HTMLDivElement>(null),
+		useRef<HTMLDivElement>(null),
+		useRef<HTMLDivElement>(null),
+		useRef<HTMLDivElement>(null),
+		useRef<HTMLDivElement>(null)
 	]).current
 
 	const gradientBackgroundStart = "rgb(18, 18, 18)"

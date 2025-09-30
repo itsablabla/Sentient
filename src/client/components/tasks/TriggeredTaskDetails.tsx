@@ -12,8 +12,14 @@ import {
 	AccordionItem,
 	AccordionTrigger
 } from "@components/ui/accordion"
+import { Task } from "@/types";
 
-const TriggeredTaskDetails = ({ task, userTimezone }) => {
+interface TriggeredTaskDetailsProps {
+    task: Task;
+    userTimezone: string | null;
+}
+
+const TriggeredTaskDetails = ({ task, userTimezone }: TriggeredTaskDetailsProps) => {
 	if (!task) return null
 
 	const statusInfo = taskStatusColors[task.status] || taskStatusColors.default

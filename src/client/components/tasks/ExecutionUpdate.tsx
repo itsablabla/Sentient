@@ -14,7 +14,15 @@ import {
 import ReactMarkdown from "react-markdown"
 import { cn } from "@utils/cn"
 
-const CollapsibleSection = ({
+interface CollapsibleSectionProps {
+    title: string;
+    icon: React.ReactNode;
+    colorClass: string;
+    children: React.ReactNode;
+    defaultOpen?: boolean;
+}
+
+const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
 	title,
 	icon,
 	colorClass,
@@ -61,7 +69,14 @@ const CollapsibleSection = ({
 	)
 }
 
-const ExecutionUpdate = ({ update }) => {
+interface ExecutionUpdateProps {
+    update: {
+        message: any;
+        timestamp: string;
+    };
+}
+
+const ExecutionUpdate: React.FC<ExecutionUpdateProps> = ({ update }) => {
 	const { message, timestamp } = update
 
 	const formattedTimestamp = new Date(timestamp).toLocaleTimeString([], {

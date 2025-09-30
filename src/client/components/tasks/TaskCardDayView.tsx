@@ -1,10 +1,16 @@
 "use client"
-import React from "react"
+import React from "react";
 import { motion } from "framer-motion"
 import { cn } from "@utils/cn"
 import { taskStatusColors } from "./constants"
+import { Task } from "@/types";
 
-const TaskCardDayView = ({ task, onSelectTask }) => {
+interface TaskCardDayViewProps {
+    task: Task;
+    onSelectTask: (task: Task) => void;
+}
+
+const TaskCardDayView = ({ task, onSelectTask }: TaskCardDayViewProps) => {
 	const statusInfo = taskStatusColors[task.status] || taskStatusColors.default
 
 	return (
@@ -24,4 +30,4 @@ const TaskCardDayView = ({ task, onSelectTask }) => {
 	)
 }
 
-export default TaskCardDayView
+export default TaskCardDayView;

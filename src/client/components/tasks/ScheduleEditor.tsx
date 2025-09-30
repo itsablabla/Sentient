@@ -1,11 +1,22 @@
 "use client"
 
-import React from "react"
+import React from "react";
 import { cn } from "@utils/cn"
 import { Tooltip } from "react-tooltip"
 import { Button } from "@components/ui/button"
 
-const ScheduleEditor = ({ schedule, setSchedule }) => {
+interface Schedule {
+    type: 'once' | 'recurring' | 'triggered';
+    run_at?: string | null;
+    frequency?: 'daily' | 'weekly';
+    days?: string[];
+    time?: string;
+    source?: string;
+    event?: string;
+    filter?: Record<string, any>;
+}
+
+const ScheduleEditor = ({ schedule, setSchedule }: { schedule: Schedule, setSchedule: (schedule: Schedule) => void }) => {
 	const handleTypeChange = (type) => {
 		const baseSchedule = { ...schedule, type: type }
 		if (type === "once") {
@@ -23,7 +34,7 @@ const ScheduleEditor = ({ schedule, setSchedule }) => {
 		setSchedule(baseSchedule)
 	}
 
-	const handleRunAtChange = (e) => {
+	const handleRunAtChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const localDateTimeString = e.target.value
 		if (localDateTimeString) {
 			// The input value is a string like "2024-07-26T09:00".
@@ -36,7 +47,7 @@ const ScheduleEditor = ({ schedule, setSchedule }) => {
 		}
 	}
 
-	const getLocalDateTimeString = (isoString) => {
+	const getLocalDateTimeString = (isoString?: string | null) => {
 		if (!isoString) return ""
 		const date = new Date(isoString)
 		const tzOffset = date.getTimezoneOffset() * 60000 // offset in milliseconds
@@ -46,7 +57,7 @@ const ScheduleEditor = ({ schedule, setSchedule }) => {
 		return localISOTime
 	}
 
-	const handleDayToggle = (day) => {
+	const handleDayToggle = (day: string) => {
 		const currentDays = schedule.days || []
 		const newDays = currentDays.includes(day)
 			? currentDays.filter((d) => d !== day)
