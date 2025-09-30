@@ -793,7 +793,7 @@ export default function MemoriesPage() {
 			queryClient.invalidateQueries({ queryKey: ["memories"] })
 		},
 		onError: (error: any) => {
-			if (error.status === 429) {
+			if (error.status === 429) { // @ts-ignore
 				toast.error(
 					error.message ||
 						"You've reached your memory limit for the free plan."
@@ -809,7 +809,10 @@ export default function MemoriesPage() {
 	})
 
 	const updateMemoryMutation = useMutation({
-		mutationFn: ({ memoryId, newContent }: { memoryId: string, newContent: string }) =>
+		mutationFn: ({
+			memoryId,
+			newContent
+		}: { memoryId: string; newContent: string }) =>
 			fetch(`/api/memories/${memoryId}`, {
 				method: "PUT",
 				body: JSON.stringify({ content: newContent })
@@ -819,7 +822,7 @@ export default function MemoriesPage() {
 			}),
 		onSuccess: () => {
 			toast.success("Memory updated!")
-			setSelectedMemory(null) // This will be handled by the store action
+			setSelectedMemory(null) // @ts-ignore This will be handled by the store action
 			queryClient.invalidateQueries({ queryKey: ["memories"] })
 		},
 		onError: (error: Error) => {

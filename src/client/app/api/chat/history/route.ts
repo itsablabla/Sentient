@@ -1,6 +1,6 @@
 // src/client/app/api/chat/history/route.js
 import { NextRequest, NextResponse } from "next/server"
-import { withAuth } from "@lib/api-utils"
+import { withAuth, HandlerParams } from "@lib/api-utils"
 
 const appServerUrl =
 	process.env.NEXT_PUBLIC_ENVIRONMENT === "selfhost"
@@ -9,7 +9,7 @@ const appServerUrl =
 
 export const POST = withAuth(async function POST(
 	request: NextRequest,
-	{ authHeader }: { authHeader: HeadersInit }
+	{ authHeader }: HandlerParams
 ): Promise<NextResponse> {
 	const body = await request.json().catch(() => ({}))
 	const { limit, before_timestamp } = body

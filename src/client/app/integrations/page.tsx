@@ -62,8 +62,10 @@ import {
 	ModalHeader,
 	ModalTitle,
 	ModalBody,
-	ModalFooter
+	ModalFooter,
+	ModalCloseButton
 } from "@components/ui/ModalDialog"
+import { Integration } from "@/types"
 import { useRouter } from "next/navigation"
 import { INTEGRATION_CAPABILITIES } from "@utils/integration-capabilities"
 import { Button } from "@components/ui/button"
@@ -77,7 +79,7 @@ import {
 } from "@stores/app-stores"
 import { usePostHog } from "posthog-js/react"
 
-const integrationColorIcons = {
+const integrationColorIcons: { [key: string]: React.ElementType } = {
 	gmail: IconMail,
 	gcalendar: IconCalendarEvent,
 	gpeople: IconUsers,
@@ -132,7 +134,13 @@ const proPlanFeatures = [
 	}
 ]
 
-const UpgradeToProModal = ({ isOpen, onClose }) => {
+const UpgradeToProModal = ({
+	isOpen,
+	onClose
+}: {
+	isOpen: boolean
+	onClose: () => void
+}) => {
 	if (!isOpen) return null
 
 	const handleUpgrade = () => {
@@ -209,7 +217,15 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 	)
 }
 
-const WhatsAppDisclaimerModal = ({ isOpen, onAgree, onClose }) => {
+const WhatsAppDisclaimerModal = ({
+	isOpen,
+	onAgree,
+	onClose
+}: {
+	isOpen: boolean
+	onAgree: () => void
+	onClose: () => void
+}) => {
 	// This modal doesn't need to know if it's open, the parent handles it.
 	// But we keep the prop for clarity and potential internal logic.
 	if (!isOpen) return null
@@ -265,11 +281,11 @@ const WhatsAppDisclaimerModal = ({ isOpen, onAgree, onClose }) => {
 	)
 }
 
-const WhatsAppQRCodeModal = ({ onClose }) => {
+const WhatsAppQRCodeModal = ({ onClose }: { onClose: () => void }) => {
 	const [qrCode, setQrCode] = useState(null)
 	const [status, setStatus] = useState("initiating") // initiating, scanning, working,const WhatsAppQRCodeModal = ({ onClose }) => {
 	const [error, setError] = useState("")
-	const intervalRef = useRef(null)
+	const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
 	const stopPolling = useCallback(() => {
 		if (intervalRef.current) {
@@ -295,7 +311,7 @@ const WhatsAppQRCodeModal = ({ onClose }) => {
 			} else {
 				setStatus("scanning")
 			}
-		} catch (err) {
+		} catch (err: any) {
 			setError(err.message)
 			setStatus("error")
 			stopPolling()
@@ -317,7 +333,7 @@ const WhatsAppQRCodeModal = ({ onClose }) => {
 			if (!intervalRef.current) {
 				intervalRef.current = setInterval(pollStatus, 3000)
 			}
-		} catch (err) {
+		} catch (err: any) {
 			setError(err.message)
 			setStatus("error")
 		}
@@ -398,6 +414,13 @@ const FilterInputSection = ({
 	onAdd,
 	onDelete,
 	placeholder
+}: {
+	title: string
+	description: string
+	items: string[]
+	onAdd: (value: string) => void
+	onDelete: (value: string) => void
+	placeholder: string
 }) => {
 	const [inputValue, setInputValue] = useState("")
 
@@ -458,7 +481,7 @@ const FilterInputSection = ({
 	)
 }
 
-const PrivacySettings = ({ serviceName }) => {
+const PrivacySettings = ({ serviceName }: { serviceName: string }) => {
 	const queryClient = useQueryClient()
 
 	const { data: filters, isLoading } = useQuery({
@@ -475,7 +498,7 @@ const PrivacySettings = ({ serviceName }) => {
 	})
 
 	const updateFiltersMutation = useMutation({
-		mutationFn: (updatedFilters) =>
+		mutationFn: (updatedFilters: any) =>
 			fetch("/api/settings/privacy-filters", {
 				method: "POST",
 				body: JSON.stringify({
@@ -500,7 +523,7 @@ const PrivacySettings = ({ serviceName }) => {
 			)
 			return { previousFilters }
 		},
-		onError: (err, newFilters, context) => {
+		onError: (err: Error, newFilters, context: any) => {
 			queryClient.setQueryData(
 				["privacyFilters", serviceName],
 				context.previousFilters
@@ -517,7 +540,10 @@ const PrivacySettings = ({ serviceName }) => {
 		}
 	})
 
-	const handleAddItem = (type, value) => {
+	const handleAddItem = (
+		type: "keywords" | "emails" | "labels",
+		value: string
+	) => {
 		if (!filters[type].includes(value)) {
 			const updatedFilters = {
 				...filters,
@@ -527,10 +553,13 @@ const PrivacySettings = ({ serviceName }) => {
 		}
 	}
 
-	const handleDeleteItem = (type, value) => {
+	const handleDeleteItem = (
+		type: "keywords" | "emails" | "labels",
+		value: string
+	) => {
 		const updatedFilters = {
 			...filters,
-			[type]: filters[type].filter((item) => item !== value)
+			[type]: filters[type].filter((item: string) => item !== value)
 		}
 		updateFiltersMutation.mutate(updatedFilters)
 	}
@@ -586,7 +615,13 @@ const PrivacySettings = ({ serviceName }) => {
 	)
 }
 
-const PrivacySettingsModal = ({ serviceName, onClose }) => {
+const PrivacySettingsModal = ({
+	serviceName,
+	onClose
+}: {
+	serviceName: string
+	onClose: () => void
+}) => {
 	const capitalizedServiceName =
 		serviceName.charAt(0).toUpperCase() + serviceName.slice(1)
 
@@ -630,7 +665,15 @@ const PrivacySettingsModal = ({ serviceName, onClose }) => {
 	)
 }
 
-const InfoPanel = ({ onClose, title, children }) => (
+const InfoPanel = ({
+	onClose,
+	title,
+	children
+}: {
+	onClose: () => void
+	title: React.ReactNode
+	children: React.ReactNode
+}) => (
 	<motion.div
 		initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
 		animate={{ opacity: 1, backdropFilter: "blur(12px)" }}
@@ -670,6 +713,12 @@ const IntegrationHeader = ({
 	categoriesToShow,
 	activeCategory,
 	onCategoryChange
+}: {
+	searchQuery: string
+	onSearchChange: (value: string) => void
+	categoriesToShow: string[]
+	activeCategory: string
+	onCategoryChange: (category: string) => void
 }) => {
 	return (
 		<div className="xs:mb-4 md:mb-8 mt-1 md:sticky md:top-0 bg-dark-surface/80 backdrop-blur-sm md:py-4 z-10">
@@ -714,7 +763,7 @@ const IntegrationHeader = ({
 	)
 }
 
-const IntegrationTag = ({ type }) => {
+const IntegrationTag = ({ type }: { type: string }) => {
 	const styles = {
 		Native: "bg-green-500/20 text-green-300",
 		"3rd Party": "bg-neutral-600/50 text-neutral-300"
@@ -723,7 +772,7 @@ const IntegrationTag = ({ type }) => {
 		<span
 			className={cn(
 				"px-2 py-0.5 rounded-full text-xs font-semibold",
-				styles[type]
+				styles[type as keyof typeof styles]
 			)}
 		>
 			{type}
@@ -737,8 +786,14 @@ const IntegrationCard = ({
 	isProFeature,
 	isProUser,
 	onUpgradeClick
+}: {
+	integration: Integration
+	icon: React.ElementType
+	isProFeature: boolean
+	isProUser: boolean
+	onUpgradeClick: () => void
 }) => {
-	const getTagType = (authType) => {
+	const getTagType = (authType: string) => {
 		if (authType === "builtin") return "Native"
 		if (["oauth", "manual", "composio"].includes(authType))
 			return "3rd Party"
@@ -826,7 +881,7 @@ const IntegrationCard = ({
 }
 
 // Define the missing constant to prevent reference errors.
-const MANUAL_INTEGRATION_CONFIGS = {}
+const MANUAL_INTEGRATION_CONFIGS: { [key: string]: any } = {}
 
 const googleServices = [
 	"gmail",
@@ -855,9 +910,13 @@ const IntegrationsPage = () => {
 	const { isUpgradeModalOpen, openUpgradeModal, closeUpgradeModal } =
 		useUIStore()
 	const { isPro } = useUserStore()
-	const [processingIntegration, setProcessingIntegration] = useState(null)
-	const [selectedIntegration, setSelectedIntegration] = useState(null)
-	const [activeManualIntegration, setActiveManualIntegration] = useState(null)
+	const [processingIntegration, setProcessingIntegration] = useState<
+		string | null
+	>(null)
+	const [selectedIntegration, setSelectedIntegration] =
+		useState<Integration | null>(null)
+	const [activeManualIntegration, setActiveManualIntegration] =
+		useState<Integration | null>(null)
 	const [isWhatsAppDisclaimerOpen, setIsWhatsAppDisclaimerOpen] =
 		useState(false)
 	const [isWhatsAppQRModalOpen, setIsWhatsAppQRModalOpen] = useState(false)
@@ -886,7 +945,7 @@ const IntegrationsPage = () => {
 		if (!integrationsData) return { userIntegrations: [], defaultTools: [] }
 
 		const integrationsWithIcons = (integrationsData.integrations || []).map(
-			(ds) => ({
+			(ds: Integration) => ({
 				...ds,
 				icon: integrationColorIcons[ds.name] || IconSettingsCog
 			})
@@ -899,17 +958,50 @@ const IntegrationsPage = () => {
 			"tasks"
 		]
 		const connectable = integrationsWithIcons.filter(
-			(i) =>
+			(i: Integration) =>
 				(i.auth_type === "oauth" ||
 					i.auth_type === "manual" ||
 					i.auth_type === "composio") &&
 				!hiddenTools.includes(i.name)
 		)
 		const builtIn = integrationsWithIcons.filter(
-			(i) => i.auth_type === "builtin" && !hiddenTools.includes(i.name)
+			(i: Integration) =>
+				i.auth_type === "builtin" && !hiddenTools.includes(i.name)
 		)
 		return { userIntegrations: connectable, defaultTools: builtIn }
 	}, [integrationsData])
+
+	const handleComposioConnect = useCallback(
+		async (integration: Integration) => {
+			const { name: serviceName, auth_config_id: authConfigId } =
+				integration
+			if (!authConfigId) {
+				toast.error(
+					`Auth Config ID for ${integration.display_name} is not configured.`
+				)
+				return
+			}
+			setProcessingIntegration(serviceName)
+			try {
+				// Store service name for callback handling
+				localStorage.setItem("composio_pending_service", serviceName)
+
+				const data = await apiClient(
+					"/api/settings/integrations/connect/composio/initiate",
+					{
+						method: "POST",
+						body: JSON.stringify({ service_name: serviceName })
+					}
+				)
+				window.location.href = data.redirect_url
+			} catch (error: any) {
+				toast.error(`Connection failed: ${error.message}`)
+				setProcessingIntegration(null)
+				localStorage.removeItem("composio_pending_service")
+			}
+		},
+		[]
+	)
 
 	const handleConnect = useCallback(
 		async (integration: Integration) => {
@@ -964,7 +1056,7 @@ const IntegrationsPage = () => {
 
 				const redirectUri = `${window.location.origin}/api/settings/integrations/connect/oauth/callback`
 				let authUrl = ""
-				const scopes = {
+				const scopes: { [key: string]: string } = {
 					gdrive: "https://www.googleapis.com/auth/drive",
 					gcalendar: "https://www.googleapis.com/auth/calendar",
 					gmail: "https://mail.google.com/",
@@ -1023,36 +1115,8 @@ const IntegrationsPage = () => {
 		[isPro, openUpgradeModal, handleComposioConnect]
 	)
 
-	const handleComposioConnect = useCallback(async (integration) => {
-		const { name: serviceName, auth_config_id: authConfigId } = integration
-		if (!authConfigId) {
-			toast.error(
-				`Auth Config ID for ${integration.display_name} is not configured.`
-			)
-			return
-		}
-		setProcessingIntegration(serviceName)
-		try {
-			// Store service name for callback handling
-			localStorage.setItem("composio_pending_service", serviceName)
-
-			const data = await apiClient(
-				"/api/settings/integrations/connect/composio/initiate",
-				{
-					method: "POST",
-					body: JSON.stringify({ service_name: serviceName })
-				}
-			)
-			window.location.href = data.redirect_url
-		} catch (error) {
-			toast.error(`Connection failed: ${error.message}`)
-			setProcessingIntegration(null)
-			localStorage.removeItem("composio_pending_service")
-		}
-	}, [])
-
 	const disconnectMutation = useMutation({
-		mutationFn: ({ integrationName }) => {
+		mutationFn: ({ integrationName }: { integrationName: string }) => {
 			const apiEndpoint =
 				integrationName === "whatsapp"
 					? "/api/settings/integrations/whatsapp/disconnect"
@@ -1071,14 +1135,20 @@ const IntegrationsPage = () => {
 				return res.json()
 			})
 		},
-		onSuccess: (data, { displayName, integrationName }) => {
+		onSuccess: (
+			data,
+			{
+				displayName,
+				integrationName
+			}: { displayName: string; integrationName: string }
+		) => {
 			toast.success(`${displayName} disconnected.`)
 			posthog?.capture("integration_disconnected", {
 				integration_name: integrationName
 			})
 			queryClient.invalidateQueries({ queryKey: ["integrations"] })
 		},
-		onError: (error) => {
+		onError: (error: Error) => {
 			toast.error(error.message)
 		},
 		onSettled: () => {
@@ -1124,7 +1194,7 @@ const IntegrationsPage = () => {
 					queryClient.invalidateQueries({
 						queryKey: ["integrations"]
 					}) // Refresh the list
-				} catch (error) {
+				} catch (error: any) {
 					toast.error(`Error: ${error.message}`, { id: toastId })
 				} finally {
 					// Clean up URL
@@ -1152,7 +1222,7 @@ const IntegrationsPage = () => {
 				// Immediately clear the hash from the URL bar for security
 				window.history.replaceState({}, document.title, "/integrations")
 
-				const saveTrelloToken = async (t) => {
+				const saveTrelloToken = async (t: string) => {
 					const toastId = toast.loading(
 						"Finalizing Trello connection..."
 					)
@@ -1173,7 +1243,7 @@ const IntegrationsPage = () => {
 							"/integrations?integration_success=trello",
 							{ scroll: false }
 						)
-					} catch (error) {
+					} catch (error: any) {
 						toast.error(
 							`Trello connection failed: ${error.message}`,
 							{ id: toastId }
@@ -1204,7 +1274,7 @@ const IntegrationsPage = () => {
 		}
 	}, [posthog, router, queryClient])
 
-	const renderIntegrationGrid = (integrations) => (
+	const renderIntegrationGrid = (integrations: Integration[]) => (
 		<motion.div
 			className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
 			variants={{
@@ -1309,7 +1379,7 @@ const IntegrationsPage = () => {
 		</motion.div>
 	)
 
-	const allIntegrations = useMemo(
+	const allIntegrations: Integration[] = useMemo(
 		() => [...userIntegrations, ...defaultTools],
 		[userIntegrations, defaultTools]
 	)
@@ -1317,7 +1387,7 @@ const IntegrationsPage = () => {
 
 	const displayedIntegrations = useMemo(() => {
 		// This filter function is used when a search query is active.
-		const searchFilter = (integration) => {
+		const searchFilter = (integration: Integration) => {
 			return (
 				integration.display_name
 					.toLowerCase()
@@ -1361,7 +1431,7 @@ const IntegrationsPage = () => {
 	}, [activeCategory, allIntegrations, searchQuery])
 
 	const renderIntegrationDialogContent = useCallback(
-		(integration) => {
+		(integration: Integration) => {
 			const Icon =
 				integrationColorIcons[integration.name] || IconPlaceholder
 			const capabilities =
@@ -1496,33 +1566,63 @@ const IntegrationsPage = () => {
 			/>
 			<AnimatePresence>
 				{disconnectingIntegration && (
-					// The `isolate` class creates a new stacking context, and `z-[70]`
-					// ensures this context is rendered above the MorphingDialog
-					// and other modals.
 					<div className="isolate z-[120]">
 						<ModalDialog
-							title={
-								<div className="flex items-center gap-2">
-									<IconAlertTriangle className="text-yellow-400" />
-									<span>{`Disconnect ${disconnectingIntegration.display_name}?`}</span>
-								</div>
-							}
-							description="This will permanently delete all tasks that use this tool and any related polling data. This action cannot be undone."
-							confirmButtonText="Disconnect"
-							confirmButtonType="danger"
-							onConfirm={() => {
-								if (disconnectingIntegration) {
-									disconnectMutation.mutate(
-										disconnectingIntegration
-									)
-								}
-							}}
-							onCancel={() => setDisconnectingIntegration(null)}
-							confirmButtonLoading={
-								processingIntegration ===
-								disconnectingIntegration.name
-							}
-						/>
+							isOpen={!!disconnectingIntegration}
+							onClose={() => setDisconnectingIntegration(null)}
+						>
+							<ModalHeader>
+								<ModalTitle>
+									<div className="flex items-center gap-2">
+										<IconAlertTriangle className="text-yellow-400" />
+										<span>{`Disconnect ${disconnectingIntegration.display_name}?`}</span>
+									</div>
+								</ModalTitle>
+							</ModalHeader>
+							<ModalBody>
+								<p>
+									This will permanently delete all tasks that
+									use this tool and any related polling data.
+									This action cannot be undone.
+								</p>
+							</ModalBody>
+							<ModalFooter>
+								<Button
+									variant="secondary"
+									onClick={() =>
+										setDisconnectingIntegration(null)
+									}
+								>
+									Cancel
+								</Button>
+								<Button
+									variant="destructive"
+									onClick={() => {
+										if (disconnectingIntegration) {
+											disconnectMutation.mutate({
+												integrationName:
+													disconnectingIntegration.name,
+												displayName:
+													disconnectingIntegration.display_name
+											})
+										}
+									}}
+									disabled={
+										processingIntegration ===
+										disconnectingIntegration.name
+									}
+								>
+									{processingIntegration ===
+										disconnectingIntegration.name && (
+										<IconLoader
+											size={16}
+											className="animate-spin mr-2"
+										/>
+									)}
+									Disconnect
+								</Button>
+							</ModalFooter>
+						</ModalDialog>
 					</div>
 				)}
 			</AnimatePresence>

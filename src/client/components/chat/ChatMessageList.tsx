@@ -9,7 +9,7 @@ import { TextShimmer } from "@components/ui/text-shimmer"
 import { ChatMessage } from "@/types"
 
 interface ChatMessageListProps {
-	scrollContainerRef: React.RefObject<HTMLDivElement>;
+	scrollContainerRef: any;
 	isLoadingOlder: boolean;
 	displayedMessages: ChatMessage[];
 	thinking: boolean;

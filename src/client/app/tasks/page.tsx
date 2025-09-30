@@ -449,51 +449,50 @@ function TasksPageContent() {
 		})
 	}
 
-	const answerClarificationsMutation = useMutation(
-		useTaskMutation<{ taskId: string; answers: any[] }, any>(
-			({ taskId, answers }: { taskId: string; answers: any[] }) =>
-				fetch("/api/tasks/answer-clarifications", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ taskId, answers })
-				}).then((res) => {
-					if (!res.ok) throw new Error("Failed to submit answers.")
-					return res.json()
-				}),
-			{
-				successMessage: "Answers submitted. The task will now resume.",
-				errorMessage: "Failed to submit answers."
-			}
-		)
+	const answerClarificationsMutation = useTaskMutation<
+		{ taskId: string; answers: any[] },
+		any
+	>(
+		({ taskId, answers }: { taskId: string; answers: any[] }) =>
+			fetch("/api/tasks/answer-clarifications", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ taskId, answers })
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to submit answers.")
+				return res.json()
+			}),
+		{
+			successMessage: "Answers submitted. The task will now resume.",
+			errorMessage: "Failed to submit answers."
+		}
 	)
 
-	const answerLongFormClarificationMutation = useMutation(
-		useTaskMutation<
-			{ taskId: string; requestId: string; answer: string },
-			any
-		>(
-			({
-				taskId,
-				requestId,
-				answer
-			}: {
-				taskId: string
-				requestId: string
-				answer: string
-			}) =>
-				fetch(`/api/tasks/${taskId}/answer-clarification`, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ requestId, answer })
-				}).then((res) => {
-					if (!res.ok) throw new Error("Failed to submit answer.")
-					return res.json()
-				}),
-			{
-				successMessage: "Answer submitted. The task will now resume.",
-				errorMessage: "Failed to submit answer."
-			}
-		)
+	const answerLongFormClarificationMutation = useTaskMutation<
+		{ taskId: string; requestId: string; answer: string },
+		any
+	>(
+		({
+			taskId,
+			requestId,
+			answer
+		}: {
+			taskId: string
+			requestId: string
+			answer: string
+		}) =>
+			fetch(`/api/tasks/${taskId}/answer-clarification`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ requestId, answer })
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to submit answer.")
+				return res.json()
+			}),
+		{
+			successMessage: "Answer submitted. The task will now resume.",
+			errorMessage: "Failed to submit answer."
+		}
 	)
 
 	const createTaskMutation = useMutation({
@@ -502,7 +501,7 @@ function TasksPageContent() {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(payload)
-			}).then(async (res) => {
+			}).then(async (res) => { // @ts-ignore
 				if (!res.ok) {
 					const errorData = await res.json().catch(() => ({}))
 					const error = new Error(
@@ -534,133 +533,122 @@ function TasksPageContent() {
 		}
 	})
 
-	const resumeTaskMutation = useMutation(
-		useTaskMutation<string, any>(
-			(taskId: string) =>
-				fetch(`/api/tasks/${taskId}/action`, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ action: "resume" })
-				}).then((res) => {
-					if (!res.ok) throw new Error("Failed to resume task.")
-					return res.json()
-				}),
-			{
-				successMessage: "Task resumed.",
-				errorMessage: "Failed to resume task."
-			}
-		)
+	const resumeTaskMutation = useTaskMutation<string, any>(
+		(taskId: string) =>
+			fetch(`/api/tasks/${taskId}/action`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ action: "resume" })
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to resume task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task resumed.",
+			errorMessage: "Failed to resume task."
+		}
 	)
 
-	const updateTaskMutation = useMutation(
-		useTaskMutation<Task, any>(
-			(updatedTask: Task) =>
-				fetch("/api/tasks/update", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						...updatedTask,
-						taskId: updatedTask.task_id
-					})
-				}).then((res) => {
-					if (!res.ok) throw new Error("Failed to update task.")
-					return res.json()
-				}),
-			{
-				successMessage: "Task updated!",
-				errorMessage: "Failed to update task."
-			}
-		)
+	const updateTaskMutation = useTaskMutation<Task, any>(
+		(updatedTask: Task) =>
+			fetch("/api/tasks/update", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					...updatedTask,
+					taskId: updatedTask.task_id
+				})
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to update task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task updated!",
+			errorMessage: "Failed to update task."
+		}
 	)
 
-	const deleteTaskMutation = useMutation(
-		useTaskMutation<string, any>(
-			(taskId: string) =>
-				fetch(`/api/tasks/delete`, {
-					method: "POST",
-					body: JSON.stringify({ taskId }),
-					headers: { "Content-Type": "application/json" }
-				}).then((res) => {
-					if (!res.ok) throw new Error("Failed to delete task.")
-					return res.json()
-				}),
-			{
-				successMessage: "Task deleted.",
-				errorMessage: "Failed to delete task."
-			}
-		)
+	const deleteTaskMutation = useTaskMutation<string, any>(
+		(taskId: string) =>
+			fetch(`/api/tasks/delete`, {
+				method: "POST",
+				body: JSON.stringify({ taskId }),
+				headers: { "Content-Type": "application/json" }
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to delete task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task deleted.",
+			errorMessage: "Failed to delete task."
+		}
 	)
 
-	const approveTaskMutation = useMutation(
-		useTaskMutation<string, any>(
-			(taskId: string) =>
-				fetch(`/api/tasks/approve`, {
-					method: "POST",
-					body: JSON.stringify({ taskId }),
-					headers: { "Content-Type": "application/json" }
-				}).then((res) => {
-					if (!res.ok) throw new Error("Failed to approve task.")
-					return res.json()
-				}),
-			{
-				successMessage: "Task approved.",
-				errorMessage: "Failed to approve task."
-			}
-		)
+	const approveTaskMutation = useTaskMutation<string, any>(
+		(taskId: string) =>
+			fetch(`/api/tasks/approve`, {
+				method: "POST",
+				body: JSON.stringify({ taskId }),
+				headers: { "Content-Type": "application/json" }
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to approve task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task approved.",
+			errorMessage: "Failed to approve task."
+		}
 	)
 
-	const rerunTaskMutation = useMutation(
-		useTaskMutation<string, any>(
-			(taskId: string) =>
-				fetch("/api/tasks/rerun", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ taskId })
-				}).then((res) => {
-					if (!res.ok) throw new Error("Failed to re-run task.")
-					return res.json()
-				}),
-			{
-				successMessage: "Task re-run initiated.",
-				errorMessage: "Failed to re-run task."
-			}
-		)
+	const rerunTaskMutation = useTaskMutation<string, any>(
+		(taskId: string) =>
+			fetch("/api/tasks/rerun", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ taskId })
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to re-run task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task re-run initiated.",
+			errorMessage: "Failed to re-run task."
+		}
 	)
 
-	const archiveTaskMutation = useMutation(
-		useTaskMutation<string, any>(
-			(taskId: string) =>
-				fetch(`/api/tasks/update`, {
-					method: "POST",
-					body: JSON.stringify({ taskId, status: "archived" }),
-					headers: { "Content-Type": "application/json" }
-				}).then((res) => {
-					if (!res.ok) throw new Error("Failed to archive task.")
-					return res.json()
-				}),
-			{
-				successMessage: "Task archived.",
-				errorMessage: "Failed to archive task."
-			}
-		)
+	const archiveTaskMutation = useTaskMutation<string, any>(
+		(taskId: string) =>
+			fetch(`/api/tasks/update`, {
+				method: "POST",
+				body: JSON.stringify({ taskId, status: "archived" }),
+				headers: { "Content-Type": "application/json" }
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to archive task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task archived.",
+			errorMessage: "Failed to archive task."
+		}
 	)
 
-	const sendChatMessageMutation = useMutation(
-		useTaskMutation<{ taskId: string; message: string }, any>(
-			({ taskId, message }: { taskId: string; message: string }) =>
-				fetch(`/api/tasks/chat`, {
-					method: "POST",
-					body: JSON.stringify({ taskId, message }),
-					headers: { "Content-Type": "application/json" }
-				}).then((res) => {
-					if (!res.ok) throw new Error("Failed to send message.")
-					return res.json()
-				}),
-			{
-				successMessage: "Message sent.",
-				errorMessage: "Failed to send message."
-			}
-		)
+	const sendChatMessageMutation = useTaskMutation<
+		{ taskId: string; message: string },
+		any
+	>(
+		({ taskId, message }: { taskId: string; message: string }) =>
+			fetch(`/api/tasks/chat`, {
+				method: "POST",
+				body: JSON.stringify({ taskId, message }),
+				headers: { "Content-Type": "application/json" }
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to send message.")
+				return res.json()
+			}),
+		{
+			successMessage: "Message sent.",
+			errorMessage: "Failed to send message."
+		}
 	)
 
 	const selectedTaskOrDemo: Task | null = useMemo(() => {

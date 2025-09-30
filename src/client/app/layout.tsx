@@ -70,12 +70,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 			<body className="font-sans" suppressHydrationWarning>
 				<Auth0Provider>
 					<ReactQueryProvider>
-						<Toaster position="bottom-right" />
-						<div className="flex h-screen w-full text-white overflow-hidden">
-							<Suspense>
-								<LayoutWrapper>{children}</LayoutWrapper>
-							</Suspense>
-						</div>
+						<PostHogProvider>
+							<Toaster position="bottom-right" />
+							<div className="flex h-screen w-full text-white overflow-hidden">
+								<Suspense>
+									<LayoutWrapper>{children}</LayoutWrapper>
+								</Suspense>
+							</div>
+						</PostHogProvider>
 					</ReactQueryProvider>
 				</Auth0Provider>
 			</body>

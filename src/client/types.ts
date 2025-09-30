@@ -1,5 +1,5 @@
 // src/client/types.ts
-import { TablerIconsProps } from "@tabler/icons-react"
+import { IconProps } from "@tabler/icons-react"
 import React from "react"
 
 // A generic interface for a user profile
@@ -96,7 +96,7 @@ export interface Integration {
     description: string;
     auth_type: 'oauth' | 'manual' | 'builtin' | 'composio';
     connected: boolean;
-    icon?: React.ComponentType<TablerIconsProps>;
+    icon?: React.ComponentType<IconProps>;
     client_id?: string;
     auth_config_id?: string;
 }

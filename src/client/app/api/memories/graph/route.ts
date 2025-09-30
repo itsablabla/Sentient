@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { withAuth } from "@lib/api-utils"
+import { withAuth, HandlerParams } from "@lib/api-utils"
 
 const appServerUrl =
 	process.env.NEXT_PUBLIC_ENVIRONMENT === "selfhost"
@@ -8,7 +8,7 @@ const appServerUrl =
 
 export const GET = withAuth(async function GET(
 	request: NextRequest,
-	{ authHeader }: { authHeader: HeadersInit }
+	{ authHeader }: HandlerParams
 ): Promise<NextResponse> {
 	// This new backend endpoint is assumed to exist and return { nodes: [], edges: [] }.
 	const backendUrl = new URL(`${appServerUrl}/memories/graph`)

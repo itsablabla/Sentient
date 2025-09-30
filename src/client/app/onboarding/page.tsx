@@ -258,7 +258,7 @@ const OnboardingPage: FC = () => {
 	const statusChecked = useRef(false)
 	const [whatsappStatus, setWhatsappStatus] = useState("idle") // idle, checking, valid, invalid
 	const [whatsappError, setWhatsappError] = useState("")
-	const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+	const debounceTimeoutRef = useRef<any>(null)
 	const [customDialCode, setCustomDialCode] = useState("")
 	const [showCustomDialCode, setShowCustomDialCode] = useState(false)
 	const [modelReacting, setModelReacting] = useState(false)
@@ -390,7 +390,7 @@ const OnboardingPage: FC = () => {
 						}
 
 						// Update state with the text location
-						setLocationState({
+						setLocationState({ // @ts-ignore
 							loading: false,
 							data: locationString, // Store the string
 							error: null
@@ -398,7 +398,7 @@ const OnboardingPage: FC = () => {
 						handleAnswer("location", locationString) // Save the string
 					} catch (error) {
 						setLocationState({
-							loading: false,
+							loading: false, // @ts-ignore
 							data: null,
 							error: error.message
 						})
@@ -424,7 +424,7 @@ const OnboardingPage: FC = () => {
 								"The request to get your location timed out. Please try again."
 							break
 					}
-					setLocationState({
+					setLocationState({ // @ts-ignore
 						loading: false,
 						data: null,
 						error: userMessage

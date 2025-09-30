@@ -223,7 +223,7 @@ export class WebRTCClient {
 		try {
 			console.log("[WebRTCClient] Setting up audio analysis.")
 			this.audioContext = new (window.AudioContext ||
-				window.webkitAudioContext)()
+				(window as any).webkitAudioContext)()
 			this.analyser = this.audioContext.createAnalyser()
 			this.analyser.fftSize = 256
 			const source = this.audioContext.createMediaStreamSource(
