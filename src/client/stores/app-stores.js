@@ -52,8 +52,8 @@ export const useUserStore = create(
 
 					set({
 						user: userData,
-						plan: userData.pricing || "free",
-						isPro: userData.pricing === "pro",
+						plan: userData.plan || userData.pricing || "free",
+						isPro: userData.plan === "pro" || userData.pricing === "pro",
 						onboardingComplete: userData.onboardingComplete,
 						isLoading: false
 					})

@@ -3,7 +3,7 @@
 $envFilePath = Join-Path $PSScriptRoot "src\server\.env"
 
 # Default WSL distro name
-$wslDistroName = "Ubuntu"
+$wslDistroName = "kali-linux"
 
 # --- FUNCTIONS ---
 

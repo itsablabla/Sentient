@@ -98,16 +98,15 @@ try {
     Start-Process powershell.exe -Verb RunAs -ArgumentList "Start-Service -Name 'MongoDB' -ErrorAction SilentlyContinue; if (`$?) { Write-Host 'MongoDB service started successfully.' -ForegroundColor Green } else { Write-Host 'MongoDB service was already running or failed to start.' -ForegroundColor Yellow }; Read-Host 'Press Enter to close this admin window.'"
     Start-Sleep -Seconds 3
 
-    # Start Redis Server (for Celery)
-    Write-Host "🚀 Launching Redis Server (in WSL)..." -ForegroundColor Yellow
-    $redisStartCommand = "wsl -d $wslDistroName -e redis-server --bind 0.0.0.0 --requirepass `"$redisPassword`""
-    Start-NewTerminal -WindowTitle "SERVICE - Redis" -Command $redisStartCommand
-    Start-Sleep -Seconds 2
+    
+    # (Redis is now started via Docker below)
+
     
     # Start Docker Containers (Waha, PGVector, Chroma, LiteLLM)
     Write-Host "🚀 Launching Docker services (Waha, PGVector, Chroma, LiteLLM)..." -ForegroundColor Yellow
     $dockerServices = @(
         @{ Name = "WAHA"; File = "start_waha.yaml" },
+        @{ Name = "Redis"; File = "start_redis.yaml" },
         @{ Name = "PGVector"; File = "start_pgvector.yaml" },
         @{ Name = "ChromaDB"; File = "start_chroma.yaml" },
         @{ Name = "LiteLLM"; File = "start_litellm.yaml" }

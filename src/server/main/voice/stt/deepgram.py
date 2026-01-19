@@ -3,15 +3,14 @@ from typing import Tuple, Optional
 from .base import BaseSTT
 from main.config import DEEPGRAM_API_KEY
 
-try:
-    from deepgram import (
-        DeepgramClient,
-        PrerecordedOptions,
-        BufferSource,
-    )
-except ImportError:
-    raise ImportError("Deepgram SDK not installed. Please install it with 'pip install deepgram-sdk>=3.0'")
 
+from deepgram import (
+    DeepgramClient,
+    PrerecordedOptions,
+    BufferSource,
+)
+
+   
 logger = logging.getLogger(__name__)
 
 class DeepgramSTT(BaseSTT):

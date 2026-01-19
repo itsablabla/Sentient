@@ -1,6 +1,6 @@
 services:
   waha:
-    image: itsskofficial/waha-multisession # This image is for browserless engines like NOWEB and GOWS
+    image: devlikeapro/waha # This image is for browserless engines like NOWEB and GOWS
     container_name: waha-multisession
     restart: unless-stopped
     ports:

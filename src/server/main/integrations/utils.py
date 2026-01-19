@@ -60,6 +60,11 @@ async def waha_request_from_main(
 
     headers = {"X-Api-Key": WAHA_API_KEY, "Content-Type": "application/json"}
 
+    # --- SESSION OVERRIDE FOR FREE VERSION ---
+    # The free version of WAHA only supports the 'default' session.
+    # We override the passed session to ensure compatibility.
+    session = "default"
+
     final_endpoint = endpoint.replace("{session}", session)
     url = f"{WAHA_URL.rstrip('/')}{final_endpoint}"
 

@@ -138,7 +138,6 @@ class AuthHelper:
         elif "Pro" in payload.get(f"{AUTH0_NAMESPACE}/roles", []): plan = "pro"
         payload["plan"] = plan
 
-        # Add the namespaced email to the top-level 'email' key for convenience
         if AUTH0_NAMESPACE:
             payload["email"] = payload.get(f"{AUTH0_NAMESPACE}/email")
 

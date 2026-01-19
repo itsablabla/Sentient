@@ -36,15 +36,21 @@ async def waha_request(
 
     headers = {"X-Api-Key": WAHA_API_KEY, "Content-Type": "application/json"}
 
-    # Sanitize the session name for use in paths and query parameters
-    sanitized_session = session.replace("|", "_")
+    # --- SESSION OVERRIDE FOR FREE VERSION ---
+    # The free version of WAHA only supports the 'default' session.
+    # We override the passed session to ensure compatibility.
+    sanitized_session = "default"
 
     final_endpoint = endpoint.replace("{session}", sanitized_session)
     url = f"{WAHA_URL.rstrip('/')}{final_endpoint}"
 
     # Also sanitize the 'session' query parameter if it exists
-    if params and "session" in params:
+    if params:
         params["session"] = sanitized_session
+    
+    # Check json_data for session and override it too
+    if json_data and "session" in json_data:
+        json_data["session"] = sanitized_session
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
