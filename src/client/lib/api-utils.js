@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server"
-import { auth0, getBackendAuthHeader } from "@lib/auth0"
 
-const isSelfHost = process.env.NEXT_PUBLIC_ENVIRONMENT === "selfhost"
 
 /**
  * A higher-order function to wrap API route handlers with authentication checks.
@@ -10,46 +8,25 @@ const isSelfHost = process.env.NEXT_PUBLIC_ENVIRONMENT === "selfhost"
  * @returns {function} The wrapped handler function.
  */
 export function withAuth(handler) {
-	if (isSelfHost) {
-		return async function (request, params) {
-			const authHeader = await getBackendAuthHeader()
-			if (!authHeader) {
-				return NextResponse.json(
-					{ error: "Could not create self-host auth header" },
-					{ status: 500 }
-				)
-			}
-			// For self-hosting, the user_id is static.
-			return handler(request, {
-				...params,
-				authHeader,
-				userId: "self-hosted-user"
-			})
-		}
-	}
-
 	return async function (request, params) {
-		const session = await auth0.getSession()
-		if (!session?.user?.sub) {
-			return NextResponse.json(
-				{ error: "Not authenticated" },
-				{ status: 401 }
-			)
-		}
+		// In self-host mode, we use the environment variable for the token
+		const token = process.env.SELF_HOST_AUTH_TOKEN;
 
-		const authHeader = await getBackendAuthHeader()
-		if (!authHeader) {
+		if (!token) {
 			return NextResponse.json(
-				{ error: "Could not create auth header" },
+				{ error: "Server misconfiguration: Auth token not set" },
 				{ status: 500 }
-			)
+			);
 		}
 
-		// Pass auth details to the actual handler
+		const authHeader = `Bearer ${token}`;
+
+		// For self-hosting, the user_id is static.
 		return handler(request, {
 			...params,
 			authHeader,
-			userId: session.user.sub
-		})
-	}
+			userId: "sentient-user",
+		});
+	};
 }
+

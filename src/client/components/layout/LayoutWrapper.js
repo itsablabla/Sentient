@@ -9,7 +9,7 @@ import GlobalSearch from "@components/ui/GlobalSearch"
 import { useGlobalShortcuts } from "@hooks/useGlobalShortcuts"
 import { cn } from "@utils/cn"
 import toast from "react-hot-toast"
-import { useUser } from "@auth0/nextjs-auth0"
+
 import { usePostHog } from "posthog-js/react"
 import {
 	useUIStore,
@@ -345,9 +345,9 @@ const GuidedTour = () => {
 							left: hideArrow
 								? 0
 								: targetRect.left -
-									positionStyle.left +
-									targetRect.width / 2 -
-									6
+								positionStyle.left +
+								targetRect.width / 2 -
+								6
 						}}
 					/>
 					<h3 className="font-bold text-white mb-1">
@@ -406,9 +406,9 @@ const GuidedTour = () => {
 						"absolute inset-0 pointer-events-none",
 						(currentStepConfig.type === "modal" ||
 							!isHighlightPaused) &&
-							"bg-black/50",
+						"bg-black/50",
 						currentStepConfig.type === "modal" &&
-							"flex items-center justify-center"
+						"flex items-center justify-center"
 					)}
 				>
 					{renderContent()}
@@ -444,7 +444,16 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 export default function LayoutWrapper({ children }) {
-	const { user, error: authError, isLoading: isAuthLoading } = useUser()
+	// Static user for self-hosted mode
+	const user = {
+		sub: "sentient-user",
+		name: "Sentient Admin",
+		email: "admin@selfhost",
+		picture: "/images/half-logo-dark.svg"
+	}
+	const authError = null
+	const isAuthLoading = false
+
 	const {
 		isSearchOpen,
 		isMobileNavOpen,
@@ -706,7 +715,7 @@ export default function LayoutWrapper({ children }) {
 		if ("serviceWorker" in navigator) {
 			window.addEventListener("load", function () {
 				navigator.serviceWorker.register("/sw.js").then(
-					function (registration) {},
+					function (registration) { },
 					function (err) {
 						console.error(
 							"ServiceWorker registration failed: ",

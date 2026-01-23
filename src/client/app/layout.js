@@ -1,5 +1,5 @@
 // src/client/app/layout.js
-import { Auth0Provider } from "@auth0/nextjs-auth0"
+
 import "@styles/globals.css" // Import global styles for the application
 import { Toaster } from "react-hot-toast"
 import React, { Suspense } from "react"
@@ -66,16 +66,14 @@ export default function RootLayout({ children }) {
 				<meta name="theme-color" content="#F1A21D" />
 			</head>
 			<body className="font-sans" suppressHydrationWarning>
-				<Auth0Provider>
-					<ReactQueryProvider>
-						<Toaster position="bottom-right" />
-						<div className="flex h-screen w-full text-white overflow-hidden">
-							<Suspense>
-								<LayoutWrapper>{children}</LayoutWrapper>
-							</Suspense>
-						</div>
-					</ReactQueryProvider>
-				</Auth0Provider>
+				<ReactQueryProvider>
+					<Toaster position="bottom-right" />
+					<div className="flex h-screen w-full text-white overflow-hidden">
+						<Suspense>
+							<LayoutWrapper>{children}</LayoutWrapper>
+						</Suspense>
+					</div>
+				</ReactQueryProvider>
 			</body>
 		</html>
 	)

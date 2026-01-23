@@ -1,34 +1,35 @@
-import { NextResponse } from "next/server"
-import { auth0 } from "./lib/auth0"
+import { NextResponse } from "next/server";
 
-export async function middleware(request) {
+const SESSION_COOKIE_NAME = "sentient_session";
+
+export function middleware(request) {
+	const { pathname } = request.nextUrl;
+	const cookieStore = request.cookies;
+	const hasSession = cookieStore.has(SESSION_COOKIE_NAME);
+
 	// Redirect the root path to the chat page
-	if (request.nextUrl.pathname === "/") {
-		const { origin } = new URL(request.url)
-		return NextResponse.redirect(`${origin}/chat`)
+	if (pathname === "/") {
+		const url = request.nextUrl.clone();
+		url.pathname = "/chat";
+		return NextResponse.redirect(url);
 	}
 
-	if (process.env.NEXT_PUBLIC_ENVIRONMENT === "selfhost") {
-		// In self-host mode, authentication is handled by a static token,
-		// so we don't need Auth0's session middleware.
-		return NextResponse.next()
-	}
-	const authRes = await auth0.middleware(request)
-
-	// authentication routes — let the middleware handle it
-	if (request.nextUrl.pathname.startsWith("/auth")) {
-		return authRes
+	// If user is on login page and has session, redirect to chat
+	if (pathname.startsWith("/auth/login") && hasSession) {
+		const url = request.nextUrl.clone();
+		url.pathname = "/chat";
+		return NextResponse.redirect(url);
 	}
 
-	const { origin } = new URL(request.url)
-	const session = await auth0.getSession()
-
-	// user does not have a session — redirect to login
-	if (!session) {
-		return NextResponse.redirect(`${origin}/auth/login`)
+	// If user is not on login page (and not in public assets checking done by config matcher)
+	// and does not have session, redirect to login
+	if (!pathname.startsWith("/auth") && !hasSession) {
+		const url = request.nextUrl.clone();
+		url.pathname = "/auth/login";
+		return NextResponse.redirect(url);
 	}
 
-	return authRes
+	return NextResponse.next();
 }
 
 export const config = {
@@ -42,6 +43,6 @@ export const config = {
 		 * - PWA files (manifest, icons, service worker, workbox)
 		 * - .png and .svg files (static images)
 		 */
-		"/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|api|manifest.json|manifest.webmanifest|sw.js|workbox-.*\\.js$|.*\\.png$|.*\\.svg$).*)"
-	]
-}
+		"/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|api|manifest.json|manifest.webmanifest|sw.js|workbox-.*\\.js$|.*\\.png$|.*\\.svg$).*)",
+	],
+};

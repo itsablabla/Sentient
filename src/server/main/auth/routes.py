@@ -22,17 +22,11 @@ async def store_session_tokens(
     request: AuthTokenStoreRequest,
     user_id: str = Depends(auth_helper.get_current_user_id) 
 ):
-    logger.info(f"Storing Auth0 refresh token for user {user_id}")
-    try:
-        encrypted_refresh_token = aes_encrypt(request.refresh_token)
-        update_payload = {"userData.encrypted_refresh_token": encrypted_refresh_token}
-        success = await mongo_manager.update_user_profile(user_id, update_payload)
-        if not success:
-            raise HTTPException(status_code=500, detail="Failed to store Auth0 refresh token.")
-        return JSONResponse(content={"message": "Auth0 session tokens stored securely."})
-    except Exception as e:
-        logger.error(f"Error storing Auth0 session for user {user_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error storing Auth0 session: {str(e)}")
+    # This endpoint is deprecated as we no longer use Auth0 refresh tokens on the backend.
+    # We keep the endpoint definition to avoid breaking old clients immediately, but it does nothing.
+    logger.info(f"Received deprecated store_session request for user {user_id}")
+    return JSONResponse(content={"message": "Session storage is deprecated but request received."})
+
 
 @router.post("/utils/encrypt", summary="Encrypt Data (AES)") # Kept /utils prefix for consistency if client expects it
 async def encrypt_data_endpoint(request: EncryptionRequest):

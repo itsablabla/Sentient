@@ -1,62 +1,17 @@
 "use server"
 
-import { auth0 } from "@lib/auth0"
-import { MongoClient } from "mongodb"
-import webpush from "web-push"
+// ... imports
+import { getSession } from "@lib/auth"
 
-// --- DB Connection ---
-const MONGO_URI = process.env.MONGO_URI
-const MONGO_DB_NAME = process.env.MONGO_DB_NAME
-
-let cachedClient = null
-let cachedDb = null
-
-async function connectToDatabase() {
-	if (cachedClient && cachedDb) {
-		return { client: cachedClient, db: cachedDb }
-	}
-
-	if (!MONGO_URI) {
-		throw new Error(
-			"MONGO_URI is not defined in the environment variables."
-		)
-	}
-
-	const client = new MongoClient(MONGO_URI)
-	await client.connect()
-	const db = client.db(MONGO_DB_NAME)
-
-	cachedClient = client
-	cachedDb = db
-
-	return { client, db }
-}
-
-// --- WebPush Setup ---
-if (
-	process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY &&
-	process.env.VAPID_PRIVATE_KEY &&
-	process.env.VAPID_ADMIN_EMAIL
-) {
-	webpush.setVapidDetails(
-		process.env.VAPID_ADMIN_EMAIL,
-		process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-		process.env.VAPID_PRIVATE_KEY
-	)
-} else {
-	console.warn(
-		"VAPID details not fully configured. Push notifications may not work."
-	)
-}
-
-// --- Server Actions ---
+// ... existing code ...
 
 export async function subscribeUser(subscription) {
-	const session = await auth0.getSession()
-	if (!session?.user) {
+	const token = await getSession()
+	if (!token) {
 		throw new Error("Not authenticated")
 	}
-	const userId = session.user.sub
+	const userId = "sentient-user" // Static ID for self-hosted
+
 
 	try {
 		const { db } = await connectToDatabase()
@@ -79,11 +34,11 @@ export async function subscribeUser(subscription) {
 }
 
 export async function unsubscribeUser(endpoint) {
-	const session = await auth0.getSession()
-	if (!session?.user) {
+	const token = await getSession()
+	if (!token) {
 		throw new Error("Not authenticated")
 	}
-	const userId = session.user.sub
+	const userId = "sentient-user"
 
 	try {
 		const { db } = await connectToDatabase()
@@ -105,11 +60,12 @@ export async function unsubscribeUser(endpoint) {
 }
 
 export async function sendNotificationToCurrentUser(payload) {
-	const session = await auth0.getSession()
-	if (!session?.user) {
+	const token = await getSession()
+	if (!token) {
 		throw new Error("Not authenticated")
 	}
-	const userId = session.user.sub
+	// For sending notifications to current user, we target the static user ID
+	const userId = "sentient-user"
 
 	if (
 		!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
