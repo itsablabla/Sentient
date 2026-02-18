@@ -1,5 +1,4 @@
 import os
-import motor.motor_asyncio
 from dotenv import load_dotenv
 from fastmcp import Context
 from fastmcp.exceptions import ToolError
@@ -11,12 +10,8 @@ if ENVIRONMENT == 'dev-local':
     if os.path.exists(dotenv_path):
         load_dotenv(dotenv_path=dotenv_path)
 
-MONGO_URI = os.getenv("MONGO_URI")
-MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
 
-client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URI)
-db = client[MONGO_DB_NAME]
-users_collection = db["user_profiles"]
+from mcp_hub.supabase_db import users_collection
 
 def get_user_id_from_context(ctx: Context) -> str:
     """

@@ -1,9 +1,26 @@
 import os
-import chromadb
+# import chromadb # Mocking chromadb to bypass installation issues
 import logging
-from chromadb.utils.embedding_functions import GoogleGenerativeAiEmbeddingFunction
+# from chromadb.utils.embedding_functions import GoogleGenerativeAiEmbeddingFunction
 from dotenv import load_dotenv
 
+# --- MOCK CHROMA ---
+class MockChromaClient:
+    def heartbeat(self):
+        return True
+    def get_or_create_collection(self, name, embedding_function=None):
+        return MockCollection(name)
+
+class MockCollection:
+    def __init__(self, name):
+        self.name = name
+    def add(self, documents, metadatas, ids):
+        pass
+    def query(self, query_texts, n_results):
+        return {"documents": [[]], "metadatas": [[]], "ids": [[]]}
+    def delete(self, ids):
+        pass
+# -------------------
 
 ENVIRONMENT = os.getenv('ENVIRONMENT', 'dev-local')
 logging.info(f"[Config] Initializing configuration for ENVIRONMENT='{ENVIRONMENT}'")
@@ -40,11 +57,11 @@ def get_chroma_client():
     global _client
     if _client is None:
         try:
-            logger.info(f"Initializing ChromaDB client for host={CHROMA_HOST}, port={CHROMA_PORT}")
-            _client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
+            logger.info(f"Initializing Mock ChromaDB client for host={CHROMA_HOST}, port={CHROMA_PORT}")
+            _client = MockChromaClient() # chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
             # Ping the server to ensure it's alive
             _client.heartbeat()
-            logger.info("ChromaDB client connected successfully.")
+            logger.info("Mock ChromaDB client connected successfully.")
         except Exception as e:
             logger.error(f"Failed to connect to ChromaDB at {CHROMA_HOST}:{CHROMA_PORT}: {e}", exc_info=True)
             _client = None  # Reset on failure

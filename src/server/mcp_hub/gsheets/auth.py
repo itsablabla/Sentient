@@ -4,7 +4,6 @@ import base64
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.backends import default_backend
-import motor.motor_asyncio
 from fastmcp import Context
 from fastmcp.exceptions import ToolError
 
@@ -17,8 +16,6 @@ if ENVIRONMENT == 'dev-local':
     dotenv_path = os.path.join(os.path.dirname(__file__), '..', '..', '.env')
     if os.path.exists(dotenv_path):
         load_dotenv(dotenv_path=dotenv_path)
-MONGO_URI = os.getenv("MONGO_URI")
-MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
 AES_SECRET_KEY_HEX = os.getenv("AES_SECRET_KEY")
 AES_IV_HEX = os.getenv("AES_IV")
 
@@ -37,9 +34,7 @@ def aes_decrypt(encrypted_data: str) -> str:
     unpadded_data = unpadder.update(decrypted) + unpadder.finalize()
     return unpadded_data.decode()
 
-client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URI)
-db = client[MONGO_DB_NAME]
-users_collection = db["user_profiles"]
+from mcp_hub.supabase_db import users_collection
 
 def get_user_id_from_context(ctx: Context) -> str:
     http_request = ctx.get_http_request()

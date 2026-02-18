@@ -5,7 +5,7 @@ from workers.utils.crypto import decrypt_doc
 from datetime import datetime, timedelta, timezone
 
 from workers.celery_app import celery_app
-from main.db import MongoManager
+from main.db import SupabaseManager as MongoManager  # Aliased for backward compat
 from main.notifications.utils import create_and_push_notification
 from workers.utils.worker_helpers import run_async
 

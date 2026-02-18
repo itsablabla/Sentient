@@ -1,4 +1,18 @@
 import time
+import sys
+from unittest.mock import MagicMock
+
+# --- Mock pyiceberg to avoid storage3 import errors on Windows ---
+# storage3 (used by supabase) imports pyiceberg which fails to build on Windows.
+# We mock it here since we don't use the analytics features that require it.
+class MockPyIceberg(MagicMock):
+    pass
+
+sys.modules["pyiceberg"] = MockPyIceberg()
+sys.modules["pyiceberg.catalog"] = MockPyIceberg()
+sys.modules["pyiceberg.catalog.rest"] = MockPyIceberg()
+# -------------------------------------------------------------
+
 import datetime
 from datetime import timezone
 START_TIME = time.time()
@@ -27,7 +41,6 @@ if platform.system() == 'Windows':
 
 from contextlib import asynccontextmanager
 import logging
-from bson import ObjectId
 from typing import Optional
 import httpx
 
@@ -77,8 +90,6 @@ else:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__) 
 
-# Add a custom encoder for ObjectId to FastAPI's internal dictionary
-ENCODERS_BY_TYPE[ObjectId] = str
 
 http_client: httpx.AsyncClient = httpx.AsyncClient()
 stt_model_instance: Optional[BaseSTT] = None
@@ -147,8 +158,6 @@ async def lifespan(app_instance: FastAPI):
     logger.info("App startup complete.")
     yield 
     logger.info("App shutdown sequence initiated...")
-    if mongo_manager and mongo_manager.client:
-        mongo_manager.client.close()
     await close_memories_pg_pool()
     logger.info("App shutdown complete.")
 

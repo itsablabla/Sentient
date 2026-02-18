@@ -4,7 +4,6 @@ from fastmcp import Context
 from fastmcp.exceptions import ToolError
 
 from dotenv import load_dotenv
-import motor.motor_asyncio
 
 # Load .env file for 'dev-local' environment.
 ENVIRONMENT = os.getenv('ENVIRONMENT', 'dev-local')
@@ -13,14 +12,10 @@ if ENVIRONMENT == 'dev-local':
     if os.path.exists(dotenv_path):
         load_dotenv(dotenv_path=dotenv_path, override=True)
 # Configs
-MONGO_URI = os.getenv("MONGO_URI")
-MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
 DEFAULT_GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # DB client
-client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URI)
-db = client[MONGO_DB_NAME]
-users_collection = db["user_profiles"]
+from mcp_hub.supabase_db import users_collection
 
 def get_user_id_from_context(ctx: Context) -> str:
     http_request = ctx.get_http_request()

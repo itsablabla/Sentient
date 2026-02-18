@@ -3,7 +3,7 @@ from typing import Dict, Any
 import datetime
 from workers.celery_app import celery_app
 from workers.utils.api_client import notify_user
-from main.db import MongoManager
+from main.db import SupabaseManager as MongoManager  # Aliased for backward compat
 import httpx
 import json
 from json_extractor import JsonExtractor

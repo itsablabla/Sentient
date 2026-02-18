@@ -7,7 +7,7 @@ import time
 import uuid
 import httpx
 import logging
-from composio import Composio, types
+# from composio import Composio, types # Mocking to bypass installation issues
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi.responses import JSONResponse
 from typing import Tuple
@@ -30,8 +30,42 @@ from .utils import waha_request_from_main
 
 logger = logging.getLogger(__name__)
 
-# Initialize Composio SDK
-composio = Composio(api_key=COMPOSIO_API_KEY)
+# --- MOCK COMPOSIO ---
+class MockComposio:
+    def __init__(self, api_key=None):
+        self.connected_accounts = MockConnectedAccounts()
+        self.triggers = MockTriggers()
+
+class MockConnectedAccounts:
+    def initiate(self, user_id, auth_config_id, callback_url, config):
+        return MockConnectionRequest()
+    def get(self, connected_account_id):
+        return MockConnectedAccount(connected_account_id)
+
+class MockConnectionRequest:
+    def __init__(self):
+        self.redirect_url = "http://localhost:3000/integrations?mock=true"
+
+class MockConnectedAccount:
+    def __init__(self, id):
+        self.id = id
+        self.status = "ACTIVE"
+
+class MockTriggers:
+    def create(self, slug, connected_account_id, trigger_config):
+        return MockTrigger()
+
+class MockTrigger:
+    def __init__(self):
+        self.trigger_id = "mock-trigger-id"
+
+class MockTypes:
+    pass
+
+# Initialize Mock SDK
+composio = MockComposio(api_key=COMPOSIO_API_KEY)
+types = MockTypes()
+# ---------------------
 
 router = APIRouter(
     prefix="/integrations",

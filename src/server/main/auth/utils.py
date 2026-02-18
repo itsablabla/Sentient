@@ -1,105 +1,128 @@
 import os
-import json
 import logging
-import traceback
-from typing import Optional, Dict, Any, List, Tuple
+import httpx
+from typing import Optional, List, Tuple
+
+from jose import jwt, JWTError, jwk
+from jose.utils import base64url_decode
+from fastapi import HTTPException, status, Depends, WebSocket, WebSocketDisconnect
+from fastapi.security import OAuth2PasswordBearer
+from json_extractor import JsonExtractor
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.backends import default_backend
 import base64
-import requests
-
-from jose import jwt, JWTError
-from jose.exceptions import JOSEError
-from fastapi import HTTPException, status, Depends, WebSocket, WebSocketDisconnect
-from fastapi.security import OAuth2PasswordBearer
-from json_extractor import JsonExtractor
 
 from main.config import (
     ENVIRONMENT, SELF_HOST_AUTH_SECRET,
-    AES_SECRET_KEY, AES_IV, AUTH0_SCOPE, AUTH0_NAMESPACE,
-    AUTH0_DOMAIN, AUTH0_AUDIENCE, ALGORITHMS,
-    AUTH0_MANAGEMENT_CLIENT_ID, AUTH0_MANAGEMENT_CLIENT_SECRET
+    AES_SECRET_KEY, AES_IV,
+    AUTH0_SCOPE, SUPABASE_JWT_SECRET, ALGORITHMS,
+    SUPABASE_URL
 )
 
 logger = logging.getLogger(__name__)
 
-# --- JWKS Fetching ---
-jwks = None
-if AUTH0_DOMAIN:
-    jwks_url = f"https://{AUTH0_DOMAIN}/.well-known/jwks.json"
-    try:
-        logger.info(f"Fetching JWKS from {jwks_url}...")
-        jwks_response = requests.get(jwks_url, timeout=10)
-        jwks_response.raise_for_status()
-        jwks = jwks_response.json()
-        logger.info("JWKS fetched successfully.")
-    except requests.exceptions.RequestException as e:
-        logger.critical(f"Could not fetch JWKS: {e}", exc_info=True)
-        jwks = None
-    except Exception as e:
-        logger.critical(f"Error processing JWKS: {e}", exc_info=True)
-        jwks = None
-else:
-    logger.critical("AUTH0_DOMAIN not set. Cannot fetch JWKS.")
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+# Cache for JWKS keys (fetched once at first use)
+_jwks_cache: Optional[dict] = None
+
+
+def _get_jwks_keys() -> dict:
+    """Fetch and cache JWKS keys from Supabase for ES256 token verification."""
+    global _jwks_cache
+    if _jwks_cache is not None:
+        return _jwks_cache
+    
+    if not SUPABASE_URL:
+        logger.warning("SUPABASE_URL not set, cannot fetch JWKS keys")
+        return {"keys": []}
+    
+    jwks_url = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json"
+    try:
+        resp = httpx.get(jwks_url, timeout=10)
+        resp.raise_for_status()
+        _jwks_cache = resp.json()
+        print(f"[AUTH] Fetched JWKS keys from {jwks_url}: {len(_jwks_cache.get('keys', []))} key(s)")
+        return _jwks_cache
+    except Exception as e:
+        logger.error(f"Failed to fetch JWKS keys from {jwks_url}: {e}")
+        return {"keys": []}
+
 
 class AuthHelper:
     async def _validate_token_and_get_payload(self, token: str) -> dict:
+        # --- Selfhost mode: static token ---
         if ENVIRONMENT == "selfhost":
             if not SELF_HOST_AUTH_SECRET:
                 logger.critical("selfhost mode is active but SELF_HOST_AUTH_SECRET is not set.")
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Self-host auth secret not configured.")
             if token == SELF_HOST_AUTH_SECRET:
-                # Return a mock payload with a static user_id and all permissions
                 permissions = AUTH0_SCOPE.split() if AUTH0_SCOPE else []
                 return {
                     "sub": "self-hosted-user",
                     "permissions": permissions,
-                    "email": "selfhost@example.com" # Add a dummy email
+                    "email": "selfhost@example.com"
                 }
             else:
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid self-host token")
-        if not jwks:
-            logger.error("JWKS not available for token validation.")
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Auth service config error (JWKS).")
 
+        # --- Supabase JWT validation ---
         credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials", headers={"WWW-Authenticate": "Bearer"},
         )
+        
+        # Decode header to determine algorithm
         try:
             unverified_header = jwt.get_unverified_header(token)
-            token_kid = unverified_header.get("kid")
-            if not token_kid:
-                raise credentials_exception
-
-            rsa_key_data = {}
-            for key_entry in jwks.get("keys", []):
-                if isinstance(key_entry, dict) and key_entry.get("kid") == token_kid:
-                    rsa_key_data = {comp: key_entry[comp] for comp in ["kty", "kid", "use", "n", "e"] if comp in key_entry}
-                    if all(k in rsa_key_data for k in ["kty", "n", "e"]): break
-            
-            if not rsa_key_data or not all(k in rsa_key_data for k in ["kty", "n", "e"]):
-                raise credentials_exception
-
-            payload = jwt.decode(
-                token, rsa_key_data, algorithms=ALGORITHMS,
-                audience=AUTH0_AUDIENCE, issuer=f"https://{AUTH0_DOMAIN}/"
-            )
-            return payload
-        except JWTError as e:
-            logger.warning(f"JWT validation error: {e}")
-            raise credentials_exception
-        except JOSEError as e:
-            logger.warning(f"JOSE validation error: {e}")
-            raise credentials_exception
-        except HTTPException:
-            raise
+            alg = unverified_header.get("alg", "HS256")
+            kid = unverified_header.get("kid")
+            print(f"[AUTH] Token alg={alg}, kid={kid}")
         except Exception as e:
-            logger.error(f"Unexpected token validation error: {e}", exc_info=True)
+            print(f"[AUTH] Failed to decode token header: {e}")
+            raise credentials_exception
+
+        try:
+            if alg == "ES256":
+                # ES256: verify using JWKS public key from Supabase
+                jwks = _get_jwks_keys()
+                matching_keys = [k for k in jwks.get("keys", []) if k.get("kid") == kid]
+                if not matching_keys:
+                    # Try any ES256 key if kid doesn't match
+                    matching_keys = [k for k in jwks.get("keys", []) if k.get("alg") == "ES256"]
+                
+                if not matching_keys:
+                    print(f"[AUTH] No matching JWKS key found for kid={kid}")
+                    raise credentials_exception
+                
+                key = matching_keys[0]
+                payload = jwt.decode(
+                    token,
+                    key,
+                    algorithms=["ES256"],
+                    options={"verify_aud": False}
+                )
+                print(f"[AUTH] JWT validation SUCCESS (ES256). sub={payload.get('sub')}")
+                return payload
+            else:
+                # HS256: verify using JWT secret
+                if not SUPABASE_JWT_SECRET:
+                    logger.error("SUPABASE_JWT_SECRET not available for HS256 token validation.")
+                    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Auth service config error (JWT secret).")
+                
+                payload = jwt.decode(
+                    token,
+                    SUPABASE_JWT_SECRET,
+                    algorithms=["HS256"],
+                    options={"verify_aud": False}
+                )
+                print(f"[AUTH] JWT validation SUCCESS (HS256). sub={payload.get('sub')}")
+                return payload
+        except JWTError as e:
+            print(f"[AUTH] JWT validation FAILED ({alg}): {e}")
+            logger.warning(f"JWT validation error: {e}")
             raise credentials_exception
 
     async def get_current_user_id_plan_and_permissions(self, token: str = Depends(oauth2_scheme)) -> Tuple[str, str, List[str]]:
@@ -115,8 +138,10 @@ class AuthHelper:
         if ENVIRONMENT == "selfhost":
             plan = "selfhost"
         else:
-            roles = payload.get(f"{AUTH0_NAMESPACE}/roles", [])
-            if "Pro" in roles:
+            # Supabase: check app_metadata or user_metadata for role
+            app_metadata = payload.get("app_metadata", {})
+            user_role = app_metadata.get("role", "")
+            if user_role == "pro" or "Pro" in payload.get("user_metadata", {}).get("roles", []):
                 plan = "pro"
 
         return user_id, plan, permissions
@@ -124,30 +149,34 @@ class AuthHelper:
     async def get_current_user_id(self, token: str = Depends(oauth2_scheme)) -> str:
         user_id, _, _ = await self.get_current_user_id_plan_and_permissions(token=token)
         return user_id
-    
+
     async def get_decoded_payload_with_claims(self, token: str = Depends(oauth2_scheme)) -> dict:
         payload = await self._validate_token_and_get_payload(token)
         user_id = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID (sub) not in token")
-        payload["user_id"] = user_id 
+        payload["user_id"] = user_id
 
-        # Add plan to payload for easy access in endpoints
+        # Add plan to payload for easy access
         plan = "free"
-        if ENVIRONMENT == "selfhost": plan = "selfhost"
-        elif "Pro" in payload.get(f"{AUTH0_NAMESPACE}/roles", []): plan = "pro"
+        if ENVIRONMENT == "selfhost":
+            plan = "selfhost"
+        else:
+            app_metadata = payload.get("app_metadata", {})
+            if app_metadata.get("role") == "pro":
+                plan = "pro"
         payload["plan"] = plan
 
-        if AUTH0_NAMESPACE:
-            payload["email"] = payload.get(f"{AUTH0_NAMESPACE}/email")
+        # Supabase includes email at the top level
+        payload["email"] = payload.get("email")
 
         return payload
 
-    async def ws_authenticate_with_data(self, websocket: WebSocket) -> Optional[Dict]:
+    async def ws_authenticate_with_data(self, websocket: WebSocket) -> Optional[dict]:
         try:
             auth_message_str = await websocket.receive_text()
             auth_message = JsonExtractor.extract_valid_json(auth_message_str)
-            
+
             if not auth_message or not isinstance(auth_message, dict) or auth_message.get("type") != "auth" or not auth_message.get("token"):
                 await websocket.send_json({"type": "auth_failure", "message": "Invalid auth message format."})
                 await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -161,8 +190,7 @@ class AuthHelper:
                 await websocket.send_json({"type": "auth_failure", "message": "User ID not found in token."})
                 await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
                 return None
-            
-            # Add other data from the auth message to the return dict
+
             auth_data = {
                 "user_id": user_id,
                 **{k: v for k, v in auth_message.items() if k not in ["type", "token"]}
@@ -182,7 +210,8 @@ class AuthHelper:
             try:
                 await websocket.send_json({"type": "auth_failure", "message": "Internal server error during auth."})
                 await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
-            except: pass
+            except:
+                pass
             return None
 
     async def ws_authenticate(self, websocket: WebSocket) -> Optional[str]:
@@ -192,6 +221,7 @@ class AuthHelper:
     async def get_current_user_id_and_plan(self, token: str = Depends(oauth2_scheme)) -> Tuple[str, str]:
         user_id, plan, _ = await self.get_current_user_id_plan_and_permissions(token=token)
         return user_id, plan
+
 
 class PermissionChecker:
     def __init__(self, required_permissions: List[str]):
@@ -207,6 +237,7 @@ class PermissionChecker:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Missing permissions: {', '.join(missing)}")
         return user_id
 
+
 # --- AES Encryption/Decryption ---
 def aes_encrypt(data: str) -> str:
     if not AES_SECRET_KEY or not AES_IV:
@@ -219,6 +250,7 @@ def aes_encrypt(data: str) -> str:
     encrypted = encryptor.update(padded_data) + encryptor.finalize()
     return base64.b64encode(encrypted).decode()
 
+
 def aes_decrypt(encrypted_data: str) -> str:
     if not AES_SECRET_KEY or not AES_IV:
         raise ValueError("AES encryption keys are not configured.")
@@ -230,32 +262,3 @@ def aes_decrypt(encrypted_data: str) -> str:
     unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
     unpadded_data = unpadder.update(decrypted) + unpadder.finalize()
     return unpadded_data.decode()
-
-# --- Auth0 Management API Token ---
-def get_management_token() -> str:
-    if not all([AUTH0_DOMAIN, AUTH0_MANAGEMENT_CLIENT_ID, AUTH0_MANAGEMENT_CLIENT_SECRET]):
-        logger.error("Auth0 Management API credentials not fully configured.")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Auth0 Management API config error.")
-    
-    url = f"https://{AUTH0_DOMAIN}/oauth/token"
-    payload = {
-        "grant_type": "client_credentials",
-        "client_id": AUTH0_MANAGEMENT_CLIENT_ID,
-        "client_secret": AUTH0_MANAGEMENT_CLIENT_SECRET,
-        "audience": f"https://{AUTH0_DOMAIN}/api/v2/",
-    }
-    headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    try:
-        response = requests.post(url, data=payload, headers=headers, timeout=10)
-        response.raise_for_status()
-        token_data = response.json()
-        access_token = token_data.get("access_token")
-        if not access_token:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid token response from Auth0 Mgmt API.")
-        return access_token
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to get Auth0 management token: {e}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Failed to get management token: {e}")
-    except Exception as e:
-        logger.error(f"Error processing Auth0 management token response: {e}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error processing management token response.")

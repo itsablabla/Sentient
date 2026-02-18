@@ -7,7 +7,10 @@ from dotenv import load_dotenv
 from fastmcp import FastMCP, Context
 from fastmcp.exceptions import ToolError
 from fastmcp.prompts.prompt import Message
-from notion_client.helpers import is_full_page_or_database
+try:
+    from notion_client.helpers import is_full_page_or_database
+except ImportError:
+    from notion_client.helpers import is_full_page_or_data_source as is_full_page_or_database
 from json_extractor import JsonExtractor
 
 from fastmcp.utilities.logging import configure_logging, get_logger

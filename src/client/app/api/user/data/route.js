@@ -12,13 +12,13 @@ export const POST = withAuth(async function POST(request, { authHeader }) {
 		const response = await fetch(`${appServerUrl}/api/get-user-data`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json", ...authHeader },
-			cache: "no-store" // Prevent Next.js from caching this server-side fetch
+			cache: "no-store"
 		})
 
 		const data = await response.json()
 		if (!response.ok) {
 			throw new Error(
-				data.message || "Failed to fetch user data from backend"
+				data.message || data.detail || `Backend returned ${response.status}`
 			)
 		}
 
@@ -26,10 +26,11 @@ export const POST = withAuth(async function POST(request, { authHeader }) {
 			headers: { "Cache-Control": "no-store, max-age=0" }
 		})
 	} catch (error) {
-		console.error("API Error in /user/data:", error)
+		console.error("[user/data] Error:", error.message)
 		return NextResponse.json(
-			{ message: "Internal Server Error", error: error.message },
+			{ message: error.message },
 			{ status: 500 }
 		)
 	}
 })
+

@@ -6,7 +6,6 @@ from typing import Dict, Optional
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.backends import default_backend
-import motor.motor_asyncio
 from fastmcp import Context
 from fastmcp.exceptions import ToolError
 
@@ -22,18 +21,14 @@ if ENVIRONMENT == 'dev-local':
 DEFAULT_GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 DEFAULT_GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID")
 
-# MongoDB and decryption setup
-MONGO_URI = os.getenv("MONGO_URI")
-MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
+# Supabase setup
 AES_SECRET_KEY_HEX = os.getenv("AES_SECRET_KEY")
 AES_IV_HEX = os.getenv("AES_IV")
 
 AES_SECRET_KEY: Optional[bytes] = bytes.fromhex(AES_SECRET_KEY_HEX) if AES_SECRET_KEY_HEX and len(AES_SECRET_KEY_HEX) == 64 else None
 AES_IV: Optional[bytes] = bytes.fromhex(AES_IV_HEX) if AES_IV_HEX and len(AES_IV_HEX) == 32 else None
 
-client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URI)
-db = client[MONGO_DB_NAME]
-users_collection = db["user_profiles"]
+from mcp_hub.supabase_db import users_collection
 
 def aes_decrypt(encrypted_data: str) -> str:
     if not AES_SECRET_KEY or not AES_IV:

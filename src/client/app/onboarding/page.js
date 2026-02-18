@@ -459,7 +459,7 @@ const OnboardingPage = () => {
 				(await (await fetch("/api/user/profile")).json()).sub, // Fetch user ID from session
 				{ name: submittedAnswers["user-name"] }
 			)
-			posthog?.capture("user_signed_up", { signup_method: "auth0" })
+			posthog?.capture("user_signed_up", { signup_method: "supabase" })
 			posthog?.capture("onboarding_completed")
 			await fetchUserData() // Refresh user data in the store
 			router.push("/chat?show_demo=true")
@@ -489,8 +489,8 @@ const OnboardingPage = () => {
 	}, [
 		currentQuestionIndex,
 		isCurrentQuestionAnswered,
-		handleSubmit,
-		maxQuestionIndexReached
+		submitOnboardingMutation,
+		answers
 	])
 	// --- Effects ---
 

@@ -1,47 +1,80 @@
 import { NextResponse } from "next/server"
-import { auth0 } from "./lib/auth0"
+import { createServerClient } from "@supabase/ssr"
 
 export async function middleware(request) {
-	// Redirect the root path to the chat page
-	if (request.nextUrl.pathname === "/") {
-		const { origin } = new URL(request.url)
-		return NextResponse.redirect(`${origin}/chat`)
+	const { pathname } = request.nextUrl
+
+	// Redirect root to /chat
+	if (pathname === "/") {
+		const url = request.nextUrl.clone()
+		url.pathname = "/chat"
+		return NextResponse.redirect(url)
 	}
 
+	// In self-host mode, skip all auth checks
 	if (process.env.NEXT_PUBLIC_ENVIRONMENT === "selfhost") {
-		// In self-host mode, authentication is handled by a static token,
-		// so we don't need Auth0's session middleware.
 		return NextResponse.next()
 	}
-	const authRes = await auth0.middleware(request)
 
-	// authentication routes — let the middleware handle it
-	if (request.nextUrl.pathname.startsWith("/auth")) {
-		return authRes
+	// Create a Supabase client for the middleware
+	let response = NextResponse.next({
+		request: {
+			headers: request.headers
+		}
+	})
+
+	const supabase = createServerClient(
+		process.env.NEXT_PUBLIC_SUPABASE_URL,
+		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+		{
+			cookies: {
+				getAll() {
+					return request.cookies.getAll()
+				},
+				setAll(cookiesToSet) {
+					cookiesToSet.forEach(({ name, value, options }) =>
+						request.cookies.set(name, value)
+					)
+					response = NextResponse.next({
+						request: {
+							headers: request.headers
+						}
+					})
+					cookiesToSet.forEach(({ name, value, options }) =>
+						response.cookies.set(name, value, options)
+					)
+				}
+			}
+		}
+	)
+
+	// Refresh the session (important for token refresh)
+	const {
+		data: { user }
+	} = await supabase.auth.getUser()
+
+	// Public paths that don't require authentication
+	const publicPaths = ["/auth/login", "/auth/signup", "/auth/callback"]
+	const isPublicPath = publicPaths.some((path) => pathname.startsWith(path))
+
+	if (!user && !isPublicPath) {
+		const url = request.nextUrl.clone()
+		url.pathname = "/auth/login"
+		return NextResponse.redirect(url)
 	}
 
-	const { origin } = new URL(request.url)
-	const session = await auth0.getSession()
-
-	// user does not have a session — redirect to login
-	if (!session) {
-		return NextResponse.redirect(`${origin}/auth/login`)
-	}
-
-	return authRes
+	return response
 }
 
 export const config = {
 	matcher: [
 		/*
-		 * Match all request paths except for the ones starting with:
+		 * Match all request paths except for:
 		 * - _next/static (static files)
 		 * - _next/image (image optimization files)
 		 * - favicon.ico, sitemap.xml, robots.txt (metadata files)
-		 * - api (API routes)
-		 * - PWA files (manifest, icons, service worker, workbox)
-		 * - .png and .svg files (static images)
+		 * - Public assets
 		 */
-		"/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|api|manifest.json|manifest.webmanifest|sw.js|workbox-.*\\.js$|.*\\.png$|.*\\.svg$).*)"
+		"/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|images|icons|sw.js|manifest.json).*)"
 	]
 }

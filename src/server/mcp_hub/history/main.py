@@ -12,7 +12,7 @@ from fastmcp.utilities.logging import configure_logging, get_logger
 
 from . import auth, prompts
 from main.vector_db import get_conversation_summaries_collection
-from main.db import MongoManager
+from main.db import SupabaseManager as MongoManager  # Aliased for backward compat
 
 # --- Standardized Logging Setup ---
 configure_logging(level="INFO")

@@ -1,7 +1,7 @@
 import logging
 import datetime
 from typing import Dict, Any, List, Optional
-from main.db import MongoManager
+from main.db import SupabaseManager as MongoManager  # Aliased for backward compat
 
 logger = logging.getLogger(__name__)
 

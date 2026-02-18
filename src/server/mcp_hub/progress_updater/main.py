@@ -1,5 +1,4 @@
 import os
-import motor.motor_asyncio
 import datetime
 from typing import Dict, Any
 
@@ -19,12 +18,8 @@ if ENVIRONMENT == 'dev-local':
     dotenv_path = os.path.join(os.path.dirname(__file__), '..', '..', '.env')
     if os.path.exists(dotenv_path):
         load_dotenv(dotenv_path=dotenv_path)
-# --- DB Setup ---
-MONGO_URI = os.getenv("MONGO_URI")
-MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
-client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URI)
-db = client[MONGO_DB_NAME]
-tasks_collection = db["tasks"]
+# --- DB Setup (via Supabase) ---
+# Note: this MCP doesn't query DB directly; it forwards updates to main server.
 
 # --- MCP Server ---
 mcp = FastMCP(

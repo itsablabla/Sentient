@@ -39,8 +39,10 @@ export const useUserStore = create(
 					const res = await fetch("/api/user/data", {
 						method: "POST"
 					})
-					if (!res.ok)
-						throw new Error("Could not verify user status.")
+					if (!res.ok) {
+						const errBody = await res.json().catch(() => ({}))
+						throw new Error(errBody.message || errBody.error || `Server returned ${res.status}`)
+					}
 					const data = await res.json()
 
 					const profileRes = await fetch("/api/user/profile")

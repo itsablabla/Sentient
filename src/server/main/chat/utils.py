@@ -15,7 +15,7 @@ from qwen_agent.tools.base import BaseTool, register_tool
 from openai import OpenAI, APIError
 
 from main.chat.prompts import STAGE_1_SYSTEM_PROMPT, STAGE_2_SYSTEM_PROMPT, VOICE_STAGE_1_SYSTEM_PROMPT, VOICE_STAGE_2_SYSTEM_PROMPT, LANGUAGE_CODE_MAPPING # noqa: E501
-from main.db import MongoManager
+from main.db import SupabaseManager as MongoManager  # Aliased for backward compat
 from main.llm import run_agent, LLMProviderDownError
 from main.config import (INTEGRATIONS_CONFIG, ENVIRONMENT, OPENAI_API_KEY, OPENAI_API_BASE_URL, OPENAI_MODEL_NAME)
 from json_extractor import JsonExtractor

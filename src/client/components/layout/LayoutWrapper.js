@@ -9,7 +9,7 @@ import GlobalSearch from "@components/ui/GlobalSearch"
 import { useGlobalShortcuts } from "@hooks/useGlobalShortcuts"
 import { cn } from "@utils/cn"
 import toast from "react-hot-toast"
-import { useUser } from "@auth0/nextjs-auth0"
+import { supabase, getSupabaseUser } from "@lib/supabase"
 import { usePostHog } from "posthog-js/react"
 import {
 	useUIStore,
@@ -444,7 +444,47 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 export default function LayoutWrapper({ children }) {
-	const { user, error: authError, isLoading: isAuthLoading } = useUser()
+	// Supabase auth state (replaces Auth0's useUser)
+	const [user, setUser] = useState(null)
+	const [isAuthLoading, setIsAuthLoading] = useState(true)
+	const [authError, setAuthError] = useState(null)
+
+	useEffect(() => {
+		const isSelfHost = process.env.NEXT_PUBLIC_ENVIRONMENT === "selfhost"
+		if (isSelfHost) {
+			setUser({ sub: "self-hosted-user", name: "Self-Hosted User" })
+			setIsAuthLoading(false)
+			return
+		}
+
+		if (!supabase) {
+			setIsAuthLoading(false)
+			return
+		}
+
+		// Check initial session
+		getSupabaseUser().then((u) => {
+			setUser(u)
+			setIsAuthLoading(false)
+		}).catch((e) => {
+			setAuthError(e)
+			setIsAuthLoading(false)
+		})
+
+		// Listen for auth state changes
+		const { data: { subscription } } = supabase.auth.onAuthStateChange(
+			async (_event, session) => {
+				if (session?.user) {
+					const u = await getSupabaseUser()
+					setUser(u)
+				} else {
+					setUser(null)
+				}
+			}
+		)
+		return () => subscription.unsubscribe()
+	}, [])
+
 	const {
 		isSearchOpen,
 		isMobileNavOpen,
@@ -478,7 +518,8 @@ export default function LayoutWrapper({ children }) {
 	const [isLoading, setIsLoading] = useState(true)
 	const [isAllowed, setIsAllowed] = useState(false)
 
-	const showNav = !["/", "/onboarding"].includes(pathname)
+	const isAuthPage = pathname.startsWith("/auth")
+	const showNav = !["/", "/onboarding"].includes(pathname) && !isAuthPage
 
 	useEffect(() => {
 		if (user && posthog) {
@@ -822,6 +863,11 @@ export default function LayoutWrapper({ children }) {
 	}, [showNav, user, subscribeToPushNotifications])
 
 	useGlobalShortcuts(openNotifications, openSearch)
+
+	// Auth pages render immediately, no loading gates
+	if (isAuthPage) {
+		return <>{children}</>
+	}
 
 	if (isLoading || isAuthLoading) {
 		return (

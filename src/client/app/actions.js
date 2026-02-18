@@ -1,35 +1,59 @@
 "use server"
 
-import { auth0 } from "@lib/auth0"
-import { MongoClient } from "mongodb"
+import { createClient } from "@supabase/supabase-js"
 import webpush from "web-push"
 
-// --- DB Connection ---
-const MONGO_URI = process.env.MONGO_URI
-const MONGO_DB_NAME = process.env.MONGO_DB_NAME
+// --- DB Connection (Supabase) ---
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-let cachedClient = null
-let cachedDb = null
+let cachedSupabase = null
 
-async function connectToDatabase() {
-	if (cachedClient && cachedDb) {
-		return { client: cachedClient, db: cachedDb }
-	}
+function getSupabaseAdmin() {
+	if (cachedSupabase) return cachedSupabase
 
-	if (!MONGO_URI) {
+	if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
 		throw new Error(
-			"MONGO_URI is not defined in the environment variables."
+			"SUPABASE_URL or SUPABASE_SERVICE_KEY is not defined in the environment variables."
 		)
 	}
 
-	const client = new MongoClient(MONGO_URI)
-	await client.connect()
-	const db = client.db(MONGO_DB_NAME)
+	cachedSupabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+	return cachedSupabase
+}
 
-	cachedClient = client
-	cachedDb = db
+// --- Get current user from Supabase Auth ---
+async function getCurrentUserId() {
+	if (process.env.NEXT_PUBLIC_ENVIRONMENT === "selfhost") {
+		return "self-hosted-user"
+	}
 
-	return { client, db }
+	// In server actions, we use the service key client and verify via cookie/header
+	// For simplicity, we'll use the createServerClient approach
+	const { createServerClient } = await import("@supabase/ssr")
+	const { cookies } = await import("next/headers")
+
+	const cookieStore = await cookies()
+	const supabase = createServerClient(
+		process.env.NEXT_PUBLIC_SUPABASE_URL,
+		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+		{
+			cookies: {
+				getAll() {
+					return cookieStore.getAll()
+				}
+			}
+		}
+	)
+
+	const {
+		data: { user },
+		error
+	} = await supabase.auth.getUser()
+	if (error || !user) {
+		throw new Error("Not authenticated")
+	}
+	return user.id
 }
 
 // --- WebPush Setup ---
@@ -52,21 +76,40 @@ if (
 // --- Server Actions ---
 
 export async function subscribeUser(subscription) {
-	const session = await auth0.getSession()
-	if (!session?.user) {
-		throw new Error("Not authenticated")
-	}
-	const userId = session.user.sub
+	const userId = await getCurrentUserId()
 
 	try {
-		const { db } = await connectToDatabase()
-		const userProfiles = db.collection("user_profiles")
+		const supabase = getSupabaseAdmin()
 
-		await userProfiles.updateOne(
-			{ user_id: userId },
-			{ $addToSet: { "userData.pwa_subscriptions": subscription } },
-			{ upsert: true }
+		// Get existing profile
+		const { data: profile } = await supabase
+			.from("user_profiles")
+			.select("user_data")
+			.eq("user_id", userId)
+			.single()
+
+		const userData = profile?.user_data || {}
+		const existingSubs = userData.pwa_subscriptions || []
+
+		// Add to set (avoid duplicates by endpoint)
+		const alreadyExists = existingSubs.some(
+			(s) => s.endpoint === subscription.endpoint
 		)
+		if (!alreadyExists) {
+			existingSubs.push(subscription)
+		}
+		userData.pwa_subscriptions = existingSubs
+
+		await supabase
+			.from("user_profiles")
+			.upsert(
+				{
+					user_id: userId,
+					user_data: userData,
+					last_updated: new Date().toISOString()
+				},
+				{ onConflict: "user_id" }
+			)
 
 		return { success: true }
 	} catch (error) {
@@ -79,20 +122,31 @@ export async function subscribeUser(subscription) {
 }
 
 export async function unsubscribeUser(endpoint) {
-	const session = await auth0.getSession()
-	if (!session?.user) {
-		throw new Error("Not authenticated")
-	}
-	const userId = session.user.sub
+	const userId = await getCurrentUserId()
 
 	try {
-		const { db } = await connectToDatabase()
-		const userProfiles = db.collection("user_profiles")
+		const supabase = getSupabaseAdmin()
 
-		await userProfiles.updateOne(
-			{ user_id: userId },
-			{ $pull: { "userData.pwa_subscriptions": { endpoint: endpoint } } }
+		const { data: profile } = await supabase
+			.from("user_profiles")
+			.select("user_data")
+			.eq("user_id", userId)
+			.single()
+
+		if (!profile) return { success: true }
+
+		const userData = profile.user_data || {}
+		userData.pwa_subscriptions = (userData.pwa_subscriptions || []).filter(
+			(s) => s.endpoint !== endpoint
 		)
+
+		await supabase
+			.from("user_profiles")
+			.update({
+				user_data: userData,
+				last_updated: new Date().toISOString()
+			})
+			.eq("user_id", userId)
 
 		return { success: true }
 	} catch (error) {
@@ -105,11 +159,7 @@ export async function unsubscribeUser(endpoint) {
 }
 
 export async function sendNotificationToCurrentUser(payload) {
-	const session = await auth0.getSession()
-	if (!session?.user) {
-		throw new Error("Not authenticated")
-	}
-	const userId = session.user.sub
+	const userId = await getCurrentUserId()
 
 	if (
 		!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
@@ -125,15 +175,15 @@ export async function sendNotificationToCurrentUser(payload) {
 	}
 
 	try {
-		const { db } = await connectToDatabase()
-		const userProfile = await db
-			.collection("user_profiles")
-			.findOne(
-				{ user_id: userId },
-				{ projection: { "userData.pwa_subscriptions": 1 } }
-			)
+		const supabase = getSupabaseAdmin()
 
-		const subscriptions = userProfile?.userData?.pwa_subscriptions
+		const { data: profile } = await supabase
+			.from("user_profiles")
+			.select("user_data")
+			.eq("user_id", userId)
+			.single()
+
+		const subscriptions = profile?.user_data?.pwa_subscriptions
 
 		if (
 			!subscriptions ||

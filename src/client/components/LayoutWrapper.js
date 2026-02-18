@@ -19,7 +19,7 @@ import GlobalSearch from "./GlobalSearch"
 import { useGlobalShortcuts } from "@hooks/useGlobalShortcuts"
 import { cn } from "@utils/cn"
 import toast from "react-hot-toast"
-import { useUser } from "@auth0/nextjs-auth0"
+import { useUser } from "@hooks/useUser"
 import { usePostHog } from "posthog-js/react"
 import { motion } from "framer-motion"
 
@@ -1059,20 +1059,25 @@ export default function LayoutWrapper({ children }) {
 				return
 			}
 
-			// --- AUTH0 AUTH LOGIC ---
+			// --- SUPABASE AUTH LOGIC ---
 			if (isAuthLoading) return
 
 			if (authError) {
+				// AbortError from Supabase's navigator.locks is benign — ignore it
+				if (authError.name === "AbortError") {
+					console.warn("[LayoutWrapper] Ignoring Supabase AbortError (navigator.locks race)")
+					return
+				}
 				toast.error(
 					`Session error: ${authError.message}. Redirecting to login.`,
 					{ id: "auth-error" }
 				)
-				router.push("/api/auth/login")
+				router.push("/auth/login")
 				return
 			}
 
 			if (!auth0User) {
-				router.push("/api/auth/login")
+				router.push("/auth/login")
 				return
 			}
 
@@ -1080,7 +1085,11 @@ export default function LayoutWrapper({ children }) {
 
 			try {
 				const res = await fetch("/api/user/data", { method: "POST" })
-				if (!res.ok) throw new Error("Could not verify user status.")
+				if (!res.ok) {
+					const errBody = await res.json().catch(() => ({}))
+					console.error("[LayoutWrapper] /api/user/data failed:", res.status, errBody)
+					throw new Error(errBody.message || errBody.error || `Server returned ${res.status}`)
+				}
 				const result = await res.json()
 				if (!result?.data?.onboardingComplete) {
 					router.push("/onboarding")
@@ -1088,8 +1097,10 @@ export default function LayoutWrapper({ children }) {
 					setIsAllowed(true)
 				}
 			} catch (error) {
-				toast.error(error.message)
-				router.push("/")
+				console.error("[LayoutWrapper] checkStatus error:", error.message)
+				toast.error(error.message, { id: "user-status-error" })
+				// Don't redirect to "/" - it causes an infinite loop via middleware
+				setIsAllowed(false)
 			} finally {
 				setIsLoading(false)
 			}
@@ -1345,18 +1356,8 @@ export default function LayoutWrapper({ children }) {
 	return (
 		<PlanContext.Provider
 			value={{
-				plan: (
-					auth0User?.[
-						`${process.env.NEXT_PUBLIC_AUTH0_NAMESPACE}/roles`
-					] || []
-				).includes("Pro")
-					? "pro"
-					: "free",
-				isPro: (
-					auth0User?.[
-						`${process.env.NEXT_PUBLIC_AUTH0_NAMESPACE}/roles`
-					] || []
-				).includes("Pro"),
+				plan: "free",
+				isPro: false,
 				isLoading: isAuthLoading
 			}}
 		>

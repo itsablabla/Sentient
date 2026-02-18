@@ -6,8 +6,6 @@ from main.config import DEEPGRAM_API_KEY
 
 from deepgram import (
     DeepgramClient,
-    PrerecordedOptions,
-    BufferSource,
 )
 
    
@@ -35,21 +33,18 @@ class DeepgramSTT(BaseSTT):
             return "", None
 
         try:
-            source: BufferSource = {"buffer": audio_bytes}
-            
-            options = PrerecordedOptions(
+            # Deepgram SDK v3+ usage: client.listen.v1.media.transcribe_file
+            # Options are passed as kwargs
+            response = await self.client.listen.v1.media.transcribe_file(
+                request={"buffer": audio_bytes},
                 model="nova-3",
                 smart_format=True,
                 detect_language=True,
                 punctuate=True,
                 utterances=True,
-                encoding="linear16",      
-                sample_rate=sample_rate, 
+                encoding="linear16",
+                sample_rate=sample_rate,
                 channels=1
-            )
-
-            response = await self.client.listen.asyncrest.v("1").transcribe_file(
-                source, options
             )
             
             if response.results and response.results.channels:

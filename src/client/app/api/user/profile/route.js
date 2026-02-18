@@ -1,6 +1,7 @@
 // src/client/app/api/user/profile/route.js
 import { NextResponse } from "next/server"
-import { auth0 } from "@lib/auth0"
+import { createServerClient } from "@supabase/ssr"
+import { cookies } from "next/headers"
 
 export async function GET() {
 	if (process.env.NEXT_PUBLIC_ENVIRONMENT === "selfhost") {
@@ -9,7 +10,7 @@ export async function GET() {
 				sub: "self-hosted-user",
 				given_name: "User",
 				name: "Self-Hosted User",
-				picture: "/images/half-logo-dark.svg" // A default picture
+				picture: "/images/half-logo-dark.svg"
 			},
 			{
 				headers: { "Cache-Control": "no-store, max-age=0" }
@@ -17,23 +18,43 @@ export async function GET() {
 		)
 	}
 
-	const session = await auth0.getSession()
+	const cookieStore = await cookies()
+	const supabase = createServerClient(
+		process.env.NEXT_PUBLIC_SUPABASE_URL,
+		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+		{
+			cookies: {
+				getAll() {
+					return cookieStore.getAll()
+				}
+			}
+		}
+	)
 
-	if (!session?.user) {
+	const {
+		data: { user },
+		error
+	} = await supabase.auth.getUser()
+
+	if (error || !user) {
 		return NextResponse.json(
 			{ message: "Not authenticated" },
 			{ status: 401 }
 		)
 	}
 
-	// The user profile comes directly from the session token.
-	// We ensure `given_name` is provided for the UI.
 	const userProfile = {
-		sub: session.user.sub,
-		given_name: session.user.given_name || session.user.name || "User",
+		sub: user.id,
+		given_name:
+			user.user_metadata?.given_name ||
+			user.user_metadata?.full_name ||
+			user.email?.split("@")[0] ||
+			"User",
+		name: user.user_metadata?.full_name || user.email?.split("@")[0] || "User",
+		email: user.email,
 		picture:
-			session.user.picture ||
-			`https://i.pravatar.cc/150?u=${session.user.sub}`
+			user.user_metadata?.avatar_url ||
+			`https://i.pravatar.cc/150?u=${user.id}`
 	}
 
 	return NextResponse.json(userProfile, {

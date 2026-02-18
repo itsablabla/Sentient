@@ -20,7 +20,7 @@ from workers.utils.text_utils import clean_llm_output
 from celery import chord, group
 from main.llm import run_agent as run_main_agent, LLMProviderDownError
 from workers.utils.crypto import aes_decrypt, encrypt_doc, decrypt_doc
-from main.db import MongoManager
+from main.db import SupabaseManager as MongoManager  # Aliased for backward compat
 
 # Load environment variables for the worker from its own config
 from workers.executor.config import (MONGO_URI, MONGO_DB_NAME,

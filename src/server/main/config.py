@@ -23,18 +23,16 @@ elif ENVIRONMENT == 'selfhost':
 APP_SERVER_PORT = int(os.getenv("APP_SERVER_PORT", 5000))
 
 # --- Auth ---
-AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN")
-AUTH0_AUDIENCE = os.getenv("AUTH0_AUDIENCE")
-ALGORITHMS = ["RS256"]
-AUTH0_SCOPE = os.getenv("AUTH0_SCOPE")
-AUTH0_NAMESPACE = os.getenv("AUTH0_NAMESPACE")
 SELF_HOST_AUTH_SECRET = os.getenv("SELF_HOST_AUTH_SECRET")
-AUTH0_MANAGEMENT_CLIENT_ID = os.getenv("AUTH0_MANAGEMENT_CLIENT_ID")
-AUTH0_MANAGEMENT_CLIENT_SECRET = os.getenv("AUTH0_MANAGEMENT_CLIENT_SECRET")
+SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
+ALGORITHMS = ["ES256", "HS256"]  # ES256 for newer Supabase projects, HS256 as fallback
+AUTH0_SCOPE = os.getenv("AUTH0_SCOPE")  # Kept for selfhost permissions fallback
+AUTH0_AUDIENCE = os.getenv("AUTH0_AUDIENCE")
 
-# --- Database ---
-MONGO_URI = os.getenv("MONGO_URI")
-MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
+# --- Database (Supabase) ---
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
 # --- Encryption ---
 AES_SECRET_KEY_HEX = os.getenv("AES_SECRET_KEY")
@@ -42,10 +40,6 @@ AES_IV_HEX = os.getenv("AES_IV")
 AES_SECRET_KEY = bytes.fromhex(AES_SECRET_KEY_HEX) if AES_SECRET_KEY_HEX and len(AES_SECRET_KEY_HEX) == 64 else None
 AES_IV = bytes.fromhex(AES_IV_HEX) if AES_IV_HEX and len(AES_IV_HEX) == 32 else None
 DB_ENCRYPTION_ENABLED = os.getenv('ENVIRONMENT') == 'stag'
-
-# --- PWA Push Notifications ---
-VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY")
-VAPID_ADMIN_EMAIL = os.getenv("VAPID_ADMIN_EMAIL")
 
 # --- PWA Push Notifications ---
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY")
@@ -304,7 +298,7 @@ INTEGRATIONS_CONFIG = {
         "display_name": "Memory",
         "description": "Manages the user's memory. Use 'search_memory' to find facts, and 'cud_memory' to add, update, or delete information. This is critical for personalization.",
         "auth_type": "builtin",
-        "icon": "IconBrain", "category": "Advanced",
+        "icon": "IconBrain",
         "category": "Core",
         "mcp_server_config": {
             "name": "memory_mcp",
@@ -315,7 +309,7 @@ INTEGRATIONS_CONFIG = {
         "display_name": "Chat History",
         "description": "Searches the user's long-term conversation history. Use 'semantic_search' for topics and 'time_based_search' for specific date ranges.",
         "auth_type": "builtin",
-        "icon": "IconClock", "category": "Advanced",
+        "icon": "IconClock",
         "category": "Core",
         "mcp_server_config": {
             "name": "history_mcp",
@@ -326,7 +320,7 @@ INTEGRATIONS_CONFIG = {
         "display_name": "File Management",
         "description": "Read and write files to a temporary storage area. Useful for handling uploads, generating files for download, and data analysis.",
         "auth_type": "builtin",
-        "icon": "IconFile", "category": "Advanced",
+        "icon": "IconFile",
         "category": "Utilities",
         "mcp_server_config": {
             "name": "file_management_server",
@@ -348,7 +342,7 @@ INTEGRATIONS_CONFIG = {
         "display_name": "Internal Task Manager",
         "description": "Manages asynchronous, background tasks. Use 'create_task_from_prompt' to create a new task from a natural language prompt.",
         "auth_type": "builtin",
-        "icon": "IconChecklist", "category": "Advanced",
+        "icon": "IconChecklist",
         "category": "Core",
         "mcp_server_config": {
             "name": "tasks_server",
@@ -370,7 +364,7 @@ INTEGRATIONS_CONFIG = {
         "display_name": "Trello",
         "description": "Manage your Trello boards. The agent can list boards and lists, and create new cards.",
         "auth_type": "oauth",
-        "icon": "IconBrandTrello", "category": "Advanced",
+        "icon": "IconBrandTrello",
         "category": "Productivity",
         "mcp_server_config": {
             "name": "trello_server",

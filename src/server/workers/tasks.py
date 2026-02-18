@@ -21,7 +21,7 @@ from main.config import INTEGRATIONS_CONFIG
 from main.tasks.prompts import TASK_CREATION_PROMPT
 from mcp_hub.memory.utils import initialize_embedding_model, initialize_agents, cud_memory
 from main.llm import run_agent as run_main_agent, LLMProviderDownError
-from main.db import MongoManager
+from main.db import SupabaseManager as MongoManager  # Aliased for backward compat
 from workers.celery_app import celery_app # noqa: E501
 from workers.planner.utils import get_all_mcp_descriptions
 from workers.utils.worker_helpers import run_async

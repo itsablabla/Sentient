@@ -1,16 +1,15 @@
-# Place this script in the root of your project (e.g., D:\Documents\cyber\projects\Sentient-New\Code)
+# Place this script in the root of your project (e.g., D:\Sentient\Sentient)
 
 <#
 .SYNOPSIS
-    Starts all backend services, workers, and the frontend client for the Sentient project.
+    Starts all backend services, workers, and the frontend client for the Sentient project (Supabase Edition).
 
 .DESCRIPTION
     This script automates the startup of all necessary services for local development.
     It launches each service in its own dedicated PowerShell terminal window with a clear title.
 
     The script handles:
-    - Starting databases like MongoDB (as admin) and Docker services (Waha, PGVector, Chroma, LiteLLM).
-    - Launching the Redis message broker within the Windows Subsystem for Linux (WSL).
+    - Launching Docker services (Redis, Waha, PGVector, Chroma, LiteLLM).
     - Dynamically discovering and starting all MCP (Modular Companion Protocol) servers.
     - Activating the Python virtual environment for all backend scripts.
     - Running the Celery worker and beat scheduler for background tasks.
@@ -27,14 +26,14 @@
 # --- Configuration ---
 # Please review and update these paths to match your local setup.
 
-# The name of your WSL distribution where Redis is installed.
+# The name of your WSL distribution where Redis is installed (if used as fallback).
 $wslDistroName = "Ubuntu"
 
 # --- Script Body ---
 try {
     # --- Auto-Cleanup: Kill old processes to prevent conflicts ---
     Write-Host "🧹 Pre-flight Cleanup: Checking for zombie processes..." -ForegroundColor Cyan
-    $PortsToClean = @(3000, 3001, 3002, 3005, 8080) + (9000..9100)
+    $PortsToClean = @(3000, 3001, 3002, 3005, 8000, 8080) + (9000..9100)
     foreach ($P in $PortsToClean) {
         $Conn = Get-NetTCPConnection -LocalPort $P -ErrorAction SilentlyContinue
         if ($Conn) {
@@ -45,7 +44,7 @@ try {
 
     # Prerequisite check
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-        throw "Docker command not found. Please install Docker Desktop and ensure it is running."
+        Write-Warning "Docker command not found. Redis and other services might fail if not installed locally."
     }
 
     # Get the directory where the script is located (your project root)
@@ -74,9 +73,6 @@ try {
         if ($passwordLine) {
             $redisPassword = $passwordLine.Matches[0].Groups[1].Value.Trim()
         }
-    }
-    if (-not $redisPassword) {
-        throw "Could not find REDIS_PASSWORD in the src/server/.env file."
     }
 
     # Helper function to start a process in a new terminal window
@@ -107,18 +103,11 @@ try {
 
     # --- 1. Start Databases & Core Infrastructure ---
     Write-Host "`n--- 1. Starting Databases & Core Infrastructure ---" -ForegroundColor Cyan
-
-    # Start MongoDB Service (requires admin)
-    Write-Host "🚀 Launching MongoDB Service (requires admin)..." -ForegroundColor Yellow
-    Start-Process powershell.exe -Verb RunAs -ArgumentList "Start-Service -Name 'MongoDB' -ErrorAction SilentlyContinue; if (`$?) { Write-Host 'MongoDB service started successfully.' -ForegroundColor Green } else { Write-Host 'MongoDB service was already running or failed to start.' -ForegroundColor Yellow }; Read-Host 'Press Enter to close this admin window.'"
-    Start-Sleep -Seconds 3
-
     
-    # (Redis is now started via Docker below)
-
+    # Note: MongoDB startup removed as project migrated to Supabase.
     
-    # Start Docker Containers (Waha, PGVector, Chroma, LiteLLM)
-    Write-Host "🚀 Launching Docker services (Waha, PGVector, Chroma, LiteLLM)..." -ForegroundColor Yellow
+    # Start Docker Containers (Waha, PGVector, Chroma, LiteLLM, Redis)
+    Write-Host "🚀 Launching Docker services (Waha, Redis, PGVector, Chroma, LiteLLM)..." -ForegroundColor Yellow
     $dockerServices = @(
         @{ Name = "WAHA"; File = "start_waha.yaml" },
         @{ Name = "Redis"; File = "start_redis.yaml" },
@@ -169,9 +158,14 @@ try {
     # --- 3. Resetting Queues & State (for clean development starts) ---
     Write-Host "`n--- 3. Resetting Queues & State ---" -ForegroundColor Cyan
 
-    # Clear Redis (Celery queue) - This is fast, runs in the current window.
+    # Clear Redis (Celery queue) - This uses WSL if available, or just assumes local redis-cli works
     Write-Host "🚀 Flushing Redis database (Celery Queue)..." -ForegroundColor Yellow
-    $redisFlushCommand = "wsl -d $wslDistroName -e redis-cli FLUSHALL"
+    $redisFlushCommand = "redis-cli FLUSHALL"
+    # Try WSL if available
+    if (Get-Command wsl -ErrorAction SilentlyContinue) {
+        $redisFlushCommand = "wsl -d $wslDistroName -e redis-cli FLUSHALL" 
+    }
+    
     Start-NewTerminal -WindowTitle "RESET - Redis Flush" -Command $redisFlushCommand -WorkDir $serverPath -NoExit:$false
 
     # --- 4. Start Backend Workers ---
@@ -193,6 +187,7 @@ try {
 
     # Start Main FastAPI Server
     Write-Host "🚀 Launching Main API Server..." -ForegroundColor Yellow
+    # Using uvicorn command directly for better reliability or python -m main.app if __main__ exists
     $mainApiCommand = "& '$venvActivatePath'; python -m main.app"
     Start-NewTerminal -WindowTitle "API - Main Server" -Command $mainApiCommand -WorkDir $serverPath
     Start-Sleep -Seconds 3

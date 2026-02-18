@@ -221,39 +221,49 @@ async def check_user_profile_endpoint(user_id: str = Depends(PermissionChecker(r
 # === User Profile Routes ===
 @router.post("/get-user-data", summary="Get User Profile's userData field")
 async def get_user_data_endpoint(payload: dict = Depends(auth_helper.get_decoded_payload_with_claims)):
-    user_id = payload.get("sub")
-    user_email = payload.get("email")
-    profile_doc = await mongo_manager.get_user_profile(user_id)
-
-    token_plan = payload.get("plan", "free")
-
-    # Check if profile exists and if plan is up-to-date
-    profile_exists = profile_doc is not None
-
-    stored_plan = profile_doc.get("userData", {}).get("plan") if profile_exists else None
-
-    # This condition covers both creating a new profile and updating an existing one's plan.
-    if not profile_exists or stored_plan != token_plan:
-        logger.info(f"Updating plan for user {user_id} to '{token_plan}'. Profile exists: {profile_exists}")
-        await mongo_manager.update_user_profile(user_id, {"userData.plan": token_plan})
-
-        if user_email and stored_plan != token_plan: # Only update if the plan actually changed
-            try:
-                await update_plan_in_sheet(user_email, token_plan)
-            except Exception as e:
-                logger.error(f"Failed to update plan in GSheet for {user_email}: {e}")
-
-        # Re-fetch the profile after update to ensure we return the latest data
+    try:
+        user_id = payload.get("sub")
+        user_email = payload.get("email")
+        print(f"[get-user-data] user_id={user_id}, email={user_email}")
         profile_doc = await mongo_manager.get_user_profile(user_id)
+        print(f"[get-user-data] profile_doc exists: {profile_doc is not None}")
 
-    if profile_doc and "userData" in profile_doc:
-        response_data = profile_doc["userData"]
-        serializable_data = _serialize_datetimes(response_data)
-        return JSONResponse(content={"data": serializable_data, "status": 200})
+        token_plan = payload.get("plan", "free")
 
-    # Fallback in case re-fetch fails or returns an empty doc
-    logger.warning(f"Could not retrieve or create userData for user {user_id}. Returning empty data.")
-    return JSONResponse(content={"data": {}, "status": 200})
+        # Check if profile exists and if plan is up-to-date
+        profile_exists = profile_doc is not None
+
+        stored_plan = profile_doc.get("userData", {}).get("plan") if profile_exists else None
+
+        # This condition covers both creating a new profile and updating an existing one's plan.
+        if not profile_exists or stored_plan != token_plan:
+            logger.info(f"Updating plan for user {user_id} to '{token_plan}'. Profile exists: {profile_exists}")
+            await mongo_manager.update_user_profile(user_id, {"userData.plan": token_plan})
+
+            if user_email and stored_plan != token_plan: # Only update if the plan actually changed
+                try:
+                    await update_plan_in_sheet(user_email, token_plan)
+                except Exception as e:
+                    logger.error(f"Failed to update plan in GSheet for {user_email}: {e}")
+
+            # Re-fetch the profile after update to ensure we return the latest data
+            profile_doc = await mongo_manager.get_user_profile(user_id)
+
+        if profile_doc and "userData" in profile_doc:
+            response_data = profile_doc["userData"]
+            serializable_data = _serialize_datetimes(response_data)
+            return JSONResponse(content={"data": serializable_data, "status": 200})
+
+        # Fallback in case re-fetch fails or returns an empty doc
+        logger.warning(f"Could not retrieve or create userData for user {user_id}. Returning empty data.")
+        return JSONResponse(content={"data": {}, "status": 200})
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions as-is
+    except Exception as e:
+        import traceback
+        print(f"[get-user-data] ERROR: {e}")
+        traceback.print_exc()
+        return JSONResponse(content={"data": {}, "status": 200, "error": str(e)})
 
 @router.websocket("/ws/notifications")
 async def notifications_websocket_endpoint(websocket: WebSocket):
