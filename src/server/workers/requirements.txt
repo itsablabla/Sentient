@@ -5,7 +5,7 @@ motor
 pymongo
 qwen-agent
 httpx
-python-jose[cryptography]
+
 cryptography
 python-dateutil
 google-api-python-client
