@@ -110,7 +110,7 @@ async def _get_stage1_response(messages: List[Dict[str, Any]], connected_tools_m
         stage1_result = JsonExtractor.extract_valid_json(cleaned_output)
 
         if isinstance(stage1_result, dict) and "topic_changed" in stage1_result and "tools" in stage1_result:
-            selected_tools = stage1_result.get("tools", [])
+            selected_tools = stage1_result.get("tools") or []
             connected_tools_selected = [tool for tool in selected_tools if tool in connected_tools_map]
             disconnected_tools_selected = [tool for tool in selected_tools if tool in disconnected_tools_map]
             return {
@@ -279,7 +279,7 @@ async def generate_chat_llm_stream(
             })
         elif msg.get("role") == "assistant":
             # --- CHANGED --- Unroll the assistant's turn from turn_steps into the multi-message format.
-            turn_steps = msg.get("turn_steps", [])
+            turn_steps = msg.get("turn_steps") or []
             thought_buffer = []
 
             for step in turn_steps:

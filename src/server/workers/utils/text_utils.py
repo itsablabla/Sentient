@@ -56,7 +56,7 @@ def parse_assistant_response(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
         if msg.get("role") == "assistant" and "function_call" not in msg and msg.get("content"):
             text = msg.get("content", "").strip()
             if text:
-                final_content = text
+                final_content = clean_llm_output(text)
                 # Since we found the final content, remove the last "thought" we added for it.
                 if turn_steps and turn_steps[-1]["type"] == "thought" and turn_steps[-1]["content"] == text:
                     turn_steps.pop()

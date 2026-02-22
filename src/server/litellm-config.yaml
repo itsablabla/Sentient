@@ -9,7 +9,7 @@ model_list:
   - model_name: gemini-2.5-flash-fallback
     litellm_params:
       model: gemini/gemini-2.5-flash
-      api_key: os.environ/GEMINI_API_KEY_FALLBACK_1   # Free Tier key
+      api_key: os.environ/GEMINI_API_KEY   # Free Tier key
 
   # Last resort: flash-lite on Tier 1
   - model_name: gemini-2.5-flash-lite
@@ -21,7 +21,7 @@ model_list:
   - model_name: gemini-2.5-flash-lite-fallback
     litellm_params:
       model: gemini/gemini-2.5-flash-lite
-      api_key: os.environ/GEMINI_API_KEY_FALLBACK_1
+      api_key: os.environ/GEMINI_API_KEY
 
 litellm_settings:
   drop_params: true

@@ -432,13 +432,23 @@ export default function ChatPage() {
 
 			const reader = response.body.getReader()
 			const decoder = new TextDecoder()
+			let buffer = ""
 
 			while (true) {
 				const { done, value } = await reader.read()
-				if (done) break
+				
+				if (value) {
+					buffer += decoder.decode(value, { stream: true })
+				}
 
-				const chunk = decoder.decode(value)
-				for (const line of chunk.split("\n")) {
+				const lines = buffer.split("\n")
+				if (!done) {
+					buffer = lines.pop() || ""
+				} else {
+					buffer = "" // On done, process everything left in lines
+				}
+
+				for (const line of lines) {
 					if (!line.trim()) continue
 
 					try {
@@ -496,6 +506,22 @@ export default function ChatPage() {
 																[]
 														}
 													}
+													if (parsed.type === "assistantStream" && parsed.token) {
+														return {
+															...msg,
+															id: newId,
+															content: (msg.content || "") + parsed.token,
+															tools: parsed.tools || msg.tools
+														}
+													}
+													if (parsed.type === "thoughtStream" && parsed.thought) {
+														return {
+															...msg,
+															id: newId,
+															content: (msg.content || "") + parsed.thought,
+															tools: parsed.tools || msg.tools
+														}
+													}
 													return {
 														...msg,
 														id: newId,
@@ -525,6 +551,8 @@ export default function ChatPage() {
 						// This might be raw text if streaming fails to produce JSON
 					}
 				}
+
+				if (done) break
 			}
 		},
 		onMutate: async ({ newUserMessage }) => {
