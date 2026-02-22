@@ -16,9 +16,9 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     last_updated    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_user_profiles_user_id ON user_profiles (user_id);
-CREATE INDEX idx_user_profiles_last_active ON user_profiles ((user_data->>'last_active_timestamp'));
-CREATE INDEX idx_user_profiles_onboarding ON user_profiles ((user_data->>'onboardingComplete'));
+CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_profiles_last_active ON user_profiles ((user_data->>'last_active_timestamp'));
+CREATE INDEX IF NOT EXISTS idx_user_profiles_onboarding ON user_profiles ((user_data->>'onboardingComplete'));
 
 -- ============================================================
 -- 2. NOTIFICATIONS
@@ -35,9 +35,9 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_notifications_user_id ON notifications (user_id);
-CREATE INDEX idx_notifications_user_created ON notifications (user_id, created_at DESC);
-CREATE INDEX idx_notifications_user_type ON notifications (user_id, type);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications (user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_type ON notifications (user_id, type);
 
 -- ============================================================
 -- 3. DAILY USAGE (auto-expires via pg_cron or Supabase Edge Function)
@@ -46,14 +46,16 @@ CREATE TABLE IF NOT EXISTS daily_usage (
     id              BIGSERIAL PRIMARY KEY,
     user_id         TEXT NOT NULL,
     date            TEXT NOT NULL,  -- Format: YYYY-MM-DD
-    messages_sent   INT NOT NULL DEFAULT 0,
+    text_messages   INT NOT NULL DEFAULT 0,
     tasks_created   INT NOT NULL DEFAULT 0,
-    voice_minutes   INT NOT NULL DEFAULT 0,
+    voice_chat_seconds INT NOT NULL DEFAULT 0,
+    swarm_tasks     INT NOT NULL DEFAULT 0,
+    file_uploads    INT NOT NULL DEFAULT 0,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, date)
 );
 
-CREATE INDEX idx_daily_usage_date ON daily_usage (date DESC);
+CREATE INDEX IF NOT EXISTS idx_daily_usage_date ON daily_usage (date DESC);
 
 -- ============================================================
 -- 4. MONTHLY USAGE
@@ -62,9 +64,10 @@ CREATE TABLE IF NOT EXISTS monthly_usage (
     id              BIGSERIAL PRIMARY KEY,
     user_id         TEXT NOT NULL,
     month           TEXT NOT NULL,  -- Format: YYYY-MM
-    messages_sent   INT NOT NULL DEFAULT 0,
+    text_messages   INT NOT NULL DEFAULT 0,
+    tasks           INT NOT NULL DEFAULT 0,
     tasks_created   INT NOT NULL DEFAULT 0,
-    voice_minutes   INT NOT NULL DEFAULT 0,
+    voice_chat_seconds INT NOT NULL DEFAULT 0,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, month)
 );
@@ -81,7 +84,7 @@ CREATE TABLE IF NOT EXISTS processed_items_log (
     UNIQUE (user_id, service_name, item_id)
 );
 
-CREATE INDEX idx_processed_items_timestamp ON processed_items_log (processing_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_processed_items_timestamp ON processed_items_log (processing_timestamp DESC);
 
 -- ============================================================
 -- 6. TASKS
@@ -123,13 +126,13 @@ CREATE TABLE IF NOT EXISTS tasks (
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_tasks_user_created ON tasks (user_id, created_at DESC);
-CREATE INDEX idx_tasks_user_status_priority ON tasks (user_id, status, priority);
-CREATE INDEX idx_tasks_status_agent ON tasks (status, agent_id);
-CREATE INDEX idx_tasks_task_id ON tasks (task_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_user_created ON tasks (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tasks_user_status_priority ON tasks (user_id, status, priority);
+CREATE INDEX IF NOT EXISTS idx_tasks_status_agent ON tasks (status, agent_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_task_id ON tasks (task_id);
 
 -- Full-text search on name and description
-CREATE INDEX idx_tasks_text_search ON tasks USING GIN (to_tsvector('english', name || ' ' || description));
+CREATE INDEX IF NOT EXISTS idx_tasks_text_search ON tasks USING GIN (to_tsvector('english', name || ' ' || description));
 
 -- ============================================================
 -- 7. MESSAGES
@@ -146,8 +149,8 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_messages_user_created ON messages (user_id, created_at DESC);
-CREATE INDEX idx_messages_text_search ON messages USING GIN (to_tsvector('english', content));
+CREATE INDEX IF NOT EXISTS idx_messages_user_created ON messages (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_text_search ON messages USING GIN (to_tsvector('english', content));
 
 -- ============================================================
 -- CLEANUP: Auto-delete expired rows (run via pg_cron or Supabase)

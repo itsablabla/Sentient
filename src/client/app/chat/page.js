@@ -419,12 +419,13 @@ export default function ChatPage() {
 			})
 			const response = await responsePromise
 			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({
-					detail: `Request failed with status ${response.status}`
-				}))
-				const error = new Error(
-					errorData.detail || "An unexpected error occurred."
-				)
+				const errorData = await response.json().catch(() => ({}))
+				const errorMessage =
+					errorData.traceback ||
+					errorData.detail ||
+					errorData.message ||
+					"An unexpected error occurred."
+				const error = new Error(errorMessage)
 				error.status = response.status
 				throw error
 			}
@@ -458,7 +459,7 @@ export default function ChatPage() {
 						}
 
 						queryClient.setQueryData(["chatHistory"], (oldData) => {
-							if (!oldData) return oldData
+							if (!oldData || !oldData.pages) return oldData
 							const newPages = oldData.pages.map(
 								(page, pageIndex) => {
 									if (
@@ -514,7 +515,11 @@ export default function ChatPage() {
 									return page
 								}
 							)
-							return { ...oldData, pages: newPages }
+							return {
+								...oldData,
+								pages: newPages,
+								pageParams: oldData.pageParams || [null]
+							}
 						})
 					} catch (parseError) {
 						// This might be raw text if streaming fails to produce JSON
@@ -527,38 +532,45 @@ export default function ChatPage() {
 			const previousHistory = queryClient.getQueryData(["chatHistory"])
 
 			queryClient.setQueryData(["chatHistory"], (oldData) => {
-				const newPage = {
-					messages: [
-						newUserMessage,
+				const defaultData = { pages: [], pageParams: [null] }
+				const data = oldData || defaultData
+				const pages = data.pages || []
+
+				const lastPageIndex = pages.length - 1
+				const lastPage = lastPageIndex >= 0 ? pages[lastPageIndex] : null
+
+				const newMessagePair = [
+					newUserMessage,
+					{
+						id: newUserMessage.assistantTempId,
+						role: "assistant",
+						content: "",
+						timestamp: new Date().toISOString(),
+						tools: [],
+						turn_steps: []
+					}
+				]
+
+				let newPages
+				if (lastPage) {
+					newPages = [...pages]
+					newPages[lastPageIndex] = {
+						...lastPage,
+						messages: [...lastPage.messages, ...newMessagePair]
+					}
+				} else {
+					newPages = [
 						{
-							id: newUserMessage.assistantTempId,
-							role: "assistant",
-							content: "",
-							timestamp: new Date().toISOString(),
-							tools: [],
-							turn_steps: []
+							messages: newMessagePair,
+							hasMore: false
 						}
-					],
-					hasMore: oldData?.pages[oldData.pages.length - 1]?.hasMore
+					]
 				}
 
-				const lastPage = oldData?.pages[oldData.pages.length - 1]
-				const newPages = oldData?.pages
-					? [
-							...oldData.pages.slice(0, -1),
-							{
-								...lastPage,
-								messages: [
-									...lastPage.messages,
-									...newPage.messages
-								]
-							}
-						]
-					: [newPage]
-
 				return {
-					...oldData,
-					pages: newPages
+					...data,
+					pages: newPages,
+					pageParams: data.pageParams || [null]
 				}
 			})
 

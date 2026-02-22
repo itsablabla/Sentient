@@ -97,7 +97,7 @@ class SupabaseManager:
         # Check if the profile exists
         existing = self.client.table("user_profiles").select("id, user_data").eq("user_id", user_id).maybe_single().execute()
 
-        if existing.data:
+        if existing and existing.data:
             # UPDATE existing profile
             update_payload = {"last_updated": now_utc}
 
@@ -118,7 +118,7 @@ class SupabaseManager:
                 update_payload.update(top_level_updates)
 
             result = self.client.table("user_profiles").update(update_payload).eq("user_id", user_id).execute()
-            return len(result.data) > 0
+            return result and result.data and len(result.data) > 0
         else:
             # INSERT new profile
             new_user_data = {}
@@ -140,7 +140,7 @@ class SupabaseManager:
             insert_payload.update(top_level_updates)
 
             result = self.client.table("user_profiles").insert(insert_payload).execute()
-            return len(result.data) > 0
+            return result and result.data and len(result.data) > 0
 
     async def update_user_last_active(self, user_id: str) -> bool:
         if not user_id:
@@ -149,7 +149,7 @@ class SupabaseManager:
 
         existing = self.client.table("user_profiles").select("id, user_data").eq("user_id", user_id).maybe_single().execute()
 
-        if existing.data:
+        if existing and existing.data:
             user_data = existing.data.get("user_data", {}) or {}
             user_data["last_active_timestamp"] = now_utc
             self.client.table("user_profiles").update({
@@ -174,7 +174,7 @@ class SupabaseManager:
             .gte("updated_at", start_date.isoformat()) \
             .lt("updated_at", end_date.isoformat()) \
             .execute()
-        return result.count or 0
+        return (result and result.count) or 0
 
     async def has_notification_type(self, user_id: str, notification_type: str) -> bool:
         if not user_id or not notification_type:
@@ -185,58 +185,76 @@ class SupabaseManager:
             .eq("type", notification_type) \
             .limit(1) \
             .execute()
-        return len(result.data) > 0
+        return result and result.data and len(result.data) > 0
 
     # --- Usage Tracking Methods ---
     async def get_or_create_daily_usage(self, user_id: str) -> Dict[str, Any]:
-        today_str = _now_utc().strftime("%Y-%m-%d")
-        result = self.client.table("daily_usage").select("*").eq("user_id", user_id).eq("date", today_str).maybe_single().execute()
-        if result.data:
-            return result.data
-        # Create new
-        insert_result = self.client.table("daily_usage").upsert({
-            "user_id": user_id,
-            "date": today_str,
-        }, on_conflict="user_id,date").execute()
-        return insert_result.data[0] if insert_result.data else {"user_id": user_id, "date": today_str}
-
-    async def increment_daily_usage(self, user_id: str, feature: str, amount: int = 1):
-        today_str = _now_utc().strftime("%Y-%m-%d")
-        # Ensure the row exists first
-        existing = self.client.table("daily_usage").select(feature).eq("user_id", user_id).eq("date", today_str).maybe_single().execute()
-        if existing.data:
-            current_val = existing.data.get(feature, 0) or 0
-            self.client.table("daily_usage").update({feature: current_val + amount}).eq("user_id", user_id).eq("date", today_str).execute()
-        else:
-            self.client.table("daily_usage").insert({
+        try:
+            today_str = _now_utc().strftime("%Y-%m-%d")
+            result = self.client.table("daily_usage").select("*").eq("user_id", user_id).eq("date", today_str).maybe_single().execute()
+            if result and result.data:
+                return result.data
+            # Create new
+            insert_result = self.client.table("daily_usage").upsert({
                 "user_id": user_id,
                 "date": today_str,
-                feature: amount,
-            }).execute()
+            }, on_conflict="user_id,date").execute()
+            if not insert_result or not insert_result.data:
+                return {"user_id": user_id, "date": today_str}
+            return insert_result.data[0] if isinstance(insert_result.data, list) and insert_result.data else insert_result.data
+        except Exception as e:
+            logger.error(f"Error in get_or_create_daily_usage for {user_id}: {e}")
+            return {"user_id": user_id, "date": _now_iso()[:10]}
+
+    async def increment_daily_usage(self, user_id: str, feature: str, amount: int = 1):
+        try:
+            today_str = _now_utc().strftime("%Y-%m-%d")
+            # Ensure the row exists first
+            existing = self.client.table("daily_usage").select(feature).eq("user_id", user_id).eq("date", today_str).maybe_single().execute()
+            if existing and existing.data:
+                current_val = existing.data.get(feature, 0) or 0
+                self.client.table("daily_usage").update({feature: current_val + amount}).eq("user_id", user_id).eq("date", today_str).execute()
+            else:
+                self.client.table("daily_usage").insert({
+                    "user_id": user_id,
+                    "date": today_str,
+                    feature: amount,
+                }).execute()
+        except Exception as e:
+            logger.error(f"Failed to increment daily usage for {user_id}, feature {feature}: {e}")
 
     async def get_or_create_monthly_usage(self, user_id: str) -> Dict[str, Any]:
-        current_month_str = _now_utc().strftime("%Y-%m")
-        result = self.client.table("monthly_usage").select("*").eq("user_id", user_id).eq("month", current_month_str).maybe_single().execute()
-        if result.data:
-            return result.data
-        insert_result = self.client.table("monthly_usage").upsert({
-            "user_id": user_id,
-            "month": current_month_str,
-        }, on_conflict="user_id,month").execute()
-        return insert_result.data[0] if insert_result.data else {"user_id": user_id, "month": current_month_str}
-
-    async def increment_monthly_usage(self, user_id: str, feature: str, amount: int = 1):
-        current_month_str = _now_utc().strftime("%Y-%m")
-        existing = self.client.table("monthly_usage").select(feature).eq("user_id", user_id).eq("month", current_month_str).maybe_single().execute()
-        if existing.data:
-            current_val = existing.data.get(feature, 0) or 0
-            self.client.table("monthly_usage").update({feature: current_val + amount}).eq("user_id", user_id).eq("month", current_month_str).execute()
-        else:
-            self.client.table("monthly_usage").insert({
+        try:
+            current_month_str = _now_utc().strftime("%Y-%m")
+            result = self.client.table("monthly_usage").select("*").eq("user_id", user_id).eq("month", current_month_str).maybe_single().execute()
+            if result and result.data:
+                return result.data
+            insert_result = self.client.table("monthly_usage").upsert({
                 "user_id": user_id,
                 "month": current_month_str,
-                feature: amount,
-            }).execute()
+            }, on_conflict="user_id,month").execute()
+            if not insert_result or not insert_result.data:
+                return {"user_id": user_id, "month": current_month_str}
+            return insert_result.data[0] if isinstance(insert_result.data, list) and insert_result.data else insert_result.data
+        except Exception as e:
+            logger.error(f"Error in get_or_create_monthly_usage for {user_id}: {e}")
+            return {"user_id": user_id, "month": _now_iso()[:7]}
+
+    async def increment_monthly_usage(self, user_id: str, feature: str, amount: int = 1):
+        try:
+            current_month_str = _now_utc().strftime("%Y-%m")
+            existing = self.client.table("monthly_usage").select(feature).eq("user_id", user_id).eq("month", current_month_str).maybe_single().execute()
+            if existing and existing.data:
+                current_val = existing.data.get(feature, 0) or 0
+                self.client.table("monthly_usage").update({feature: current_val + amount}).eq("user_id", user_id).eq("month", current_month_str).execute()
+            else:
+                self.client.table("monthly_usage").insert({
+                    "user_id": user_id,
+                    "month": current_month_str,
+                    feature: amount,
+                }).execute()
+        except Exception as e:
+            logger.error(f"Failed to increment monthly usage for {user_id}, feature {feature}: {e}")
 
     # --- Notification Methods ---
     async def get_notifications(self, user_id: str) -> List[Dict]:
@@ -249,6 +267,8 @@ class SupabaseManager:
             .limit(50) \
             .execute()
 
+        if not result:
+            return []
         notifications_list = result.data or []
 
         if DB_ENCRYPTION_ENABLED:
@@ -293,7 +313,7 @@ class SupabaseManager:
 
         result = self.client.table("notifications").insert(insert_payload).execute()
 
-        if result.data:
+        if result and result.data:
             # Enforce max 50 notifications per user: delete oldest beyond 50
             count_result = self.client.table("notifications").select("id", count="exact").eq("user_id", user_id).execute()
             if count_result.count and count_result.count > 50:
@@ -304,7 +324,7 @@ class SupabaseManager:
                     .order("created_at", desc=True) \
                     .range(50, count_result.count) \
                     .execute()
-                if oldest.data:
+                if oldest and oldest.data:
                     old_ids = [row["id"] for row in oldest.data]
                     self.client.table("notifications").delete().in_("id", old_ids).execute()
 
@@ -319,7 +339,7 @@ class SupabaseManager:
             .eq("user_id", user_id) \
             .eq("notification_id", notification_id) \
             .execute()
-        return len(result.data) > 0
+        return result and result.data and len(result.data) > 0
 
     async def delete_all_notifications(self, user_id: str):
         if not user_id:
@@ -330,7 +350,7 @@ class SupabaseManager:
         if not user_id or not endpoint:
             return False
         existing = self.client.table("user_profiles").select("user_data").eq("user_id", user_id).maybe_single().execute()
-        if not existing.data:
+        if not existing or not existing.data:
             return False
         user_data = existing.data.get("user_data", {}) or {}
         subs = user_data.get("pwa_subscriptions", []) or []
@@ -352,7 +372,7 @@ class SupabaseManager:
             .order("updated_at", desc=True) \
             .limit(limit) \
             .execute()
-        tasks = result.data or []
+        tasks = (result and result.data) or []
         _decrypt_docs(tasks, ["name"])
         return tasks
 
@@ -407,7 +427,7 @@ class SupabaseManager:
 
     async def get_task(self, task_id: str, user_id: str) -> Optional[Dict]:
         result = self.client.table("tasks").select("*").eq("task_id", task_id).eq("user_id", user_id).maybe_single().execute()
-        doc = result.data
+        doc = result.data if result else None
         decrypt_doc(doc, SENSITIVE_TASK_FIELDS)
         return doc
 
@@ -418,7 +438,7 @@ class SupabaseManager:
             .eq("status", "active") \
             .in_("task_type", ["recurring", "triggered"]) \
             .execute()
-        return result.count or 0
+        return (result and result.count) or 0
 
     async def get_all_tasks_for_user(self, user_id: str) -> List[Dict]:
         result = self.client.table("tasks") \
@@ -426,7 +446,7 @@ class SupabaseManager:
             .eq("user_id", user_id) \
             .order("created_at", desc=True) \
             .execute()
-        docs = result.data or []
+        docs = (result and result.data) or []
         _decrypt_docs(docs, SENSITIVE_TASK_FIELDS)
         return docs
 
@@ -438,7 +458,7 @@ class SupabaseManager:
             .eq("task_id", task_id) \
             .eq("user_id", user_id) \
             .execute()
-        return len(result.data) > 0
+        return result and result.data and len(result.data) > 0
 
     async def add_answers_to_task(self, task_id: str, answers: List[Dict], user_id: str) -> bool:
         task = await self.get_task(task_id, user_id)
@@ -477,7 +497,7 @@ class SupabaseManager:
 
         # 3. Delete the parent task
         delete_result = self.client.table("tasks").delete().eq("task_id", task_id).eq("user_id", user_id).execute()
-        parent_deleted = len(delete_result.data) > 0
+        parent_deleted = delete_result and delete_result.data and len(delete_result.data) > 0
 
         if not parent_deleted and not sub_task_ids:
             return False, []
@@ -500,11 +520,11 @@ class SupabaseManager:
             .execute()
 
         matching_ids = []
-        for task in (result.data or []):
+        for task in ((result and result.data) or []):
             task_id = task["task_id"]
             # Get full task to check runs.plan.tool
             full_task = self.client.table("tasks").select("runs").eq("task_id", task_id).maybe_single().execute()
-            if full_task.data:
+            if full_task and full_task.data:
                 runs = full_task.data.get("runs", []) or []
                 for run in runs:
                     plan_steps = run.get("plan", []) or []
@@ -605,7 +625,7 @@ class SupabaseManager:
 
         encrypt_doc(update_doc, SENSITIVE_TASK_FIELDS)
         result = self.client.table("tasks").update(update_doc).eq("task_id", task_id).eq("user_id", user_id).execute()
-        logger.info(f"Updated task {task_id} with a generated plan. Updated: {len(result.data) > 0}")
+        logger.info(f"Updated task {task_id} with a generated plan. Updated: {result and result.data and len(result.data) > 0}")
 
     async def save_plan_as_task(self, user_id: str, name: str, description: str, plan: list, original_context: dict, source_event_id: str) -> str:
         task_id = str(uuid.uuid4())
@@ -638,7 +658,7 @@ class SupabaseManager:
         # Prevent duplicate user messages if client retries
         if role == "user" and message_id:
             existing = self.client.table("messages").select("*").eq("message_id", final_message_id).eq("user_id", user_id).maybe_single().execute()
-            if existing.data:
+            if existing and existing.data:
                 logger.info(f"Message with ID {final_message_id} already exists for user {user_id}. Skipping.")
                 return existing.data
 
@@ -660,7 +680,7 @@ class SupabaseManager:
 
         result = self.client.table("messages").insert(message_doc).execute()
         logger.info(f"Added message for user {user_id} with role {role}")
-        return result.data[0] if result.data else message_doc
+        return result.data[0] if result and result.data else message_doc
 
     async def get_message_history(self, user_id: str, limit: int, before_timestamp_iso: Optional[str] = None) -> List[Dict]:
         query = self.client.table("messages").select("*").eq("user_id", user_id)
@@ -673,7 +693,7 @@ class SupabaseManager:
                 logger.warning(f"Invalid before_timestamp format: {before_timestamp_iso}, ignoring.")
 
         result = query.order("created_at", desc=True).limit(limit).execute()
-        messages = result.data or []
+        messages = (result and result.data) or []
 
         SENSITIVE_MESSAGE_FIELDS = ["content", "turn_steps"]
         _decrypt_docs(messages, SENSITIVE_MESSAGE_FIELDS)
@@ -684,17 +704,36 @@ class SupabaseManager:
 
         return messages
 
+    async def update_message(self, user_id: str, message_id: str, updates: Dict) -> bool:
+        """Helper to update a message in Supabase, replacing MongoDB-style update_one."""
+        if not user_id or not message_id:
+            return False
+        
+        # Strip internal MongoDB fields if they leak in
+        updates.pop("_id", None)
+        
+        SENSITIVE_MESSAGE_FIELDS = ["content", "turn_steps"]
+        encrypt_doc(updates, SENSITIVE_MESSAGE_FIELDS)
+        
+        result = self.client.table("messages") \
+            .update(updates) \
+            .eq("user_id", user_id) \
+            .eq("message_id", message_id) \
+            .execute()
+        
+        return result and result.data and len(result.data) > 0
+
     async def delete_message(self, user_id: str, message_id: str) -> bool:
         if not user_id or not message_id:
             return False
         result = self.client.table("messages").delete().eq("user_id", user_id).eq("message_id", message_id).execute()
-        return len(result.data) > 0
+        return result and result.data and len(result.data) > 0
 
     async def delete_all_messages(self, user_id: str) -> int:
         if not user_id:
             return 0
         result = self.client.table("messages").delete().eq("user_id", user_id).execute()
-        count = len(result.data) if result.data else 0
+        count = len(result.data) if result and result.data else 0
         logger.info(f"Deleted {count} messages for user {user_id}.")
         return count
 

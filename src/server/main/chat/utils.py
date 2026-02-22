@@ -542,9 +542,10 @@ async def process_voice_command(
 
         if query_type == "conversational":
             logger.info(f"Handling conversational query for user {user_id}.")
-            await db_manager.messages_collection.update_one(
-                {"message_id": assistant_message_id, "user_id": user_id},
-                {"$set": {"content": response_for_tts}}
+            await db_manager.update_message(
+                user_id=user_id,
+                message_id=assistant_message_id,
+                updates={"content": response_for_tts}
             )
             return {"final_response": response_for_tts, "assistant_message_id": assistant_message_id}
 
@@ -566,9 +567,10 @@ async def process_voice_command(
             refine_and_plan_ai_task.delay(new_task_id, user_id)
             logger.info(f"Dispatched complex task {new_task_id} to Celery for user {user_id}.")
             
-            await db_manager.messages_collection.update_one(
-                {"message_id": assistant_message_id, "user_id": user_id},
-                {"$set": {"content": response_for_tts}}
+            await db_manager.update_message(
+                user_id=user_id,
+                message_id=assistant_message_id,
+                updates={"content": response_for_tts}
             )
             return {"final_response": response_for_tts, "assistant_message_id": assistant_message_id}
 
@@ -601,8 +603,9 @@ async def process_voice_command(
         logger.error(f"Error processing voice command for {user_id}: {e}", exc_info=True)
         error_msg = "I encountered an error while processing your request."
 
-        await db_manager.messages_collection.update_one(
-            {"message_id": assistant_message_id},
-            {"$set": {"content": error_msg}}
+        await db_manager.update_message(
+            user_id=user_id,
+            message_id=assistant_message_id,
+            updates={"content": error_msg}
         )
         return {"final_response": error_msg, "assistant_message_id": assistant_message_id}

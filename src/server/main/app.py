@@ -1,5 +1,6 @@
-import time
+import traceback
 import sys
+import time
 from unittest.mock import MagicMock
 
 # --- Mock pyiceberg to avoid storage3 import errors on Windows ---
@@ -170,6 +171,19 @@ app.add_middleware(
     allow_methods=["*"], 
     allow_headers=["*"]
 )
+
+@app.middleware("http")
+async def error_logging_middleware(request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as e:
+        tb = traceback.format_exc()
+        logger.error(f"Unhandled exception during {request.method} {request.url.path}:\n{tb}")
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=500,
+            content={"message": str(e), "traceback": tb}
+        )
 
 # FIX: Mount the FastRTC stream with a /voice prefix
 voice_stream.mount(app, "/voice")
