@@ -37,7 +37,10 @@ try {
     foreach ($P in $PortsToClean) {
         $Conn = Get-NetTCPConnection -LocalPort $P -ErrorAction SilentlyContinue
         if ($Conn) {
-            Stop-Process -Id $Conn.OwningProcess -Force -ErrorAction SilentlyContinue
+            $proc = Get-Process -Id $Conn.OwningProcess -ErrorAction SilentlyContinue
+            if ($proc -and $proc.ProcessName -notmatch "docker|com.docker|wsl|vmmem") {
+                Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            }
         }
     }
     Write-Host "   - Cleaned up potential port conflicts." -ForegroundColor Green
