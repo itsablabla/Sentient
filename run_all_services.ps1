@@ -45,6 +45,17 @@ try {
     # Prerequisite check
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         Write-Warning "Docker command not found. Redis and other services might fail if not installed locally."
+    } else {
+        # Check if Docker engine is running
+        Write-Host "🐳 Checking Docker status..." -ForegroundColor Gray
+        docker info > $null 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Docker Desktop is not running or not accessible."
+            Write-Host "   👉 Action Required: Please start Docker Desktop and wait for it to initialize." -ForegroundColor Yellow
+            Write-Host "   Then run this script again." -ForegroundColor Gray
+            exit 1
+        }
+        Write-Host "   - Docker is running." -ForegroundColor Green
     }
 
     # Get the directory where the script is located (your project root)

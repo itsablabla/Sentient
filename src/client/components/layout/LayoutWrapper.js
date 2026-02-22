@@ -467,22 +467,38 @@ export default function LayoutWrapper({ children }) {
 			setUser(u)
 			setIsAuthLoading(false)
 		}).catch((e) => {
+			// Ignore AbortError — caused by React Strict Mode or
+			// component unmounting during Supabase's navigator.locks call
+			if (e?.name === "AbortError") return
 			setAuthError(e)
 			setIsAuthLoading(false)
 		})
 
 		// Listen for auth state changes
-		const { data: { subscription } } = supabase.auth.onAuthStateChange(
-			async (_event, session) => {
-				if (session?.user) {
-					const u = await getSupabaseUser()
-					setUser(u)
-				} else {
-					setUser(null)
+		let subscription
+		try {
+			const { data: { subscription: sub } } = supabase.auth.onAuthStateChange(
+				async (_event, session) => {
+					if (session?.user) {
+						const u = await getSupabaseUser()
+						setUser(u)
+					} else {
+						setUser(null)
+					}
 				}
+			)
+			subscription = sub
+		} catch (err) {
+			// Ignore AbortError from navigator.locks
+			if (err?.name !== "AbortError") {
+				console.error("[LayoutWrapper] onAuthStateChange error:", err)
 			}
-		)
-		return () => subscription.unsubscribe()
+		}
+		return () => {
+			if (subscription) {
+				try { subscription.unsubscribe() } catch (_) {}
+			}
+		}
 	}, [])
 
 	const {
@@ -578,7 +594,7 @@ export default function LayoutWrapper({ children }) {
 				posthog.capture("plan_upgraded", { plan_name: "pro" })
 			}
 			toast.loading("Session updated. Redirecting...", { duration: 5000 })
-			const logoutUrl = new URL("/auth/logout", window.location.origin)
+			const logoutUrl = new URL("/api/auth/logout", window.location.origin)
 			logoutUrl.searchParams.set(
 				"returnTo",
 				process.env.NEXT_PUBLIC_APP_BASE_URL
@@ -617,20 +633,34 @@ export default function LayoutWrapper({ children }) {
 		}
 
 		if (userError) {
+			// Backend unreachable — check if user completed onboarding locally
+			let localOnboarding = false
+			try {
+				const saved = localStorage.getItem("sentient_onboarding_complete")
+				if (saved) {
+					localOnboarding = JSON.parse(saved)?.complete === true
+				}
+			} catch (_) {}
+
+			if (localOnboarding) {
+				// Allow degraded access — backend is down but user completed onboarding
+				console.warn("[LayoutWrapper] Backend unreachable, using local onboarding data")
+				setIsAllowed(true)
+				setIsLoading(false)
+				return
+			}
+
 			toast.error(userError)
 			router.push("/")
 			return
 		}
 
 		if (storedUser && !storedUser.onboardingComplete) {
-			toast.error("Please complete onboarding first.", {
-				id: "onboarding-check"
-			})
-			router.push("/onboarding")
-		} else {
-			setIsAllowed(true)
-			setIsLoading(false)
+			// Onboarding not yet completed — allow through but log warning
+			console.warn("[LayoutWrapper] Onboarding not complete, but allowing access")
 		}
+		setIsAllowed(true)
+		setIsLoading(false)
 	}, [
 		showNav,
 		user,

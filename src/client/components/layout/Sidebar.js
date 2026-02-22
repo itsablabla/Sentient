@@ -44,6 +44,7 @@ import {
 	ModalCloseButton
 } from "@components/ui/ModalDialog"
 import { useTourStore, useUserStore, useUIStore } from "@stores/app-stores"
+import { supabase } from "@lib/supabase"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -330,16 +331,17 @@ const UserProfileSection = ({ isCollapsed, user }) => {
 									<IconAdjustments size={16} />
 									<span>Account & Billing</span>
 								</a>
-								<a
-									href="/auth/logout"
-									onClick={() => {
+								<button
+									onClick={async () => {
 										posthog?.reset()
+										await supabase.auth.signOut()
+										window.location.href = "/api/auth/logout"
 									}}
 									className="w-full flex items-center gap-2 text-left px-3 py-2 text-sm rounded-md text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors"
 								>
 									<IconLogout size={16} />
 									<span>Logout</span>
-								</a>
+								</button>
 							</motion.div>
 						)}
 					</AnimatePresence>

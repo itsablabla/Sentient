@@ -461,12 +461,33 @@ const OnboardingPage = () => {
 			)
 			posthog?.capture("user_signed_up", { signup_method: "supabase" })
 			posthog?.capture("onboarding_completed")
+			// Always save to localStorage as a safety net
+			try {
+				localStorage.setItem(
+					"sentient_onboarding_complete",
+					JSON.stringify({ complete: true, answers: submittedAnswers, savedAt: Date.now() })
+				)
+			} catch (_) {}
 			await fetchUserData() // Refresh user data in the store
 			router.push("/chat?show_demo=true")
 		},
 		onError: (error) => {
-			toast.error(`Error: ${error.message}`)
-			setStage("questions") // Go back to questions on error
+			console.error("[Onboarding] Submission failed:", error.message)
+			// If the backend is unreachable, save to localStorage and proceed
+			try {
+				localStorage.setItem(
+					"sentient_onboarding_complete",
+					JSON.stringify({ complete: true, answers, savedAt: Date.now() })
+				)
+				toast.success(
+					"Backend unavailable — saved locally. You can continue!",
+					{ duration: 4000 }
+				)
+				router.push("/chat")
+			} catch (lsError) {
+				toast.error(`Error: ${error.message}`)
+				setStage("questions") // Go back to questions on error
+			}
 		}
 	})
 

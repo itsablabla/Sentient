@@ -17,6 +17,7 @@ export const POST = withAuth(async function POST(request, { authHeader }) {
 
 		const data = await response.json()
 		if (!response.ok) {
+			console.error(`[Onboarding] Backend failed with status ${response.status}:`, data)
 			throw new Error(data.message || "Failed to save onboarding data")
 		}
 		return NextResponse.json(data)
