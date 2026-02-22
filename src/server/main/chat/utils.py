@@ -385,7 +385,7 @@ async def generate_chat_llm_stream(
         yield json.dumps({"type": "error", "message": "Sorry, our AI provider is currently down. Please try again later."}) + "\n"
     except Exception as e:
         logger.error(f"Error during main chat agent run for user {user_id}: {e}", exc_info=True)
-        yield {"type": "error", "message": "An unexpected error occurred in the chat agent."}
+        yield {"type": "error", "message": f"An unexpected error occurred: {str(e)}"}
     finally:
         if final_assistant_messages:
             parsed_data = parse_assistant_response(final_assistant_messages)

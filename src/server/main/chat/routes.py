@@ -95,7 +95,7 @@ async def chat_endpoint(
             logger.error(f"Error in chat stream for user {user_id}: {e}")
             error_response = {
                 "type": "error",
-                "message": "Sorry, I encountered an error while processing your request."
+                "message": f"Sorry, I encountered an error: {str(e)}"
             }
             yield json.dumps(error_response) + "\n"
         finally:
