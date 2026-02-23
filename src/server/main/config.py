@@ -26,8 +26,8 @@ APP_SERVER_PORT = int(os.getenv("APP_SERVER_PORT", 5000))
 SELF_HOST_AUTH_SECRET = os.getenv("SELF_HOST_AUTH_SECRET")
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
 ALGORITHMS = ["ES256", "HS256"]  # ES256 for newer Supabase projects, HS256 as fallback
-AUTH0_SCOPE = os.getenv("AUTH0_SCOPE")  # Kept for selfhost permissions fallback
-AUTH0_AUDIENCE = os.getenv("AUTH0_AUDIENCE")
+# Auth0 removed; auth is Supabase (or selfhost static token) only.
+AUTH0_AUDIENCE = os.getenv("AUTH0_AUDIENCE")  # Unused; kept for env compatibility
 
 # --- Database (Supabase) ---
 SUPABASE_URL = os.getenv("SUPABASE_URL")

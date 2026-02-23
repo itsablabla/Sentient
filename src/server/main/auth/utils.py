@@ -17,9 +17,16 @@ import base64
 from main.config import (
     ENVIRONMENT, SELF_HOST_AUTH_SECRET,
     AES_SECRET_KEY, AES_IV,
-    AUTH0_SCOPE, SUPABASE_JWT_SECRET, ALGORITHMS,
+    SUPABASE_JWT_SECRET, ALGORITHMS,
     SUPABASE_URL
 )
+
+# All app permissions. Supabase auth does not use Auth0-style scopes; any valid user gets full access.
+ALL_APP_PERMISSIONS = [
+    "read:chat", "write:chat", "read:profile", "write:profile",
+    "read:config", "write:config", "read:tasks", "write:tasks",
+    "read:notifications", "write:notifications", "read:memory", "write:memory",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +58,12 @@ def _get_jwks_keys() -> dict:
         return {"keys": []}
 
 
+def _ensure_supabase_permissions(payload: dict) -> None:
+    """Supabase JWTs do not include Auth0-style permissions. Grant full app permissions to any valid user."""
+    if not payload.get("permissions"):
+        payload["permissions"] = list(ALL_APP_PERMISSIONS)
+
+
 class AuthHelper:
     async def _validate_token_and_get_payload(self, token: str) -> dict:
         # --- Selfhost mode: static token ---
@@ -59,10 +72,9 @@ class AuthHelper:
                 logger.critical("selfhost mode is active but SELF_HOST_AUTH_SECRET is not set.")
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Self-host auth secret not configured.")
             if token == SELF_HOST_AUTH_SECRET:
-                permissions = AUTH0_SCOPE.split() if AUTH0_SCOPE else []
                 return {
                     "sub": "self-hosted-user",
-                    "permissions": permissions,
+                    "permissions": ALL_APP_PERMISSIONS,
                     "email": "selfhost@example.com"
                 }
             else:
@@ -105,6 +117,7 @@ class AuthHelper:
                     options={"verify_aud": False}
                 )
                 print(f"[AUTH] JWT validation SUCCESS (ES256). sub={payload.get('sub')}")
+                _ensure_supabase_permissions(payload)
                 return payload
             else:
                 # HS256: verify using JWT secret
@@ -119,6 +132,7 @@ class AuthHelper:
                     options={"verify_aud": False}
                 )
                 print(f"[AUTH] JWT validation SUCCESS (HS256). sub={payload.get('sub')}")
+                _ensure_supabase_permissions(payload)
                 return payload
         except JWTError as e:
             print(f"[AUTH] JWT validation FAILED ({alg}): {e}")

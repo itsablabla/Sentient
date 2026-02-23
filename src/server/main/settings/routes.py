@@ -85,17 +85,8 @@ async def set_whatsapp_notification_number(
     request: WhatsAppNotificationNumberRequest,
     payload: dict = Depends(auth_helper.get_decoded_payload_with_claims)
 ):
-    # 1. First, ensure the user has the required permission from the token payload
-    required_permission = "write:config"
-    if required_permission not in payload.get("permissions", []):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Missing required permission: {required_permission}"
-        )
-
-    # 2. Extract user_id and email directly from the validated token payload
     user_id = payload.get("sub")
-    user_email = payload.get("email") # This is the reliable email from Auth0    
+    user_email = payload.get("email")    
     
     whatsapp_number = request.whatsapp_notifications_number.strip() if request.whatsapp_notifications_number else ""
     if not whatsapp_number:
