@@ -6,7 +6,8 @@ uvicorn[standard]
 python-dotenv
 
 # --- Authentication & Security ---
-
+# Use python-jose (imports as jose); do not install the 'jose' package (Python 2 only).
+python-jose[cryptography]
 cryptography
 
 # --- Asynchronous & HTTP Clients ---
@@ -19,6 +20,7 @@ motor
 redis
 asyncpg
 pgvector
+supabase
 
 # --- AI & Machine Learning ---
 qwen-agent

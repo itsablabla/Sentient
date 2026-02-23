@@ -14,26 +14,16 @@
 #   with a clear title.
 #
 # NOTES:
-#   - Run this script from the project's root directory.
-#   - You might need to install 'gnome-terminal' or change the TERMINAL_CMD
-#     variable below to your preferred terminal emulator (e.g., konsole, xterm, terminator).
+#   - Run this script from the project's root directory (from an already-open terminal).
+#   - Terminal emulator: gnome-terminal (default on Ubuntu). Change TERMINAL_CMD for others (e.g. konsole).
 #   - Ensure services like MongoDB, Redis, and Docker are installed and enabled.
 #   - This script may require 'sudo' for starting system services.
 #
 # ==============================================================================
 
 # --- Configuration ---
-# Select your preferred terminal emulator to launch services.
-# If you encounter "symbol lookup error" with gnome-terminal (a common issue with Snap),
-# try changing this to a different terminal you have installed.
-#
-# Examples:
-# TERMINAL_CMD="xterm -e"
-# TERMINAL_CMD="konsole -e"
-# This command forces a new window for each service, which is ideal for Alt+Tabbing.
+# Terminal emulator used to spawn one window per service.
 TERMINAL_CMD="gnome-terminal --window --"
-# If the above still fails due to Snap issues, a great alternative is Terminator:
-# TERMINAL_CMD="terminator -e"
 
 # --- Script Body ---
 # Exit immediately if a command exits with a non-zero status.
@@ -52,11 +42,11 @@ function start_in_new_terminal() {
     local title="$1"
     local command="$2"
     printf "🚀 Launching %s...\n" "$title"
-    # CRITICAL FIX: Unset LD_LIBRARY_PATH to prevent conflicts with Snap-based terminals.
-    # This allows gnome-terminal (as a Snap) to launch correctly from the script's environment.
-    # The rest of the command sets the window title and keeps it open after execution.
-    unset LD_LIBRARY_PATH && \
-    $TERMINAL_CMD /bin/bash -c "echo -ne '\033]0;${title}\a'; ${command}; exec bash" &
+    local safe_cmd
+    safe_cmd=$(printf '%s' "$command" | sed 's/"/\\"/g')
+    local inner_cmd="echo -ne '\\033]0;${title}\\a'; ${safe_cmd}; exec bash"
+    unset LD_LIBRARY_PATH
+    $TERMINAL_CMD bash -c "$inner_cmd" &
     sleep 0.5
 }
 
@@ -94,13 +84,13 @@ if [ ! -f "$ENV_FILE" ]; then
     exit 1
 fi
 
-# Extract Redis password from .env file
+# Extract Redis password from .env file (optional: leave empty if Redis has no password)
 REDIS_PASSWORD=$(grep -E "^\s*REDIS_PASSWORD\s*=" "$ENV_FILE" | cut -d '=' -f 2- | tr -d '"\r' | sed 's/^ *//;s/ *$//')
-if [ -z "$REDIS_PASSWORD" ]; then
-    echo "Error: Could not find REDIS_PASSWORD in '$ENV_FILE'."
-    exit 1
+if [ -n "$REDIS_PASSWORD" ]; then
+    echo "✅ Redis password loaded from .env file."
+else
+    echo "✅ No Redis password in .env (using unauthenticated Redis)."
 fi
-echo "✅ Redis password loaded from .env file."
 
 # --- 1. Start Databases & Core Infrastructure ---
 echo -e "\n--- 1. Starting Databases & Core Infrastructure ---"
@@ -148,16 +138,28 @@ sleep 5
 # --- 2. Resetting Queues & State ---
 echo -e "\n--- 2. Resetting Queues & State ---"
 echo "🚀 Flushing Redis database (Celery Queue)..."
-# Use an environment variable for the password to handle special characters robustly.
-# Add a PING check for better error reporting.
-export REDISCLI_AUTH="$REDIS_PASSWORD"
-if ! redis-cli PING | grep -q "PONG"; then
-    echo "❌ Error: Failed to authenticate with Redis. Please check your REDIS_PASSWORD in the .env file."
+# Try without auth first (default Redis has no password); then with REDIS_PASSWORD if set.
+REDIS_OK=0
+if [ -n "$REDIS_PASSWORD" ]; then
+    export REDISCLI_AUTH="$REDIS_PASSWORD"
+fi
+if redis-cli PING 2>/dev/null | grep -q "PONG"; then
+    REDIS_OK=1
+fi
+if [ "$REDIS_OK" -eq 0 ] && [ -n "$REDIS_PASSWORD" ]; then
+    unset REDISCLI_AUTH
+    if redis-cli PING 2>/dev/null | grep -q "PONG"; then
+        REDIS_OK=1
+        echo "⚠️  Redis has no password; REDIS_PASSWORD in .env is ignored for redis-cli. Set requirepass in Redis to match .env."
+    fi
+fi
+if [ "$REDIS_OK" -eq 0 ]; then
+    echo "❌ Error: Could not connect to Redis (PING failed). Is Redis running? If it uses a password, set REDIS_PASSWORD in .env."
     unset REDISCLI_AUTH
     exit 1
 fi
 redis-cli FLUSHALL
-unset REDISCLI_AUTH # Unset for security
+unset REDISCLI_AUTH
 echo "✅ Redis flushed."
 
 # --- 3. Start MCP Servers ---
@@ -168,7 +170,8 @@ if [ ! -d "$MCP_HUB_PATH" ]; then
     exit 1
 fi
 
-MCP_SERVERS=$(find "$MCP_HUB_PATH" -mindepth 1 -maxdepth 1 -type d -exec basename {} \;)
+# Only list real MCP server dirs (exclude __pycache__, hidden dirs, and non-Python dirs)
+MCP_SERVERS=$(find "$MCP_HUB_PATH" -mindepth 1 -maxdepth 1 -type d ! -name '__pycache__' ! -name '.*' -exec basename {} \; | sort)
 echo "Found the following MCP servers to start:"
 echo "$MCP_SERVERS" | sed 's/^/ - /'
 echo ""
