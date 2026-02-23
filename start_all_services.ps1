@@ -9,7 +9,7 @@
     It launches each service in its own dedicated PowerShell terminal window with a clear title.
 
     The script handles:
-    - Starting databases like MongoDB (as admin) and Docker services (Waha, PGVector, Chroma, LiteLLM).
+    - Starting databases like MongoDB (as admin) and Docker services (PGVector, Chroma, LiteLLM; Redis via Docker on Windows).
     - Launching the Redis message broker within the Windows Subsystem for Linux (WSL).
     - Dynamically discovering and starting all MCP (Modular Companion Protocol) servers.
     - Activating the Python virtual environment for all backend scripts.
@@ -67,16 +67,20 @@ try {
     if (-not (Test-Path -Path $venvActivatePath)) { throw "The venv activation script was not found at '$venvActivatePath'." }
 
     $envFilePath = Join-Path -Path $serverPath -ChildPath ".env"
-    $redisPassword = ""
-    if (Test-Path $envFilePath) {
-        $envContent = Get-Content $envFilePath
-        $passwordLine = $envContent | Select-String -Pattern "^\s*REDIS_PASSWORD\s*=\s*(.+)"
-        if ($passwordLine) {
-            $redisPassword = $passwordLine.Matches[0].Groups[1].Value.Trim()
-        }
+    if (-not (Test-Path $envFilePath)) {
+        throw "Error: .env file not found at '$envFilePath'. Please copy from .env.template."
     }
-    if (-not $redisPassword) {
-        throw "Could not find REDIS_PASSWORD in the src/server/.env file."
+    $redisPassword = ""
+    $envContent = Get-Content $envFilePath
+    $passwordLine = $envContent | Select-String -Pattern "^\s*REDIS_PASSWORD\s*=\s*(.+)"
+    if ($passwordLine) {
+        $redisPassword = $passwordLine.Matches[0].Groups[1].Value.Trim().Trim('"')
+    }
+    if ($redisPassword) {
+        Write-Host "Redis password loaded from .env file." -ForegroundColor Green
+    }
+    else {
+        Write-Host "No Redis password in .env (using unauthenticated Redis)." -ForegroundColor Green
     }
 
     # Helper function to start a process in a new terminal window
@@ -117,10 +121,10 @@ try {
     # (Redis is now started via Docker below)
 
     
-    # Start Docker Containers (Waha, PGVector, Chroma, LiteLLM)
-    Write-Host "🚀 Launching Docker services (Waha, PGVector, Chroma, LiteLLM)..." -ForegroundColor Yellow
+    # Start Docker Containers (PGVector, Chroma, LiteLLM; WAHA commented out to match Linux)
+    Write-Host "🚀 Launching Docker services (PGVector, Chroma, LiteLLM)..." -ForegroundColor Yellow
     $dockerServices = @(
-        @{ Name = "WAHA"; File = "start_waha.yaml" },
+        # @{ Name = "WAHA"; File = "start_waha.yaml" },
         @{ Name = "Redis"; File = "start_redis.yaml" },
         @{ Name = "PGVector"; File = "start_pgvector.yaml" },
         @{ Name = "ChromaDB"; File = "start_chroma.yaml" },
@@ -147,11 +151,47 @@ try {
     Write-Host "Waiting a few seconds for Docker containers to initialize..."
     Start-Sleep -Seconds 5
 
+    # --- 2. Resetting Queues & State ---
+    Write-Host "`n--- 2. Resetting Queues & State ---" -ForegroundColor Cyan
+    Write-Host "🚀 Flushing Redis database (Celery Queue)..." -ForegroundColor Yellow
+    $redisPingArgs = if ($redisPassword) {
+        $escaped = $redisPassword -replace "'", "'\"'\"'"
+        "bash -c \"export REDISCLI_AUTH='$escaped'; redis-cli PING\""
+    }
+    else {
+        "redis-cli PING"
+    }
+    $redisPingResult = wsl -d $wslDistroName -e $redisPingArgs 2>&1
+    if ($redisPingResult -notmatch "PONG") {
+        if ($redisPassword) {
+            $redisPingResultNoAuth = wsl -d $wslDistroName -e redis-cli PING 2>&1
+            if ($redisPingResultNoAuth -match "PONG") {
+                Write-Warning "Redis has no password; REDIS_PASSWORD in .env is ignored for redis-cli. Set requirepass in Redis to match .env."
+            }
+            else {
+                Write-Error "Could not connect to Redis (PING failed). Is Redis running? If it uses a password, set REDIS_PASSWORD in .env."
+                throw "Redis connection failed."
+            }
+        }
+        else {
+            Write-Error "Could not connect to Redis (PING failed). Is Redis running? If it uses a password, set REDIS_PASSWORD in .env."
+            throw "Redis connection failed."
+        }
+    }
+    $redisFlushArgs = if ($redisPassword) {
+        $escaped = $redisPassword -replace "'", "'\"'\"'"
+        "bash -c \"export REDISCLI_AUTH='$escaped'; redis-cli FLUSHALL\""
+    }
+    else {
+        "redis-cli FLUSHALL"
+    }
+    wsl -d $wslDistroName -e $redisFlushArgs | Out-Null
+    Write-Host "Redis flushed." -ForegroundColor Green
 
-    # --- 2. Start MCP Servers ---
-    Write-Host "`n--- 2. Starting All MCP Servers ---" -ForegroundColor Cyan
-    $mcpServers = Get-ChildItem -Path $mcpHubPath -Directory | Select-Object -ExpandProperty Name
-    if ($mcpServers.Count -eq 0) { throw "No MCP server directories found in '$mcpHubPath'." }
+    # --- 3. Starting All MCP Servers ---
+    Write-Host "`n--- 3. Starting All MCP Servers ---" -ForegroundColor Cyan
+    $mcpServers = @(Get-ChildItem -Path $mcpHubPath -Directory | Where-Object { $_.Name -ne "__pycache__" -and $_.Name -notlike ".*" } | Select-Object -ExpandProperty Name | Sort-Object)
+    if (-not $mcpServers -or $mcpServers.Count -eq 0) { throw "No MCP server directories found in '$mcpHubPath'." }
 
     Write-Host "Found the following MCP servers to start:" -ForegroundColor Green
     $mcpServers | ForEach-Object { Write-Host " - $_" }
@@ -165,14 +205,6 @@ try {
         Start-NewTerminal -WindowTitle $windowTitle -Command $commandToRun -WorkDir $serverPath
         Start-Sleep -Milliseconds 500
     }
-
-    # --- 3. Resetting Queues & State (for clean development starts) ---
-    Write-Host "`n--- 3. Resetting Queues & State ---" -ForegroundColor Cyan
-
-    # Clear Redis (Celery queue) - This is fast, runs in the current window.
-    Write-Host "🚀 Flushing Redis database (Celery Queue)..." -ForegroundColor Yellow
-    $redisFlushCommand = "wsl -d $wslDistroName -e redis-cli FLUSHALL"
-    Start-NewTerminal -WindowTitle "RESET - Redis Flush" -Command $redisFlushCommand -WorkDir $serverPath -NoExit:$false
 
     # --- 4. Start Backend Workers ---
     Write-Host "`n--- 4. Starting Backend Workers ---" -ForegroundColor Cyan
@@ -199,7 +231,7 @@ try {
 
     # Start Next.js Client
     Write-Host "🚀 Launching Next.js Client..." -ForegroundColor Yellow
-    Start-NewTerminal -WindowTitle "CLIENT - Next.js" -Command "npm run dev" -WorkDir $clientPath -AsAdmin
+    Start-NewTerminal -WindowTitle "CLIENT - Next.js" -Command "npm run dev" -WorkDir $clientPath
 
     Write-Host "`n✅ All services have been launched successfully in new terminals." -ForegroundColor Green
 }

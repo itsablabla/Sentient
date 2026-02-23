@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # --- Configuration ---
 # This script is designed to be run from the `src/server` directory.
-# It will load your existing .env file to get the PostgreSQL connection details.
+# It uses SUPABASE_DB_URL or DATABASE_URL (Supabase Postgres connection string) for memory tables.
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 if os.path.exists(dotenv_path):
     load_dotenv(dotenv_path=dotenv_path)
@@ -16,22 +16,18 @@ if os.path.exists(dotenv_path):
 else:
     logging.warning(f".env file not found at {dotenv_path}. Relying on shell environment variables.")
 
-POSTGRES_USER = os.getenv("POSTGRES_USER")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
-POSTGRES_HOST = os.getenv("POSTGRES_HOST")
-POSTGRES_PORT = os.getenv("POSTGRES_PORT")
-POSTGRES_DB = os.getenv("POSTGRES_DB")
+SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL") or os.getenv("DATABASE_URL")
 
 async def clear_memory_database():
-    """Connects to PostgreSQL and truncates memory-related tables after user confirmation."""
-    if not all([POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB]):
-        logging.error("PostgreSQL connection details are not fully configured in your .env file.")
+    """Connects to Supabase Postgres and truncates memory-related tables after user confirmation."""
+    if not SUPABASE_DB_URL or not SUPABASE_DB_URL.strip():
+        logging.error("Neither SUPABASE_DB_URL nor DATABASE_URL is set in your .env file.")
         return
 
     print("\n" + "="*80)
     print("⚠️  DANGER: DESTRUCTIVE ACTION AHEAD ⚠️")
     print("="*80)
-    print("This script will permanently delete ALL data from the following PostgreSQL tables:")
+    print("This script will permanently delete ALL data from the following tables:")
     print("  - facts")
     print("  - fact_topics")
     print("\nThis action will erase all user memories and CANNOT be undone.")
@@ -49,15 +45,9 @@ async def clear_memory_database():
 
     conn = None
     try:
-        logging.info(f"Connecting to PostgreSQL database '{POSTGRES_DB}' on {POSTGRES_HOST}...")
-        conn = await asyncpg.connect(
-            user=POSTGRES_USER,
-            password=POSTGRES_PASSWORD,
-            database=POSTGRES_DB,
-            host=POSTGRES_HOST,
-            port=POSTGRES_PORT
-        )
-        logging.info("Successfully connected to PostgreSQL.")
+        logging.info("Connecting to Supabase DB (memory tables)...")
+        conn = await asyncpg.connect(SUPABASE_DB_URL.strip())
+        logging.info("Successfully connected.")
 
         logging.info("Truncating tables: facts, fact_topics...")
         # TRUNCATE is faster than DELETE and also resets identity columns. CASCADE handles foreign keys.
@@ -69,7 +59,7 @@ async def clear_memory_database():
     finally:
         if conn:
             await conn.close()
-            logging.info("PostgreSQL connection closed.")
+            logging.info("Connection closed.")
 
 if __name__ == "__main__":
     asyncio.run(clear_memory_database())

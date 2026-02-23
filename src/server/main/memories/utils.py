@@ -108,6 +108,7 @@ async def create_memory(user_id: str, content: str, source: Optional[str] = "man
     logger.info(f"Creating new memory for user {user_id} from source '{source}'.")
     pool = await db.get_db_pool()
     async with pool.acquire() as conn:
+        await register_vector(conn)
         prompt = fact_analysis_user_prompt_template.format(text=content)
         analysis_raw = llm.run_agent_with_prompt(agents["fact_analysis"], prompt)
         analysis_cleaned = clean_llm_output(analysis_raw)
@@ -123,6 +124,7 @@ async def update_memory(user_id: str, memory_id: int, new_content: str) -> str:
     logger.info(f"Updating memory {memory_id} for user {user_id}.")
     pool = await db.get_db_pool()
     async with pool.acquire() as conn:
+        await register_vector(conn)
         existing = await conn.fetchval("SELECT id FROM facts WHERE id = $1 AND user_id = $2", memory_id, user_id)
         if not existing:
             raise ValueError(f"Memory with ID {memory_id} not found for this user.")
