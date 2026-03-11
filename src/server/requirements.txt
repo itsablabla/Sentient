@@ -26,7 +26,7 @@ composio
 google-genai
 pywebpush
 elevenlabs
-deepgram-sdk
+deepgram-sdk>=3.0.0,<4.0.0
 librosa
 torch
 fastrtc[vad, stt, tts]
