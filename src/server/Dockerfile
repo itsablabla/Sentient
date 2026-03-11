@@ -60,7 +60,9 @@ RUN if [ -f /app/.env ]; then dos2unix /app/.env; fi \
     && chmod +x /app/start.sh
 
 RUN rm -f /etc/nginx/sites-enabled/default \
-    && ln -s /etc/nginx/sites-available/sentient /etc/nginx/sites-enabled/sentient
+    && rm -f /etc/nginx/conf.d/default.conf \
+    && rm -f /etc/nginx/sites-available/default \
+    && ln -sf /etc/nginx/sites-available/sentient /etc/nginx/sites-enabled/sentient
 
 EXPOSE 5000
 
